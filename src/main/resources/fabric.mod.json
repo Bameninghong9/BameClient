@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "bameclient",
+  "version": "${version}",
+  "name": "BameClient",
+  "description": "A clean modern custom client gui.",
+  "authors": [
+    "Me"
+  ],
+  "contact": {
+    "homepage": "",
+    "sources": ""
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/bameclient/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.bame.client.BameClient"
+    ]
+  },
+  "mixins": [
+    "bameclient.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
