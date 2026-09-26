@@ -15,7 +15,7 @@ import org.lwjgl.glfw.GLFW;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     private String selected="World";
-    private boolean expanded,listening,scrollDragging;
+    private boolean expanded,listening,scrollDragging,draggingWidth;
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
     private CustomTextFieldWidget search,corner1,corner2;
@@ -58,7 +58,7 @@ public class BameClientScreen extends Screen {
     private int columns() { return 4; }
     private int effectsY() { return 44+((GuiTheme.PRESETS.length+columns()-1)/columns())*58+18; }
     private int settingsY() { return effectsY(); }
-    private int contentHeight() { return selected.equals("Theme")?settingsY()+themeSettings.height()+8:moduleVisible()?(expanded?336:46):0; }
+    private int contentHeight() { return selected.equals("Theme")?settingsY()+themeSettings.height()+8:moduleVisible()?(expanded?346:46):0; }
     private double maxScroll() { return Math.max(0,contentHeight()-ch); }
     private int baseY() { return cy-(int)scroll; }
     private void layout() {
@@ -72,7 +72,7 @@ public class BameClientScreen extends Screen {
         if(!corner1.active) corner1.setFocused(false);
         if(!corner2.active) corner2.setFocused(false);
         if(!corner1.visible) { corner1.setFocused(false); corner2.setFocused(false); }
-        picker.layout(cx+14,y+228,Math.min(280,cw-28));
+        picker.layout(cx+14,y+228,140);
         themeSettings.layout(cx,y+settingsY(),cw);
     }
     private static String format(BlockPos p) { return p==null?"":p.getX()+" "+p.getY()+" "+p.getZ(); }
@@ -85,6 +85,13 @@ public class BameClientScreen extends Screen {
         if(AutoAreaMinerModule.keyBind<0) return "None";
         String s=GLFW.glfwGetKeyName(AutoAreaMinerModule.keyBind,0);
         return s==null?"Key "+AutoAreaMinerModule.keyBind:s.toUpperCase(java.util.Locale.ROOT);
+    }
+    private void modeButton(DrawContext c,String label,int x,int y,int w,int h,int mx,int my,boolean selected) {
+        boolean hover=inside(mx,my,x,y,w,h);
+        box(c,x,y,w,h,selected?GuiTheme.alpha(GuiTheme.accent(), 80):(hover?0xFF252A34:0xFF181C24));
+        CustomGuiUtils.drawUltraRoundedOutline(c,x,y,w,h,selected?GuiTheme.accent():(hover?0xFF606575:0xFF292D36),4);
+        int tw=textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+        text(c,label,x+(w-tw)/2,y+(h-8)/2,selected?0xFFFFFFFF:0xFFD4D8E0);
     }
     private void button(DrawContext c,String label,int x,int y,int w,int h,int mx,int my) {
         boolean hover=inside(mx,my,x,y,w,h);
@@ -156,7 +163,7 @@ public class BameClientScreen extends Screen {
     }
     private void renderMiner(DrawContext c,int mx,int my,float delta) {
         int y=baseY();
-        box(c,cx,y,cw,expanded?336:46,GuiTheme.alpha(GuiTheme.surface(),BameClientConfig.seeThrough?210:255));
+        box(c,cx,y,cw,expanded?346:46,GuiTheme.alpha(GuiTheme.surface(),BameClientConfig.seeThrough?210:255));
         text(c,"Auto Area Miner",cx+12,y+12,0xFFE2E5ED);
         text(c,"KeyBind:",cx+12,y+29,0xFF8E95A4);
         button(c,keyName(),cx+60,y+25,48,16,mx,my);
@@ -174,7 +181,24 @@ public class BameClientScreen extends Screen {
         int swatchX=cx+cw-30;
         box(c,swatchX,y+211,16,12,0xFF777777);
         box(c,swatchX,y+211,16,12,BameClientConfig.outlineColor);
+        text(c,"Style",cx+170,y+214,0xFFD4D8E0);
+        int mode = BameClientConfig.renderMode;
+        modeButton(c,"Clean",cx+170,y+228,45,18,mx,my,mode==0);
+        modeButton(c,"Outline",cx+220,y+228,55,18,mx,my,mode==1);
+        modeButton(c,"Corners",cx+170,y+250,55,18,mx,my,mode==2);
+        modeButton(c,"Pulse",cx+230,y+250,45,18,mx,my,mode==3);
+        
         picker.render(c);
+
+        int sliderY = y+304;
+        text(c,"Outline Width",cx+14,sliderY,0xFFD4D8E0);
+        int sw = 140; // width of slider
+        CustomGuiUtils.fillUltraRounded(c,cx+14,sliderY+16,sw,4,0xFF303442,2);
+        float widthVal = (BameClientConfig.outlineWidth - 1.0f) / 4.0f; // 0 to 1
+        int fill = Math.round(sw * widthVal);
+        if(fill>0) CustomGuiUtils.fillUltraRounded(c,cx+14,sliderY+16,fill,4,GuiTheme.accent(),2);
+        CustomGuiUtils.fillUltraRounded(c,cx+14+fill-3,sliderY+14,7,8,0xFFFFFFFF,4);
+        text(c,String.format("%.1f", BameClientConfig.outlineWidth),cx+14+sw+8,sliderY+14,0xFFD4D8E0);
     }
     private void renderTheme(DrawContext c,int mx,int my,float delta) {
         int y=baseY(),cols=columns(),tileW=(cw-8*(cols-1))/cols;
@@ -229,6 +253,20 @@ public class BameClientScreen extends Screen {
                 if(inside(mx,my,cx+cw-50,y+156,38,20)) { setCorner(false); return true; }
                 if(inside(mx,my,cx+12,y+184,cw-24,22)) { AutoAreaMinerModule.mode3x3=!AutoAreaMinerModule.mode3x3; BameClientConfig.save(); return true; }
                 if(picker.click(mx,my)) return true;
+                
+                int sliderY = y+304;
+                if(inside(mx,my,cx+10,sliderY+10,150,18)) {
+                    draggingWidth = true;
+                    float val = (float)Math.clamp(((mx - (cx+14)) / 140.0), 0.0, 1.0);
+                    BameClientConfig.outlineWidth = 1.0f + val * 4.0f;
+                    BameClientConfig.save();
+                    return true;
+                }
+                
+                if(inside(mx,my,cx+170,y+228,45,18)) { BameClientConfig.renderMode=0; BameClientConfig.save(); return true; }
+                if(inside(mx,my,cx+220,y+228,55,18)) { BameClientConfig.renderMode=1; BameClientConfig.save(); return true; }
+                if(inside(mx,my,cx+170,y+250,55,18)) { BameClientConfig.renderMode=2; BameClientConfig.save(); return true; }
+                if(inside(mx,my,cx+230,y+250,45,18)) { BameClientConfig.renderMode=3; BameClientConfig.save(); return true; }
             }
         }
         return false;
@@ -244,11 +282,17 @@ public class BameClientScreen extends Screen {
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
         if(themeSettings.dragging()) { themeSettings.drag(click.x(),click.y()); return true; }
         if(scrollDragging) { dragScroll(click.y()); return true; }
+        if(draggingWidth) {
+            float val = (float)Math.clamp(((click.x() - (cx+14)) / 140.0), 0.0, 1.0);
+            BameClientConfig.outlineWidth = 1.0f + val * 4.0f;
+            return true;
+        }
         if(picker.dragging()) { picker.update(click.x(),click.y()); return true; }
         return super.mouseDragged(click,dx,dy);
     }
     @Override public boolean mouseReleased(Click click) {
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging(); scrollDragging=false; picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth;
+        scrollDragging=false; draggingWidth=false; picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {

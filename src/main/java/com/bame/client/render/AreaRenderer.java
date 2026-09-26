@@ -2,7 +2,6 @@ package com.bame.client.render;
 
 import com.bame.client.module.AutoAreaMinerModule;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.util.math.BlockPos;
@@ -27,41 +26,115 @@ public class AreaRenderer {
         context.matrices().push();
         context.matrices().translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
         
-        VertexConsumer buffer = context.consumers().getBuffer(RenderLayers.LINES);
-        
-        // 0xFF00FFFF (ARGB Cyan)
-        VertexRendering.drawOutline(context.matrices(), buffer, VoxelShapes.cuboid(box), 0, 0, 0, com.bame.client.BameClientConfig.outlineColor, 1.0f);
-        
-        // Draw grid lines to make it look like a transparent wall
         int color = com.bame.client.BameClientConfig.outlineColor;
         float r = ((color >>> 16) & 255) / 255f;
         float g = ((color >>> 8) & 255) / 255f;
         float b = (color & 255) / 255f;
-        float a = ((color >>> 24) & 255) / 255f * 0.15f;
-        net.minecraft.client.util.math.MatrixStack.Entry entry = context.matrices().peek();
-        org.joml.Matrix4f matrix = entry.getPositionMatrix();
-        
-        // Front and back faces
-        for (double x = box.minX + 0.25; x < box.maxX; x += 0.25) {
-            drawLine(buffer, entry, matrix, (float)x, (float)box.minY, (float)box.minZ, (float)x, (float)box.maxY, (float)box.minZ, r, g, b, a);
-            drawLine(buffer, entry, matrix, (float)x, (float)box.minY, (float)box.maxZ, (float)x, (float)box.maxY, (float)box.maxZ, r, g, b, a);
+        float a = ((color >>> 24) & 255) / 255f;
+
+        int mode = com.bame.client.BameClientConfig.renderMode;
+
+        // 0: Clean
+        // 1: Outline
+        // 2: Corners
+        // 3: Pulse
+
+        if (mode == 0 || mode == 3) {
+            VertexConsumer fillBuffer = context.consumers().getBuffer(net.minecraft.client.render.RenderLayers.debugFilledBox());
+            org.joml.Matrix4f matrix = context.matrices().peek().getPositionMatrix();
+            float fillAlpha = a * 0.2f;
+            if (mode == 3) {
+                fillAlpha = a * (0.05f + 0.2f * (float)(Math.sin(System.currentTimeMillis() / 250.0) * 0.5 + 0.5));
+            }
+            fillBox(fillBuffer, matrix, box, r, g, b, fillAlpha);
         }
-        for (double y = box.minY + 0.25; y < box.maxY; y += 0.25) {
-            drawLine(buffer, entry, matrix, (float)box.minX, (float)y, (float)box.minZ, (float)box.maxX, (float)y, (float)box.minZ, r, g, b, a);
-            drawLine(buffer, entry, matrix, (float)box.minX, (float)y, (float)box.maxZ, (float)box.maxX, (float)y, (float)box.maxZ, r, g, b, a);
+
+        if (mode == 0 || mode == 1 || mode == 3) {
+            VertexConsumer outlineBuffer = context.consumers().getBuffer(net.minecraft.client.render.RenderLayers.LINES);
+            VertexRendering.drawOutline(context.matrices(), outlineBuffer, VoxelShapes.cuboid(box), 0, 0, 0, color, com.bame.client.BameClientConfig.outlineWidth);
         }
         
-        // Left and right faces
-        for (double z = box.minZ + 0.25; z < box.maxZ; z += 0.25) {
-            drawLine(buffer, entry, matrix, (float)box.minX, (float)box.minY, (float)z, (float)box.minX, (float)box.maxY, (float)z, r, g, b, a);
-            drawLine(buffer, entry, matrix, (float)box.maxX, (float)box.minY, (float)z, (float)box.maxX, (float)box.maxY, (float)z, r, g, b, a);
-            
-            // Top and bottom faces
-            drawLine(buffer, entry, matrix, (float)box.minX, (float)box.minY, (float)z, (float)box.maxX, (float)box.minY, (float)z, r, g, b, a);
-            drawLine(buffer, entry, matrix, (float)box.minX, (float)box.maxY, (float)z, (float)box.maxX, (float)box.maxY, (float)z, r, g, b, a);
+        if (mode == 2) {
+            VertexConsumer buffer = context.consumers().getBuffer(net.minecraft.client.render.RenderLayers.LINES);
+            net.minecraft.client.util.math.MatrixStack.Entry entry = context.matrices().peek();
+            org.joml.Matrix4f matrix = entry.getPositionMatrix();
+            drawCorners(buffer, entry, matrix, box, r, g, b, a);
         }
-        
+
         context.matrices().pop();
+    }
+    
+    private static void drawCorners(VertexConsumer buffer, net.minecraft.client.util.math.MatrixStack.Entry entry, org.joml.Matrix4f matrix, Box box, float r, float g, float b, float a) {
+        float d = 0.35f;
+        float minX = (float)box.minX, minY = (float)box.minY, minZ = (float)box.minZ;
+        float maxX = (float)box.maxX, maxY = (float)box.maxY, maxZ = (float)box.maxZ;
+
+        drawLine(buffer, entry, matrix, minX, minY, maxZ, minX+d, minY, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, minY, maxZ, minX, minY+d, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, minY, maxZ, minX, minY, maxZ-d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, maxX, minY, maxZ, maxX-d, minY, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, minY, maxZ, maxX, minY+d, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, minY, maxZ, maxX, minY, maxZ-d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, minX, minY, minZ, minX+d, minY, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, minY, minZ, minX, minY+d, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, minY, minZ, minX, minY, minZ+d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, maxX, minY, minZ, maxX-d, minY, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, minY, minZ, maxX, minY+d, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, minY, minZ, maxX, minY, minZ+d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, minX, maxY, maxZ, minX+d, maxY, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, maxY, maxZ, minX, maxY-d, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, maxY, maxZ, minX, maxY, maxZ-d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, maxX, maxY, maxZ, maxX-d, maxY, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, maxY, maxZ, maxX, maxY-d, maxZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, maxY, maxZ, maxX, maxY, maxZ-d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, minX, maxY, minZ, minX+d, maxY, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, maxY, minZ, minX, maxY-d, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, minX, maxY, minZ, minX, maxY, minZ+d, r, g, b, a);
+
+        drawLine(buffer, entry, matrix, maxX, maxY, minZ, maxX-d, maxY, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, maxY, minZ, maxX, maxY-d, minZ, r, g, b, a);
+        drawLine(buffer, entry, matrix, maxX, maxY, minZ, maxX, maxY, minZ+d, r, g, b, a);
+    }
+
+    private static void fillBox(VertexConsumer buffer, org.joml.Matrix4f matrix, Box box, float r, float g, float b, float a) {
+        float minX = (float)box.minX; float minY = (float)box.minY; float minZ = (float)box.minZ;
+        float maxX = (float)box.maxX; float maxY = (float)box.maxY; float maxZ = (float)box.maxZ;
+        
+        buffer.vertex(matrix, minX, minY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, minY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, maxY, maxZ).color(r, g, b, a);
+        
+        buffer.vertex(matrix, minX, maxY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, minY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, minY, minZ).color(r, g, b, a);
+        
+        buffer.vertex(matrix, maxX, minY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, minY, maxZ).color(r, g, b, a);
+        
+        buffer.vertex(matrix, minX, minY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, maxY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, maxY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, minY, minZ).color(r, g, b, a);
+        
+        buffer.vertex(matrix, minX, maxY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, maxY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, maxY, minZ).color(r, g, b, a);
+        
+        buffer.vertex(matrix, minX, minY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, minY, minZ).color(r, g, b, a);
+        buffer.vertex(matrix, maxX, minY, maxZ).color(r, g, b, a);
+        buffer.vertex(matrix, minX, minY, maxZ).color(r, g, b, a);
     }
     
     private static void drawLine(VertexConsumer buffer, net.minecraft.client.util.math.MatrixStack.Entry entry, org.joml.Matrix4f matrix, float x1, float y1, float z1, float x2, float y2, float z2, float r, float g, float b, float a) {
@@ -69,11 +142,8 @@ public class AreaRenderer {
         float ny = y2 - y1;
         float nz = z2 - z1;
         float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
-        nx /= length;
-        ny /= length;
-        nz /= length;
-        
-        buffer.vertex(matrix, x1, y1, z1).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(1.0f);
-        buffer.vertex(matrix, x2, y2, z2).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(1.0f);
+        nx /= length; ny /= length; nz /= length;
+        buffer.vertex(matrix, x1, y1, z1).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(com.bame.client.BameClientConfig.outlineWidth);
+        buffer.vertex(matrix, x2, y2, z2).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(com.bame.client.BameClientConfig.outlineWidth);
     }
 }

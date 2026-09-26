@@ -11,6 +11,8 @@ public class BameClientConfig {
     private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("bameclient.properties");
 
     public static int outlineColor = 0xFF00FFFF;
+    public static int renderMode = 0; // 0=Clean, 1=Outline, 2=Corners, 3=Pulse
+    public static float outlineWidth = 1.0f;
     public static String theme = "Ultraviolet";
     public static boolean seeThrough = false, frostedBlur = true, ambientBackground = true;
 
@@ -36,6 +38,8 @@ public class BameClientConfig {
             ambientRadius = Math.clamp(Float.parseFloat(props.getProperty("ambientRadius", String.valueOf(ambientRadius))),0f,1f);
             animationSpeed = Math.clamp(Float.parseFloat(props.getProperty("animationSpeed", String.valueOf(animationSpeed))),0f,1f);
             outlineColor = (int)Long.parseLong(props.getProperty("outlineColor", "FF00FFFF"),16);
+            if (props.containsKey("renderMode")) renderMode = Integer.parseInt(props.getProperty("renderMode"));
+            if (props.containsKey("outlineWidth")) outlineWidth = Float.parseFloat(props.getProperty("outlineWidth"));
             theme = props.getProperty("theme", "Ultraviolet");
             seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough", "false"));
             frostedBlur = Boolean.parseBoolean(props.getProperty("frostedBlur", "true"));
@@ -53,6 +57,8 @@ public class BameClientConfig {
             props.setProperty("keyBind", String.valueOf(AutoAreaMinerModule.keyBind));
             props.setProperty("mode3x3", String.valueOf(AutoAreaMinerModule.mode3x3));
             props.setProperty("outlineColor", Integer.toHexString(outlineColor));
+            props.setProperty("renderMode", String.valueOf(renderMode));
+            props.setProperty("outlineWidth", String.valueOf(outlineWidth));
             props.setProperty("theme", theme);
             props.setProperty("seeThrough", String.valueOf(seeThrough));
             props.setProperty("frostedBlur", String.valueOf(frostedBlur));
