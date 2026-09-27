@@ -23,6 +23,7 @@ public class BameClient implements ClientModInitializer {
     private static boolean cpsWasPressed = false;
     private static boolean serverInfoWasPressed = false;
     private static boolean nameProtectWasPressed = false;
+    private static boolean showHudWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -124,6 +125,16 @@ public class BameClient implements ClientModInitializer {
                         BameClientConfig.save();
                     }
                     nameProtectWasPressed = down;
+                }
+
+                // Show HUD bind
+                if (ShowHudModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), ShowHudModule.keyBind);
+                    if (down && !showHudWasPressed) {
+                        ShowHudModule.enabled = !ShowHudModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    showHudWasPressed = down;
                 }
 
                 // Menu bind

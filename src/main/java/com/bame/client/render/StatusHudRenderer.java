@@ -21,7 +21,7 @@ public class StatusHudRenderer implements HudRenderCallback {
     @Override
     public void onHudRender(DrawContext context, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.options.hudHidden) return;
+        if (client.options.hudHidden || !com.bame.client.module.ShowHudModule.enabled) return;
 
         if (FpsModule.enabled) {
             renderFps(context, FpsModule.hudX, FpsModule.hudY, FpsModule.scale);

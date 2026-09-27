@@ -10,6 +10,7 @@ import com.bame.client.module.PingModule;
 import com.bame.client.module.CpsModule;
 import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.ServerInfoModule;
+import com.bame.client.module.ShowHudModule;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Click;
@@ -26,9 +27,7 @@ import org.lwjgl.glfw.GLFW;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
-    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningKeyStrokes,keyStrokesExpanded,listeningZoom,listeningFps,listeningPing,listeningCps,listeningServerInfo,listeningNameProtect;
-    private boolean fpsExpanded,pingExpanded,cpsExpanded;
-    private long resetClickedTime = 0;
+    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud;
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
     private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField;
@@ -95,21 +94,23 @@ public class BameClientScreen extends Screen {
     }
     private boolean fullbrightVisible() { return isVisible("Fullbright", "Visuals"); }
     private boolean minerVisible() { return isVisible("Auto Area Miner", "World"); }
-    private boolean keyStrokesVisible() { return isVisible("KeyStrokes", "Visuals"); }
     private boolean zoomVisible() { return isVisible("Zoom", "Visuals"); }
-
-    private boolean fpsVisible() { return isVisible("FPS", "Visuals"); }
-    private boolean pingVisible() { return isVisible("Ping", "Visuals"); }
-    private boolean cpsVisible() { return isVisible("CPS", "Visuals"); }
-    private boolean serverInfoVisible() { return isVisible("Server Info", "Visuals"); }
-    private boolean nameProtectVisible() { return isVisible("Name Protect", "Visuals"); }
+    private boolean showHudVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) {
+            return "show hud".contains(q) || "hud".contains(q) || "fps".contains(q) || "ping".contains(q) ||
+                   "cps".contains(q) || "keystrokes".contains(q) || "server info".contains(q) || "name protect".contains(q);
+        }
+        return selected.equals("Visuals");
+    }
 
     private int columns() { return 4; }
     private int effectsY() { return 44+((GuiTheme.PRESETS.length+columns()-1)/columns())*58+18; }
     private int settingsY() { return effectsY(); }
 
-    private int getModuleHeight(boolean expanded) {
-        return expanded ? 86 : 46;
+    private int getShowHudHeight() {
+        if (!ShowHudModule.expanded) return 46;
+        return 46 + 8 + 6 * 26 + (ServerInfoModule.enabled ? 24 : 0) + (NameProtectModule.enabled ? 26 : 0) + 10;
     }
 
     private int contentHeight() { 
@@ -118,15 +119,12 @@ public class BameClientScreen extends Screen {
         int leftY = 0;
         if (minerVisible()) leftY += (expanded?346:46) + 12;
         int rightY = leftY;
-        if (fullbrightVisible()) leftY += (fullbrightExpanded?92:46) + 12;
-        if (zoomVisible()) leftY += (ZoomModule.expanded?92:46) + 12;
-        if (pingVisible()) leftY += getModuleHeight(pingExpanded) + 12;
-        if (nameProtectVisible()) leftY += (NameProtectModule.expanded?92:46) + 12;
 
-        if (keyStrokesVisible()) rightY += getModuleHeight(keyStrokesExpanded) + 12;
-        if (fpsVisible()) rightY += getModuleHeight(fpsExpanded) + 12;
-        if (cpsVisible()) rightY += getModuleHeight(cpsExpanded) + 12;
-        if (serverInfoVisible()) rightY += (ServerInfoModule.expanded?112:46) + 12;
+        if (showHudVisible()) leftY += getShowHudHeight() + 12;
+
+        if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
+        if (zoomVisible()) rightY += (ZoomModule.expanded?92:46) + 12;
+
         return Math.max(leftY, rightY);
     }
     private double maxScroll() { return Math.max(0,contentHeight()-ch); }
@@ -151,17 +149,15 @@ public class BameClientScreen extends Screen {
             corner1.active=corner2.active=false;
             corner1.setFocused(false); corner2.setFocused(false);
         }
-        if(fullbrightVisible()) leftY += (fullbrightExpanded?92:46) + 12;
-        if(zoomVisible()) leftY += (ZoomModule.expanded?92:46) + 12;
-        if(pingVisible()) leftY += getModuleHeight(pingExpanded) + 12;
 
         if (nameProtectAliasField != null) {
-            if (nameProtectVisible() && NameProtectModule.expanded) {
+            if (showHudVisible() && ShowHudModule.expanded && NameProtectModule.enabled) {
                 int gap = 16;
                 int halfW = (cw - gap) / 2;
-                nameProtectAliasField.setX(cx + 52);
-                nameProtectAliasField.setY(leftY + 54);
-                nameProtectAliasField.setWidth(halfW - 64);
+                int aliasY = leftY + 52 + 5 * 26 + (ServerInfoModule.enabled ? 24 : 0) + 26;
+                nameProtectAliasField.setX(cx + 56);
+                nameProtectAliasField.setY(aliasY);
+                nameProtectAliasField.setWidth(halfW - 68);
                 nameProtectAliasField.visible = true;
                 nameProtectAliasField.active = nameProtectAliasField.getY() + 20 > cy && nameProtectAliasField.getY() < cy + ch;
                 if (!nameProtectAliasField.active) nameProtectAliasField.setFocused(false);
@@ -200,10 +196,6 @@ public class BameClientScreen extends Screen {
     private String keyNameMenuBind() {
         if(listeningMenuBind) return "...";
         return formatKey(com.bame.client.BameClientConfig.menuBind);
-    }
-    private String keyNameKeyStrokes() {
-        if(listeningKeyStrokes) return "...";
-        return formatKey(com.bame.client.module.KeyStrokesModule.keyBind);
     }
     private String keyNameFullbright() {
         if(listeningFullbright) return "...";
@@ -322,38 +314,17 @@ public class BameClientScreen extends Screen {
             int rightY = leftY;
             int gap = 16;
             int halfW = (cw - gap) / 2;
+            if (showHudVisible()) {
+                renderShowHudModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getShowHudHeight() + 12;
+            }
             if (fullbrightVisible()) {
-                renderFullbright(c, mx, my, delta, cx, leftY, halfW);
-                leftY += (fullbrightExpanded?92:46) + 12;
+                renderFullbright(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += (fullbrightExpanded?92:46) + 12;
             }
             if (zoomVisible()) {
-                renderZoom(c, mx, my, delta, cx, leftY, halfW);
-                leftY += (ZoomModule.expanded?92:46) + 12;
-            }
-            if (pingVisible()) {
-                renderPingModule(c, mx, my, delta, cx, leftY, halfW);
-                leftY += getModuleHeight(pingExpanded) + 12;
-            }
-            if (nameProtectVisible()) {
-                renderNameProtectModule(c, mx, my, delta, cx, leftY, halfW);
-                leftY += (NameProtectModule.expanded?92:46) + 12;
-            }
-
-            if (keyStrokesVisible()) {
-                renderKeyStrokes(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(keyStrokesExpanded) + 12;
-            }
-            if (fpsVisible()) {
-                renderFpsModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(fpsExpanded) + 12;
-            }
-            if (cpsVisible()) {
-                renderCpsModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(cpsExpanded) + 12;
-            }
-            if (serverInfoVisible()) {
-                renderServerInfoModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += (ServerInfoModule.expanded?112:46) + 12;
+                renderZoom(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += (ZoomModule.expanded?92:46) + 12;
             }
         }
         c.disableScissor();
@@ -432,114 +403,63 @@ public class BameClientScreen extends Screen {
         text(c,Math.round(val*100)+"%",sx+w-38,sliderY+8,0xFFD4D8E0);
     }
     
-    private void renderKeyStrokes(DrawContext c,int mx,int my,float delta, int x, int yOffset, int w) {
+    private void renderShowHudModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = getModuleHeight(keyStrokesExpanded);
-        box(c,x,y,w,h,GuiTheme.alpha(GuiTheme.surface(),BameClientConfig.seeThrough?210:255));
-        text(c,"KeyStrokes",x+12,y+12,0xFFE2E5ED);
-        text(c,"KeyBind:",x+12,y+29,0xFF8E95A4);
-        button(c,keyNameKeyStrokes(),x+60,y+25,48,16,mx,my);
-        toggle(c,x+w-38,y+12,KeyStrokesModule.enabled,mx,my,delta);
-        
-        if (!keyStrokesExpanded) return;
-        c.fill(x+8,y+46,x+w-8,y+47,0xFF292D36);
-        
-        button(c, "Edit HUD", x + 12, y+58, 60, 20, mx, my);
-        
-        long timeSince = System.currentTimeMillis() - resetClickedTime;
-        float s = 1.0f;
-        if (timeSince < 150) {
-            float p = (float)timeSince / 150f;
-            if (p < 0.5f) {
-                s = 1.0f - (p * 2f) * 0.25f;
-            } else {
-                s = 0.75f + ((p - 0.5f) * 2f) * 0.25f;
-            }
+        int h = getShowHudHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Show HUD", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+        String kb = listeningShowHud ? "..." : formatKey(ShowHudModule.keyBind);
+        button(c, kb, x + 58, y + 25, 42, 16, mx, my);
+        button(c, "Edit HUD", x + 104, y + 25, 54, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, ShowHudModule.enabled, mx, my, delta);
+
+        if (!ShowHudModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        // 1. Keystrokes
+        text(c, "Keystrokes", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, KeyStrokesModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 2. CPS
+        text(c, "CPS", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, CpsModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 3. FPS
+        text(c, "FPS", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, FpsModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 4. Ping
+        text(c, "Ping", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, PingModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 5. Server Info
+        text(c, "Server Info", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, ServerInfoModule.enabled, mx, my, delta);
+        curY += 26;
+        if (ServerInfoModule.enabled) {
+            modeButton(c, "Name", x + 14, curY + 2, 44, 18, mx, my, ServerInfoModule.showName);
+            modeButton(c, "Server", x + 62, curY + 2, 48, 18, mx, my, ServerInfoModule.showServer);
+            modeButton(c, "Time", x + 114, curY + 2, 42, 18, mx, my, ServerInfoModule.showTime);
+            curY += 24;
         }
-        
-        c.getMatrices().pushMatrix();
-        int iconX = x + w - 33;
-        int iconY = y + 60;
-        c.getMatrices().translate((float)(iconX + 8), (float)(iconY + 8));
-        c.getMatrices().scale(s, s);
-        c.getMatrices().translate((float)-(iconX + 8), (float)-(iconY + 8));
-        CustomGuiUtils.drawResetIcon(c, iconX, iconY, 0xFFFFFFFF);
-        c.getMatrices().popMatrix();
-    }
 
-    private void renderFpsModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = getModuleHeight(fpsExpanded);
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "FPS", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningFps ? "..." : formatKey(FpsModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, FpsModule.enabled, mx, my, delta);
-
-        if (!fpsExpanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-        button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
-        button(c, "BG: " + fpsBgName(), x + 78, y + 58, 94, 20, mx, my);
-    }
-
-    private String fpsBgName() {
-        return switch (FpsModule.bgMode) {
-            case 1 -> "Transparent";
-            case 2 -> "Rainbow";
-            case 3 -> "Theme";
-            default -> "Dark";
-        };
-    }
-
-    private void renderPingModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = getModuleHeight(pingExpanded);
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Ping", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningPing ? "..." : formatKey(PingModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, PingModule.enabled, mx, my, delta);
-
-        if (!pingExpanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-        button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
-        button(c, "BG: " + pingBgName(), x + 78, y + 58, 94, 20, mx, my);
-    }
-
-    private String pingBgName() {
-        return switch (PingModule.bgMode) {
-            case 1 -> "Transparent";
-            case 2 -> "Rainbow";
-            case 3 -> "Theme";
-            default -> "Dark";
-        };
-    }
-
-    private void renderCpsModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = getModuleHeight(cpsExpanded);
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "CPS", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningCps ? "..." : formatKey(CpsModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, CpsModule.enabled, mx, my, delta);
-
-        if (!cpsExpanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-        button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
-        button(c, "BG: " + cpsBgName(), x + 78, y + 58, 94, 20, mx, my);
-    }
-
-    private String cpsBgName() {
-        return switch (CpsModule.bgMode) {
-            case 1 -> "Transparent";
-            case 2 -> "Rainbow";
-            case 3 -> "Theme";
-            default -> "Dark";
-        };
+        // 6. Name Protect
+        text(c, "Name Protect", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, NameProtectModule.enabled, mx, my, delta);
+        curY += 26;
+        if (NameProtectModule.enabled) {
+            text(c, "Alias:", x + 14, curY + 5, 0xFF8E95A4);
+            if (nameProtectAliasField != null) {
+                nameProtectAliasField.render(c, mx, my, delta);
+            }
+            curY += 26;
+        }
     }
 
     private void renderZoom(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -556,60 +476,6 @@ public class BameClientScreen extends Screen {
         
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, ZoomModule.mode == 0 ? "Smooth" : "Instant", x + 12, y + 58, 60, 20, mx, my);
-    }
-
-    private void renderNameProtectModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = NameProtectModule.expanded ? 92 : 46;
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Name Protect", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningNameProtect ? "..." : formatKey(NameProtectModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, NameProtectModule.enabled, mx, my, delta);
-
-        if (!NameProtectModule.expanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-        text(c, "Alias:", x + 12, y + 60, 0xFF8E95A4);
-        if (nameProtectAliasField != null) {
-            nameProtectAliasField.render(c, mx, my, delta);
-        }
-    }
-
-    private void renderServerInfoModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = ServerInfoModule.expanded ? 112 : 46;
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Server Info", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningServerInfo ? "..." : formatKey(ServerInfoModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, ServerInfoModule.enabled, mx, my, delta);
-
-        if (!ServerInfoModule.expanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-        button(c, "Edit HUD", x + 12, y + 54, 60, 20, mx, my);
-        button(c, "BG: " + serverInfoBgName(), x + 78, y + 54, 94, 20, mx, my);
-
-        modeButton(c, "Name", x + 12, y + 80, 50, 20, mx, my, ServerInfoModule.showName);
-        modeButton(c, "Server", x + 66, y + 80, 54, 20, mx, my, ServerInfoModule.showServer);
-        modeButton(c, "Time", x + 124, y + 80, 48, 20, mx, my, ServerInfoModule.showTime);
-    }
-
-    private String serverInfoBgName() {
-        return switch (ServerInfoModule.bgMode) {
-            case 1 -> "Transparent";
-            case 2 -> "Rainbow";
-            case 3 -> "Theme";
-            default -> "Dark";
-        };
-    }
-
-    private void renderVisualsRow(DrawContext c, int mx, int my, float delta, int yOffset) {
-        int gap = 16;
-        int halfW = (cw - gap) / 2;
-        renderFullbright(c, mx, my, delta, cx, yOffset, halfW);
-        renderKeyStrokes(c, mx, my, delta, cx + halfW + gap, yOffset, halfW);
     }
 
     private void renderTheme(DrawContext c,int mx,int my,float delta) {
@@ -707,140 +573,167 @@ public class BameClientScreen extends Screen {
             int gap = 16;
             int halfW = (cw - gap) / 2;
             
-            if(fullbrightVisible()) {
+            if (showHudVisible()) {
                 int myY = baseY() + leftY;
-                if(inside(mx,my,cx+halfW-38,myY+12,26,14)) { FullbrightModule.enabled=!FullbrightModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,cx+60,myY+25,48,16)) { listeningFullbright=true; return true; }
-                if(inside(mx,my,cx,myY,halfW,46)) { fullbrightExpanded=!fullbrightExpanded; layout(); return true; }
-                leftY += (fullbrightExpanded?92:46) + 12;
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    ShowHudModule.enabled = !ShowHudModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cx + 58, myY + 25, 42, 16)) {
+                    listeningShowHud = true;
+                    return true;
+                }
+                if (inside(mx, my, cx + 104, myY + 25, 54, 16)) {
+                    client.setScreen(new HudEditorScreen(this));
+                    return true;
+                }
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    ShowHudModule.expanded = !ShowHudModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (ShowHudModule.expanded) {
+                    int curY = myY + 54;
+                    // 1. Keystrokes
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 2. CPS
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        CpsModule.enabled = !CpsModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 3. FPS
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        FpsModule.enabled = !FpsModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 4. Ping
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        PingModule.enabled = !PingModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 5. Server Info
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        ServerInfoModule.enabled = !ServerInfoModule.enabled;
+                        BameClientConfig.save();
+                        layout();
+                        return true;
+                    }
+                    curY += 26;
+
+                    if (ServerInfoModule.enabled) {
+                        if (inside(mx, my, cx + 14, curY + 2, 44, 18)) {
+                            ServerInfoModule.showName = !ServerInfoModule.showName;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        if (inside(mx, my, cx + 62, curY + 2, 48, 18)) {
+                            ServerInfoModule.showServer = !ServerInfoModule.showServer;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        if (inside(mx, my, cx + 114, curY + 2, 42, 18)) {
+                            ServerInfoModule.showTime = !ServerInfoModule.showTime;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 24;
+                    }
+
+                    // 6. Name Protect
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        NameProtectModule.enabled = !NameProtectModule.enabled;
+                        BameClientConfig.save();
+                        layout();
+                        return true;
+                    }
+                    curY += 26;
+
+                    if (NameProtectModule.enabled) {
+                        if (nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
+                            setFocused(nameProtectAliasField);
+                            return true;
+                        }
+                    }
+                }
+                leftY += getShowHudHeight() + 12;
             }
-            
-            if(zoomVisible()) {
-                int myY = baseY() + leftY;
-                if(inside(mx,my,cx+halfW-38,myY+12,26,14)) { ZoomModule.enabled=!ZoomModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,cx+60,myY+25,48,16)) { listeningZoom=true; return true; }
-                if(inside(mx,my,cx,myY,halfW,46)) { ZoomModule.expanded=!ZoomModule.expanded; layout(); return true; }
-                if(ZoomModule.expanded) {
-                    if(inside(mx,my,cx+12,myY+58,60,20)) {
+
+            if (fullbrightVisible()) {
+                int myY = baseY() + rightY;
+                int fX = cx + halfW + gap;
+                if (inside(mx, my, fX + halfW - 38, myY + 12, 26, 14)) {
+                    FullbrightModule.enabled = !FullbrightModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, fX + 60, myY + 25, 48, 16)) {
+                    listeningFullbright = true;
+                    return true;
+                }
+                if (inside(mx, my, fX, myY, halfW, 46)) {
+                    fullbrightExpanded = !fullbrightExpanded;
+                    layout();
+                    return true;
+                }
+                if (fullbrightExpanded) {
+                    int sliderY = myY + 58;
+                    int sx = fX + 12;
+                    int sw = halfW - 24;
+                    if (inside(mx, my, sx, sliderY + 16, sw, 12)) {
+                        draggingFullbright = true;
+                        float fval = (float)Math.clamp(((mx - sx) / (double)sw), 0.0, 1.0);
+                        com.bame.client.module.FullbrightModule.intensity = fval;
+                        return true;
+                    }
+                }
+                rightY += (fullbrightExpanded ? 92 : 46) + 12;
+            }
+
+            if (zoomVisible()) {
+                int myY = baseY() + rightY;
+                int zX = cx + halfW + gap;
+                if (inside(mx, my, zX + halfW - 38, myY + 12, 26, 14)) {
+                    ZoomModule.enabled = !ZoomModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, zX + 60, myY + 25, 48, 16)) {
+                    listeningZoom = true;
+                    return true;
+                }
+                if (inside(mx, my, zX, myY, halfW, 46)) {
+                    ZoomModule.expanded = !ZoomModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (ZoomModule.expanded) {
+                    if (inside(mx, my, zX + 12, myY + 58, 60, 20)) {
                         ZoomModule.mode = (ZoomModule.mode == 0) ? 1 : 0;
                         BameClientConfig.save();
                         return true;
                     }
                 }
-                leftY += (ZoomModule.expanded?92:46) + 12;
-            }
-            if(pingVisible()) {
-                int myY = baseY() + leftY;
-                if(inside(mx,my,cx+halfW-38,myY+12,26,14)) { PingModule.enabled=!PingModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,cx+60,myY+25,48,16)) { listeningPing=true; return true; }
-                if(inside(mx,my,cx,myY,halfW,46)) { pingExpanded=!pingExpanded; layout(); return true; }
-                if(pingExpanded) {
-                    if(inside(mx,my,cx+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    if(inside(mx,my,cx+78,myY+58,94,20)) {
-                        PingModule.bgMode = (PingModule.bgMode + 1) % 4;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                leftY += getModuleHeight(pingExpanded) + 12;
-            }
-            if(nameProtectVisible()) {
-                int myY = baseY() + leftY;
-                if(inside(mx,my,cx+halfW-38,myY+12,26,14)) { NameProtectModule.enabled=!NameProtectModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,cx+60,myY+25,48,16)) { listeningNameProtect=true; return true; }
-                if(inside(mx,my,cx,myY,halfW,46)) { NameProtectModule.expanded=!NameProtectModule.expanded; layout(); return true; }
-                if(NameProtectModule.expanded) {
-                    if(nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
-                        setFocused(nameProtectAliasField);
-                        return true;
-                    }
-                }
-                leftY += (NameProtectModule.expanded ? 92 : 46) + 12;
-            }
-
-            if(keyStrokesVisible()) {
-                int myY = baseY() + rightY;
-                int kX = cx + halfW + gap;
-                if(inside(mx,my,kX+halfW-38,myY+12,26,14)) { KeyStrokesModule.enabled=!KeyStrokesModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,kX+60,myY+25,48,16)) { listeningKeyStrokes=true; return true; }
-                if(inside(mx,my,kX,myY,halfW,46)) { keyStrokesExpanded=!keyStrokesExpanded; layout(); return true; }
-                if(keyStrokesExpanded) {
-                    if(inside(mx,my,kX+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    if(inside(mx,my,kX+halfW-gap-40,myY+55,30,30)) {
-                        resetClickedTime = System.currentTimeMillis();
-                        KeyStrokesModule.resetKeys();
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                rightY += getModuleHeight(keyStrokesExpanded) + 12;
-            }
-            if(fpsVisible()) {
-                int myY = baseY() + rightY;
-                int kX = cx + halfW + gap;
-                if(inside(mx,my,kX+halfW-38,myY+12,26,14)) { FpsModule.enabled=!FpsModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,kX+60,myY+25,48,16)) { listeningFps=true; return true; }
-                if(inside(mx,my,kX,myY,halfW,46)) { fpsExpanded=!fpsExpanded; layout(); return true; }
-                if(fpsExpanded) {
-                    if(inside(mx,my,kX+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    if(inside(mx,my,kX+78,myY+58,94,20)) {
-                        FpsModule.bgMode = (FpsModule.bgMode + 1) % 4;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                rightY += getModuleHeight(fpsExpanded) + 12;
-            }
-            if(cpsVisible()) {
-                int myY = baseY() + rightY;
-                int kX = cx + halfW + gap;
-                if(inside(mx,my,kX+halfW-38,myY+12,26,14)) { CpsModule.enabled=!CpsModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,kX+60,myY+25,48,16)) { listeningCps=true; return true; }
-                if(inside(mx,my,kX,myY,halfW,46)) { cpsExpanded=!cpsExpanded; layout(); return true; }
-                if(cpsExpanded) {
-                    if(inside(mx,my,kX+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    if(inside(mx,my,kX+78,myY+58,94,20)) {
-                        CpsModule.bgMode = (CpsModule.bgMode + 1) % 4;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                rightY += getModuleHeight(cpsExpanded) + 12;
-            }
-            if(serverInfoVisible()) {
-                int myY = baseY() + rightY;
-                int kX = cx + halfW + gap;
-                if(inside(mx,my,kX+halfW-38,myY+12,26,14)) { ServerInfoModule.enabled=!ServerInfoModule.enabled; BameClientConfig.save(); return true; }
-                if(inside(mx,my,kX+60,myY+25,48,16)) { listeningServerInfo=true; return true; }
-                if(inside(mx,my,kX,myY,halfW,46)) { ServerInfoModule.expanded=!ServerInfoModule.expanded; layout(); return true; }
-                if(ServerInfoModule.expanded) {
-                    if(inside(mx,my,kX+12,myY+54,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    if(inside(mx,my,kX+78,myY+54,94,20)) {
-                        ServerInfoModule.bgMode = (ServerInfoModule.bgMode + 1) % 4;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                    if(inside(mx,my,kX+12,myY+80,50,20)) {
-                        ServerInfoModule.showName = !ServerInfoModule.showName;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                    if(inside(mx,my,kX+66,myY+80,54,20)) {
-                        ServerInfoModule.showServer = !ServerInfoModule.showServer;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                    if(inside(mx,my,kX+124,myY+80,48,20)) {
-                        ServerInfoModule.showTime = !ServerInfoModule.showTime;
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                rightY += (ServerInfoModule.expanded ? 112 : 46) + 12;
+                rightY += (ZoomModule.expanded ? 92 : 46) + 12;
             }
         }return false;
     }
-    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; listeningServerInfo=false; listeningNameProtect=false; unfocus(); layout(); }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -875,7 +768,7 @@ public class BameClientScreen extends Screen {
         if(draggingFullbright) {
             int gap = 16;
             int halfW = (cw - gap) / 2;
-            int sx = cx+12; int sw = halfW-24;
+            int sx = cx + halfW + gap + 12; int sw = halfW-24;
             float fval = (float)Math.clamp(((click.x() - sx) / (double)sw), 0.0, 1.0);
             com.bame.client.module.FullbrightModule.intensity = fval;
             return true;
@@ -898,17 +791,12 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningKeyStrokes && !listeningZoom && !listeningFps && !listeningPing && !listeningCps && !listeningServerInfo && !listeningNameProtect) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
-        if(listeningKeyStrokes) { com.bame.client.module.KeyStrokesModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningKeyStrokes=false; BameClientConfig.save(); return true; }
+        if(listeningShowHud) { com.bame.client.module.ShowHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningShowHud=false; BameClientConfig.save(); return true; }
         if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; BameClientConfig.save(); return true; }
-        if(listeningFps) { com.bame.client.module.FpsModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFps=false; BameClientConfig.save(); return true; }
-        if(listeningPing) { com.bame.client.module.PingModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningPing=false; BameClientConfig.save(); return true; }
-        if(listeningCps) { com.bame.client.module.CpsModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningCps=false; BameClientConfig.save(); return true; }
-        if(listeningServerInfo) { com.bame.client.module.ServerInfoModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningServerInfo=false; BameClientConfig.save(); return true; }
-        if(listeningNameProtect) { com.bame.client.module.NameProtectModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningNameProtect=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }

@@ -10,7 +10,7 @@ import net.minecraft.client.render.RenderTickCounter;
 public class KeyStrokesRenderer implements HudRenderCallback {
     @Override
     public void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
-        if (!KeyStrokesModule.enabled) return;
+        if (!com.bame.client.module.ShowHudModule.enabled || !KeyStrokesModule.enabled) return;
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.options.hudHidden) return;

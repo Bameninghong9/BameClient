@@ -125,6 +125,11 @@ public class BameClientConfig {
             if (props.containsKey("nameProtectKeyBind")) com.bame.client.module.NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
             if (props.containsKey("nameProtectAlias")) com.bame.client.module.NameProtectModule.alias = props.getProperty("nameProtectAlias");
 
+            // Show HUD
+            if (props.containsKey("showHudEnabled")) com.bame.client.module.ShowHudModule.enabled = Boolean.parseBoolean(props.getProperty("showHudEnabled"));
+            if (props.containsKey("showHudKeyBind")) com.bame.client.module.ShowHudModule.keyBind = Integer.parseInt(props.getProperty("showHudKeyBind"));
+            if (props.containsKey("showHudExpanded")) com.bame.client.module.ShowHudModule.expanded = Boolean.parseBoolean(props.getProperty("showHudExpanded"));
+
             // Theme, Effects & Appearance
             if (props.containsKey("theme")) theme = props.getProperty("theme");
             if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));
@@ -236,6 +241,11 @@ public class BameClientConfig {
             if (com.bame.client.module.NameProtectModule.alias != null) {
                 props.setProperty("nameProtectAlias", com.bame.client.module.NameProtectModule.alias);
             }
+
+            // Show HUD
+            props.setProperty("showHudEnabled", String.valueOf(com.bame.client.module.ShowHudModule.enabled));
+            props.setProperty("showHudKeyBind", String.valueOf(com.bame.client.module.ShowHudModule.keyBind));
+            props.setProperty("showHudExpanded", String.valueOf(com.bame.client.module.ShowHudModule.expanded));
 
             // Theme, Effects & Appearance
             props.setProperty("theme", theme);
