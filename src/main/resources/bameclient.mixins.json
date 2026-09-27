@@ -3,9 +3,9 @@
   "minVersion": "0.8",
   "package": "com.bame.client.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
-  ],
+  "mixins": [],
   "client": [
+    "SimpleOptionMixin", "GameRendererMixin", "KeyBindingMixin"
   ],
   "injectors": {
     "defaultRequire": 1

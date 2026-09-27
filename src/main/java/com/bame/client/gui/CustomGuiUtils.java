@@ -4,9 +4,7 @@ import net.minecraft.client.gui.DrawContext;
 
 public class CustomGuiUtils {
     public static void fillRounded(DrawContext context, int x, int y, int width, int height, int color) {
-        // Main block
         context.fill(x + 1, y, x + width - 1, y + height, color);
-        // Left and right edges
         context.fill(x, y + 1, x + 1, y + height - 1, color);
         context.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
     }
@@ -34,17 +32,17 @@ public class CustomGuiUtils {
     }
 
     public static void fillUltraRounded(DrawContext context, int x, int y, int width, int height, int color, float radius) {
-        float r = radius;
-        r = Math.min(r, Math.min(width / 2.0f, height / 2.0f));
+        int a = (color >> 24) & 0xFF;
+        if (a == 0) return;
+        int rgb = color & 0x00FFFFFF;
+
+        float r = Math.min(radius, Math.min(width / 2.0f, height / 2.0f));
         int ir = (int) Math.ceil(r);
         
         // Draw the inner cross (solid)
         context.fill(x + ir, y, x + width - ir, y + height, color);
         context.fill(x, y + ir, x + ir, y + height - ir, color);
         context.fill(x + width - ir, y + ir, x + width, y + height - ir, color);
-        
-        int a = (color >> 24) & 0xFF;
-        int rgb = color & 0x00FFFFFF;
         
         // Draw the 4 rounded corners with smooth SDF-like alpha transition
         for (int cy = 0; cy < ir; cy++) {
@@ -72,8 +70,11 @@ public class CustomGuiUtils {
     }
 
     public static void drawUltraRoundedOutline(DrawContext context, int x, int y, int width, int height, int color, float radius) {
-        float r = radius;
-        r = Math.min(r, Math.min(width / 2.0f, height / 2.0f));
+        int a = (color >> 24) & 0xFF;
+        if (a == 0) return;
+        int rgb = color & 0x00FFFFFF;
+
+        float r = Math.min(radius, Math.min(width / 2.0f, height / 2.0f));
         int ir = (int) Math.ceil(r);
         float thickness = 1.0f;
         
@@ -82,9 +83,6 @@ public class CustomGuiUtils {
         context.fill(x + ir, y + height - 1, x + width - ir, y + height, color);
         context.fill(x, y + ir, x + 1, y + height - ir, color);
         context.fill(x + width - 1, y + ir, x + width, y + height - ir, color);
-        
-        int a = (color >> 24) & 0xFF;
-        int rgb = color & 0x00FFFFFF;
         
         // Draw corners
         for (int cy = 0; cy < ir; cy++) {
@@ -109,7 +107,7 @@ public class CustomGuiUtils {
             }
         }
     }
-    
+
     public static void drawSmoothRing(DrawContext context, int cx, int cy, float r, float thickness, int color) {
         int ir = (int) Math.ceil(r + thickness);
         int a = (color >> 24) & 0xFF;
@@ -166,10 +164,11 @@ public class CustomGuiUtils {
         "movement", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/movement.png"),
         "visuals", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/visuals.png"),
         "misc", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/misc.png"),
-        "world", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/world.png"));
+        "world", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/world.png"),
+        "settings", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/settings.png"),
+        "reset", net.minecraft.util.Identifier.of("bameclient", "textures/gui/icons/reset.png"));
 
     private static void drawIcon(DrawContext context, String name, int x, int y, int color) {
-        // Filtered, antialiased 96px artwork; never enlarge a raster of GUI-sized pixels.
         context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
             ICONS.get(name), x, y, 0.0f, 0.0f, 12, 12, 96, 96, 96, 96, color);
     }
@@ -180,10 +179,10 @@ public class CustomGuiUtils {
     public static void drawVisualsIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "visuals", x, y, color); }
     public static void drawMiscIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "misc", x, y, color); }
     public static void drawGlobeIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "world", x, y, color); }
+    public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, color); }
+    public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, color); }
+
     public static net.minecraft.text.MutableText getFontText(String text) {
         return net.minecraft.text.Text.literal(text).setStyle(net.minecraft.text.Style.EMPTY.withFont(new net.minecraft.text.StyleSpriteSource.Font(net.minecraft.util.Identifier.of("bameclient", "sans"))));
     }
-
-
-
 }
