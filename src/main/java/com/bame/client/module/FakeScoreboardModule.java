@@ -7,7 +7,7 @@ public class FakeScoreboardModule {
     public static int keyBind = -1;
     public static boolean expanded = false;
     public static int hudX = -1;
-    public static int hudY = 100;
+    public static int hudY = -1;
     public static float scale = 1.0f;
     public static int bgMode = 0; // 0 = Dark, 1 = Transparent, 2 = Rainbow, 3 = Theme
 

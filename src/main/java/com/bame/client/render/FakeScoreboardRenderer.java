@@ -10,28 +10,6 @@ import net.minecraft.client.render.RenderTickCounter;
 
 public class FakeScoreboardRenderer implements HudRenderCallback {
 
-    private static final String[] SWORD_PIXELS = {
-        "......##",
-        ".....##.",
-        "....##..",
-        "...##...",
-        ".###....",
-        "##.#....",
-        ".#.#....",
-        "#......."
-    };
-
-    private static final String[] SKULL_PIXELS = {
-        ".######.",
-        "########",
-        "##.##.##",
-        "##.##.##",
-        "########",
-        ".######.",
-        ".#.##.#.",
-        "..####.."
-    };
-
     private static final String[] CLOCK_PIXELS = {
         "..####..",
         ".#....#.",
@@ -49,21 +27,28 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         if (client.options.hudHidden || !ShowHudModule.enabled || !FakeScoreboardModule.enabled) return;
 
         int w = getWidth(client);
+        int h = getHeight();
         int x = FakeScoreboardModule.hudX;
         if (x == -1) {
             x = client.getWindow().getScaledWidth() - (int)(w * FakeScoreboardModule.scale) - 10;
         }
-        render(context, x, FakeScoreboardModule.hudY, FakeScoreboardModule.scale);
+        int y = FakeScoreboardModule.hudY;
+        if (y == -1) {
+            y = (client.getWindow().getScaledHeight() - (int)(h * FakeScoreboardModule.scale)) / 2;
+        }
+        render(context, x, y, FakeScoreboardModule.scale);
     }
 
     public static int getWidth(MinecraftClient client) {
         if (client == null) client = MinecraftClient.getInstance();
         String name = FakeScoreboardModule.getDisplayName();
         int maxW = client.textRenderer.getWidth(name);
-        maxW = Math.max(maxW, client.textRenderer.getWidth("$ " + FakeScoreboardModule.money));
-        maxW = Math.max(maxW, client.textRenderer.getWidth("★ " + FakeScoreboardModule.stars));
-        maxW = Math.max(maxW, 11 + client.textRenderer.getWidth(FakeScoreboardModule.kills));
-        maxW = Math.max(maxW, 11 + client.textRenderer.getWidth(FakeScoreboardModule.deaths));
+        maxW = Math.max(maxW, client.textRenderer.getWidth("$") + client.textRenderer.getWidth(" " + FakeScoreboardModule.money));
+        maxW = Math.max(maxW, client.textRenderer.getWidth("★") + client.textRenderer.getWidth(" " + FakeScoreboardModule.stars));
+        int swordW = Math.max(9, client.textRenderer.getWidth("🗡"));
+        maxW = Math.max(maxW, swordW + client.textRenderer.getWidth(" " + FakeScoreboardModule.kills));
+        int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
+        maxW = Math.max(maxW, skullW + client.textRenderer.getWidth(" " + FakeScoreboardModule.deaths));
         maxW = Math.max(maxW, 11 + client.textRenderer.getWidth(FakeScoreboardModule.playtime));
         return maxW + 16;
     }
@@ -126,14 +111,16 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         c.drawText(client.textRenderer, " " + FakeScoreboardModule.stars, startX + client.textRenderer.getWidth("★"), curY, 0xFFFFFFFF, shadow);
         curY += 11;
 
-        // Line 4: Kills (Sword in Red, value in White)
-        drawPixelIcon(c, SWORD_PIXELS, startX, curY, 0xFFFF2222);
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.kills, startX + 11, curY, 0xFFFFFFFF, shadow);
+        // Line 4: Kills (🗡 in Red, value in White)
+        c.drawText(client.textRenderer, "🗡", startX, curY, 0xFFFF2222, shadow);
+        int swordW = Math.max(9, client.textRenderer.getWidth("🗡"));
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.kills, startX + swordW, curY, 0xFFFFFFFF, shadow);
         curY += 11;
 
-        // Line 5: Deaths (Skull in Orange, value in White)
-        drawPixelIcon(c, SKULL_PIXELS, startX, curY, 0xFFFF7700);
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.deaths, startX + 11, curY, 0xFFFFFFFF, shadow);
+        // Line 5: Deaths (☠ in Orange, value in White)
+        c.drawText(client.textRenderer, "☠", startX, curY, 0xFFFF7700, shadow);
+        int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.deaths, startX + skullW, curY, 0xFFFFFFFF, shadow);
         curY += 11;
 
         // Line 6: Playtime (Clock in Yellow, value in White)

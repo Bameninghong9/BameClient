@@ -209,6 +209,10 @@ public class HudEditorScreen extends Screen {
                 FakeScoreboardModule.hudX = x;
             }
             int y = FakeScoreboardModule.hudY;
+            if (y == -1) {
+                y = (height - (int)(h * s)) / 2;
+                FakeScoreboardModule.hudY = y;
+            }
             boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
 
             FakeScoreboardRenderer.render(context, x, y, s);
@@ -340,7 +344,11 @@ public class HudEditorScreen extends Screen {
             }
             if (FakeScoreboardModule.enabled) {
                 int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight(); float s = FakeScoreboardModule.scale;
-                if (inside(mouseX, mouseY, FakeScoreboardModule.hudX - 2, FakeScoreboardModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                int x = FakeScoreboardModule.hudX;
+                if (x == -1) x = width - (int)(w * s) - 10;
+                int y = FakeScoreboardModule.hudY;
+                if (y == -1) y = (height - (int)(h * s)) / 2;
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
                     openPopup("fakeScoreboard", (int)mouseX, (int)mouseY); return true;
                 }
             }
@@ -456,6 +464,10 @@ public class HudEditorScreen extends Screen {
                 FakeScoreboardModule.hudX = x;
             }
             int y = FakeScoreboardModule.hudY;
+            if (y == -1) {
+                y = (height - (int)(h * s)) / 2;
+                FakeScoreboardModule.hudY = y;
+            }
             if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
                 FakeScoreboardModule.enabled = false; return true;
             }
