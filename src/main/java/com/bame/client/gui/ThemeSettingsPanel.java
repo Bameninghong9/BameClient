@@ -97,9 +97,9 @@ final class ThemeSettingsPanel {
             if(open==i) { open=-1; colorPicker=null; return true; }
             open=i;
             colorPicker=switch(i) {
-                case 0 -> new OutlineColorPicker(GuiTheme::accent,c->{ BameClientConfig.mainColor=c; BameClientConfig.customMainColor=true; });
-                case 1 -> new OutlineColorPicker(()->BameClientConfig.ambientPrimary,c->{ BameClientConfig.ambientPrimary=c; if(BameClientConfig.ambientMode==0) BameClientConfig.ambientMode=1; });
-                default -> new OutlineColorPicker(()->BameClientConfig.ambientSecondary,c->{ BameClientConfig.ambientSecondary=c; BameClientConfig.ambientMode=2; });
+                case 0 -> new OutlineColorPicker(GuiTheme::accent,c->{ BameClientConfig.mainColor=c; BameClientConfig.customMainColor=true; BameClientConfig.save(); });
+                case 1 -> new OutlineColorPicker(()->BameClientConfig.ambientPrimary,c->{ BameClientConfig.ambientPrimary=c; if(BameClientConfig.ambientMode==0) BameClientConfig.ambientMode=1; BameClientConfig.save(); });
+                default -> new OutlineColorPicker(()->BameClientConfig.ambientSecondary,c->{ BameClientConfig.ambientSecondary=c; BameClientConfig.ambientMode=2; BameClientConfig.save(); });
             };
             layout(x,y,w); return true;
         }
@@ -128,6 +128,15 @@ final class ThemeSettingsPanel {
         switch(slider) { case 0 -> BameClientConfig.ambientIntensity=v; case 1 -> BameClientConfig.ambientOpacity=v;
             case 2 -> BameClientConfig.ambientRadius=v; case 3 -> BameClientConfig.animationSpeed=v; }
     }
-    void release() { if(colorPicker!=null) colorPicker.release(); if(slider>=0) { slider=-1; BameClientConfig.save(); } }
-    void close() { release(); open=-1; colorPicker=null; }
+    void release() {
+        if(colorPicker!=null) colorPicker.release();
+        if(slider>=0) slider=-1;
+        BameClientConfig.save();
+    }
+    void close() {
+        release();
+        open=-1;
+        colorPicker=null;
+        BameClientConfig.save();
+    }
 }

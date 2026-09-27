@@ -5,7 +5,14 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
   "client": [
-    "SimpleOptionMixin", "GameRendererMixin", "KeyBindingMixin"
+    "SimpleOptionMixin",
+    "GameRendererMixin",
+    "KeyBindingMixin",
+    "PlayerListHudMixin",
+    "ScoreboardEntryMixin",
+    "TeamMixin",
+    "PlayerEntityMixin",
+    "EntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

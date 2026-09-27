@@ -5,6 +5,7 @@ import com.bame.client.module.FpsModule;
 import com.bame.client.module.KeyStrokesModule;
 import com.bame.client.module.KeyStrokesModule.KeyStroke;
 import com.bame.client.module.PingModule;
+import com.bame.client.module.ServerInfoModule;
 import com.bame.client.render.KeyStrokesRenderer;
 import com.bame.client.render.StatusHudRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -14,7 +15,7 @@ import net.minecraft.text.Text;
 public class HudEditorScreen extends Screen {
     private final Screen parent;
     
-    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps"
+    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo"
     private String resizingTarget = NoneTarget;
     private static final String NoneTarget = "none";
     private KeyStroke draggingKey = null;
@@ -143,6 +144,24 @@ public class HudEditorScreen extends Screen {
             }
         }
 
+        // 5. Render Server Info Module
+        if (ServerInfoModule.enabled) {
+            int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18;
+            float s = ServerInfoModule.scale;
+            int x = ServerInfoModule.hudX;
+            if (x == -1) {
+                x = width - (int)(w * s) - 10;
+                ServerInfoModule.hudX = x;
+            }
+            int y = ServerInfoModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderServerInfo(context, x, y, s);
+            if (hover || draggingTarget.equals("serverInfo") || resizingTarget.equals("serverInfo")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
         if (snapLineX != -1) context.fill(snapLineX, 0, snapLineX + 1, height, 0xFF00FF00);
         if (snapLineY != -1) context.fill(0, snapLineY, width, snapLineY + 1, 0xFF00FF00);
 
@@ -258,6 +277,26 @@ public class HudEditorScreen extends Screen {
             }
         }
 
+        // 5. Check Server Info
+        if (ServerInfoModule.enabled) {
+            int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
+            int x = ServerInfoModule.hudX;
+            if (x == -1) {
+                x = width - (int)(w * s) - 10;
+                ServerInfoModule.hudX = x;
+            }
+            int y = ServerInfoModule.hudY;
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                ServerInfoModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "serverInfo"; startX = (int)mouseX; startScale = ServerInfoModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "serverInfo"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
         return super.mouseClicked(click, twice);
     }
 
@@ -273,6 +312,7 @@ public class HudEditorScreen extends Screen {
                 case "fps" -> FpsModule.scale = newScale;
                 case "ping" -> PingModule.scale = newScale;
                 case "cps" -> CpsModule.scale = newScale;
+                case "serverInfo" -> ServerInfoModule.scale = newScale;
             }
             return true;
         }
@@ -296,6 +336,7 @@ public class HudEditorScreen extends Screen {
                 case "fps" -> { gw = (int)(StatusHudRenderer.getFpsWidth(client) * FpsModule.scale); gh = (int)(18 * FpsModule.scale); s = FpsModule.scale; }
                 case "ping" -> { gw = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale); gh = (int)(18 * PingModule.scale); s = PingModule.scale; }
                 case "cps" -> { gw = (int)(StatusHudRenderer.getCpsWidth(client) * CpsModule.scale); gh = (int)(18 * CpsModule.scale); s = CpsModule.scale; }
+                case "serverInfo" -> { gw = (int)(StatusHudRenderer.getServerInfoWidth(client) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
             }
 
             int centerX = width / 2; int centerY = height / 2;
@@ -312,6 +353,7 @@ public class HudEditorScreen extends Screen {
                 case "fps" -> { FpsModule.hudX = newX; FpsModule.hudY = newY; }
                 case "ping" -> { PingModule.hudX = newX; PingModule.hudY = newY; }
                 case "cps" -> { CpsModule.hudX = newX; CpsModule.hudY = newY; }
+                case "serverInfo" -> { ServerInfoModule.hudX = newX; ServerInfoModule.hudY = newY; }
             }
             return true;
         }

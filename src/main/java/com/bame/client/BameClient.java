@@ -21,6 +21,8 @@ public class BameClient implements ClientModInitializer {
     private static boolean fpsWasPressed = false;
     private static boolean pingWasPressed = false;
     private static boolean cpsWasPressed = false;
+    private static boolean serverInfoWasPressed = false;
+    private static boolean nameProtectWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -102,6 +104,26 @@ public class BameClient implements ClientModInitializer {
                         BameClientConfig.save();
                     }
                     cpsWasPressed = down;
+                }
+
+                // ServerInfo bind
+                if (ServerInfoModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), ServerInfoModule.keyBind);
+                    if (down && !serverInfoWasPressed) {
+                        ServerInfoModule.enabled = !ServerInfoModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    serverInfoWasPressed = down;
+                }
+
+                // NameProtect bind
+                if (NameProtectModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), NameProtectModule.keyBind);
+                    if (down && !nameProtectWasPressed) {
+                        NameProtectModule.enabled = !NameProtectModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    nameProtectWasPressed = down;
                 }
 
                 // Menu bind

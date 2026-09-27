@@ -8,6 +8,8 @@ import com.bame.client.module.ZoomModule;
 import com.bame.client.module.FpsModule;
 import com.bame.client.module.PingModule;
 import com.bame.client.module.CpsModule;
+import com.bame.client.module.NameProtectModule;
+import com.bame.client.module.ServerInfoModule;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Click;
@@ -24,25 +26,17 @@ import org.lwjgl.glfw.GLFW;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
-    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningKeyStrokes,keyStrokesExpanded,listeningZoom,listeningFps,listeningPing,listeningCps;
+    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningKeyStrokes,keyStrokesExpanded,listeningZoom,listeningFps,listeningPing,listeningCps,listeningServerInfo,listeningNameProtect;
     private boolean fpsExpanded,pingExpanded,cpsExpanded;
     private long resetClickedTime = 0;
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
-    private CustomTextFieldWidget search,corner1,corner2;
+    private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField;
     private long openTime=0;
     private final OutlineColorPicker picker=new OutlineColorPicker();
     private final ThemeSettingsPanel themeSettings=new ThemeSettingsPanel();
 
-    private final OutlineColorPicker ksPicker = new OutlineColorPicker(() -> KeyStrokesModule.bgColor, c -> KeyStrokesModule.bgColor = c);
-    private final OutlineColorPicker fpsPicker = new OutlineColorPicker(() -> FpsModule.bgColor, c -> FpsModule.bgColor = c);
-    private final OutlineColorPicker pingPicker = new OutlineColorPicker(() -> PingModule.bgColor, c -> PingModule.bgColor = c);
-    private final OutlineColorPicker cpsPicker = new OutlineColorPicker(() -> CpsModule.bgColor, c -> CpsModule.bgColor = c);
 
-    private boolean ksPickerOpen = false;
-    private boolean fpsPickerOpen = false;
-    private boolean pingPickerOpen = false;
-    private boolean cpsPickerOpen = false;
 
     private final AmbientLighting ambient=new AmbientLighting();
 
@@ -79,7 +73,20 @@ public class BameClientScreen extends Screen {
         corner1.setPlaceholder("X Y Z"); corner2.setPlaceholder("X Y Z");
         corner1.setChangedListener(s->{ AutoAreaMinerModule.corner1=parse(s); BameClientConfig.save(); });
         corner2.setChangedListener(s->{ AutoAreaMinerModule.corner2=parse(s); BameClientConfig.save(); });
-        addSelectableChild(corner1); addSelectableChild(corner2); layout();
+        addSelectableChild(corner1); addSelectableChild(corner2);
+
+        int gap = 16;
+        int halfW = (cw - gap) / 2;
+        nameProtectAliasField = new CustomTextFieldWidget(0, 0, halfW - 65, 20, Text.literal("Alias"));
+        nameProtectAliasField.setText(NameProtectModule.alias != null ? NameProtectModule.alias : "You");
+        nameProtectAliasField.setPlaceholder("Alias (e.g. You)");
+        nameProtectAliasField.setChangedListener(s -> {
+            NameProtectModule.alias = s;
+            BameClientConfig.save();
+        });
+        addSelectableChild(nameProtectAliasField);
+
+        layout();
     }
     private boolean isVisible(String moduleName, String category) {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
@@ -94,15 +101,15 @@ public class BameClientScreen extends Screen {
     private boolean fpsVisible() { return isVisible("FPS", "Visuals"); }
     private boolean pingVisible() { return isVisible("Ping", "Visuals"); }
     private boolean cpsVisible() { return isVisible("CPS", "Visuals"); }
+    private boolean serverInfoVisible() { return isVisible("Server Info", "Visuals"); }
+    private boolean nameProtectVisible() { return isVisible("Name Protect", "Visuals"); }
 
     private int columns() { return 4; }
     private int effectsY() { return 44+((GuiTheme.PRESETS.length+columns()-1)/columns())*58+18; }
     private int settingsY() { return effectsY(); }
 
-    private int getModuleHeight(boolean expanded, int bgMode, boolean pickerOpen) {
-        if (!expanded) return 46;
-        if (bgMode == 2 && pickerOpen) return 184;
-        return 108;
+    private int getModuleHeight(boolean expanded) {
+        return expanded ? 86 : 46;
     }
 
     private int contentHeight() { 
@@ -113,11 +120,13 @@ public class BameClientScreen extends Screen {
         int rightY = leftY;
         if (fullbrightVisible()) leftY += (fullbrightExpanded?92:46) + 12;
         if (zoomVisible()) leftY += (ZoomModule.expanded?92:46) + 12;
-        if (pingVisible()) leftY += getModuleHeight(pingExpanded, PingModule.bgMode, pingPickerOpen) + 12;
+        if (pingVisible()) leftY += getModuleHeight(pingExpanded) + 12;
+        if (nameProtectVisible()) leftY += (NameProtectModule.expanded?92:46) + 12;
 
-        if (keyStrokesVisible()) rightY += getModuleHeight(keyStrokesExpanded, KeyStrokesModule.bgMode, ksPickerOpen) + 12;
-        if (fpsVisible()) rightY += getModuleHeight(fpsExpanded, FpsModule.bgMode, fpsPickerOpen) + 12;
-        if (cpsVisible()) rightY += getModuleHeight(cpsExpanded, CpsModule.bgMode, cpsPickerOpen) + 12;
+        if (keyStrokesVisible()) rightY += getModuleHeight(keyStrokesExpanded) + 12;
+        if (fpsVisible()) rightY += getModuleHeight(fpsExpanded) + 12;
+        if (cpsVisible()) rightY += getModuleHeight(cpsExpanded) + 12;
+        if (serverInfoVisible()) rightY += (ServerInfoModule.expanded?112:46) + 12;
         return Math.max(leftY, rightY);
     }
     private double maxScroll() { return Math.max(0,contentHeight()-ch); }
@@ -136,10 +145,31 @@ public class BameClientScreen extends Screen {
             if(!corner2.active) corner2.setFocused(false);
             if(!corner1.visible) { corner1.setFocused(false); corner2.setFocused(false); }
             picker.layout(cx+14,leftY+228,140);
+            leftY += (expanded?346:46) + 12;
         } else {
             corner1.visible=corner2.visible=false;
             corner1.active=corner2.active=false;
             corner1.setFocused(false); corner2.setFocused(false);
+        }
+        if(fullbrightVisible()) leftY += (fullbrightExpanded?92:46) + 12;
+        if(zoomVisible()) leftY += (ZoomModule.expanded?92:46) + 12;
+        if(pingVisible()) leftY += getModuleHeight(pingExpanded) + 12;
+
+        if (nameProtectAliasField != null) {
+            if (nameProtectVisible() && NameProtectModule.expanded) {
+                int gap = 16;
+                int halfW = (cw - gap) / 2;
+                nameProtectAliasField.setX(cx + 52);
+                nameProtectAliasField.setY(leftY + 54);
+                nameProtectAliasField.setWidth(halfW - 64);
+                nameProtectAliasField.visible = true;
+                nameProtectAliasField.active = nameProtectAliasField.getY() + 20 > cy && nameProtectAliasField.getY() < cy + ch;
+                if (!nameProtectAliasField.active) nameProtectAliasField.setFocused(false);
+            } else {
+                nameProtectAliasField.visible = false;
+                nameProtectAliasField.active = false;
+                nameProtectAliasField.setFocused(false);
+            }
         }
         themeSettings.layout(cx,baseY()+settingsY(),cw);
     }
@@ -270,7 +300,9 @@ public class BameClientScreen extends Screen {
         if(client.player!=null) {
             net.minecraft.client.gui.PlayerSkinDrawer.draw(c,client.player.getSkin(),px+13,profileY+5,20);
             c.enableScissor(px+38,profileY,px+sidebar-12,profileY+30);
-            text(c,client.player.getName().getString(),px+38,profileY+11,0xFFD4D8E0); c.disableScissor();
+            String pName = client.player.getName().getString();
+            if (NameProtectModule.enabled) pName = NameProtectModule.getProtectedName(pName);
+            text(c,pName,px+38,profileY+11,0xFFD4D8E0); c.disableScissor();
         }
         box(c,px+pw-210,py+14,196,24,0xFF12161C);
         CustomGuiUtils.drawUltraRoundedOutline(c,px+pw-210,py+14,196,24,search.isFocused()?GuiTheme.accent():0xFF292D36);
@@ -300,20 +332,28 @@ public class BameClientScreen extends Screen {
             }
             if (pingVisible()) {
                 renderPingModule(c, mx, my, delta, cx, leftY, halfW);
-                leftY += getModuleHeight(pingExpanded, PingModule.bgMode, pingPickerOpen) + 12;
+                leftY += getModuleHeight(pingExpanded) + 12;
+            }
+            if (nameProtectVisible()) {
+                renderNameProtectModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += (NameProtectModule.expanded?92:46) + 12;
             }
 
             if (keyStrokesVisible()) {
                 renderKeyStrokes(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(keyStrokesExpanded, KeyStrokesModule.bgMode, ksPickerOpen) + 12;
+                rightY += getModuleHeight(keyStrokesExpanded) + 12;
             }
             if (fpsVisible()) {
                 renderFpsModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(fpsExpanded, FpsModule.bgMode, fpsPickerOpen) + 12;
+                rightY += getModuleHeight(fpsExpanded) + 12;
             }
             if (cpsVisible()) {
                 renderCpsModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += getModuleHeight(cpsExpanded, CpsModule.bgMode, cpsPickerOpen) + 12;
+                rightY += getModuleHeight(cpsExpanded) + 12;
+            }
+            if (serverInfoVisible()) {
+                renderServerInfoModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += (ServerInfoModule.expanded?112:46) + 12;
             }
         }
         c.disableScissor();
@@ -394,7 +434,7 @@ public class BameClientScreen extends Screen {
     
     private void renderKeyStrokes(DrawContext c,int mx,int my,float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = getModuleHeight(keyStrokesExpanded, KeyStrokesModule.bgMode, ksPickerOpen);
+        int h = getModuleHeight(keyStrokesExpanded);
         box(c,x,y,w,h,GuiTheme.alpha(GuiTheme.surface(),BameClientConfig.seeThrough?210:255));
         text(c,"KeyStrokes",x+12,y+12,0xFFE2E5ED);
         text(c,"KeyBind:",x+12,y+29,0xFF8E95A4);
@@ -425,35 +465,11 @@ public class BameClientScreen extends Screen {
         c.getMatrices().translate((float)-(iconX + 8), (float)-(iconY + 8));
         CustomGuiUtils.drawResetIcon(c, iconX, iconY, 0xFFFFFFFF);
         c.getMatrices().popMatrix();
-
-        renderBgSelector(c, mx, my, x, y + 84, w, KeyStrokesModule.bgMode, KeyStrokesModule.bgColor, ksPickerOpen, ksPicker);
-    }
-    
-    
-    
-    private void renderBgSelector(DrawContext c, int mx, int my, int x, int y, int w, int mode, int color, boolean pickerOpen, OutlineColorPicker picker) {
-        text(c, "BG", x + 12, y + 3, 0xFF8E95A4);
-        int bx = x + 36;
-        modeButton(c, "Dark", bx, y, 32, 16, mx, my, mode == 0);
-        modeButton(c, "Clear", bx + 36, y, 34, 16, mx, my, mode == 1);
-        modeButton(c, "Color", bx + 74, y, 34, 16, mx, my, mode == 2);
-        modeButton(c, "Chroma", bx + 112, y, 42, 16, mx, my, mode == 3);
-
-        if (mode == 2) {
-            int sx = bx + 158;
-            box(c, sx, y, 16, 16, 0xFF292D36);
-            box(c, sx + 2, y + 2, 12, 12, color);
-            CustomGuiUtils.drawUltraRoundedOutline(c, sx, y, 16, 16, pickerOpen ? GuiTheme.accent() : 0xFF555555, 3);
-            if (pickerOpen) {
-                picker.layout(x + 12, y + 22, w - 24);
-                picker.render(c);
-            }
-        }
     }
 
     private void renderFpsModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = getModuleHeight(fpsExpanded, FpsModule.bgMode, fpsPickerOpen);
+        int h = getModuleHeight(fpsExpanded);
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
         text(c, "FPS", x + 12, y + 12, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
@@ -464,13 +480,21 @@ public class BameClientScreen extends Screen {
         if (!fpsExpanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
+        button(c, "BG: " + fpsBgName(), x + 78, y + 58, 94, 20, mx, my);
+    }
 
-        renderBgSelector(c, mx, my, x, y + 84, w, FpsModule.bgMode, FpsModule.bgColor, fpsPickerOpen, fpsPicker);
+    private String fpsBgName() {
+        return switch (FpsModule.bgMode) {
+            case 1 -> "Transparent";
+            case 2 -> "Rainbow";
+            case 3 -> "Theme";
+            default -> "Dark";
+        };
     }
 
     private void renderPingModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = getModuleHeight(pingExpanded, PingModule.bgMode, pingPickerOpen);
+        int h = getModuleHeight(pingExpanded);
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
         text(c, "Ping", x + 12, y + 12, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
@@ -481,13 +505,21 @@ public class BameClientScreen extends Screen {
         if (!pingExpanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
+        button(c, "BG: " + pingBgName(), x + 78, y + 58, 94, 20, mx, my);
+    }
 
-        renderBgSelector(c, mx, my, x, y + 84, w, PingModule.bgMode, PingModule.bgColor, pingPickerOpen, pingPicker);
+    private String pingBgName() {
+        return switch (PingModule.bgMode) {
+            case 1 -> "Transparent";
+            case 2 -> "Rainbow";
+            case 3 -> "Theme";
+            default -> "Dark";
+        };
     }
 
     private void renderCpsModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = getModuleHeight(cpsExpanded, CpsModule.bgMode, cpsPickerOpen);
+        int h = getModuleHeight(cpsExpanded);
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
         text(c, "CPS", x + 12, y + 12, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
@@ -498,8 +530,16 @@ public class BameClientScreen extends Screen {
         if (!cpsExpanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, "Edit HUD", x + 12, y + 58, 60, 20, mx, my);
+        button(c, "BG: " + cpsBgName(), x + 78, y + 58, 94, 20, mx, my);
+    }
 
-        renderBgSelector(c, mx, my, x, y + 84, w, CpsModule.bgMode, CpsModule.bgColor, cpsPickerOpen, cpsPicker);
+    private String cpsBgName() {
+        return switch (CpsModule.bgMode) {
+            case 1 -> "Transparent";
+            case 2 -> "Rainbow";
+            case 3 -> "Theme";
+            default -> "Dark";
+        };
     }
 
     private void renderZoom(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -516,6 +556,53 @@ public class BameClientScreen extends Screen {
         
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, ZoomModule.mode == 0 ? "Smooth" : "Instant", x + 12, y + 58, 60, 20, mx, my);
+    }
+
+    private void renderNameProtectModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = NameProtectModule.expanded ? 92 : 46;
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Name Protect", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+        String kb = listeningNameProtect ? "..." : formatKey(NameProtectModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, NameProtectModule.enabled, mx, my, delta);
+
+        if (!NameProtectModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+        text(c, "Alias:", x + 12, y + 60, 0xFF8E95A4);
+        if (nameProtectAliasField != null) {
+            nameProtectAliasField.render(c, mx, my, delta);
+        }
+    }
+
+    private void renderServerInfoModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = ServerInfoModule.expanded ? 112 : 46;
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Server Info", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+        String kb = listeningServerInfo ? "..." : formatKey(ServerInfoModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, ServerInfoModule.enabled, mx, my, delta);
+
+        if (!ServerInfoModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+        button(c, "Edit HUD", x + 12, y + 54, 60, 20, mx, my);
+        button(c, "BG: " + serverInfoBgName(), x + 78, y + 54, 94, 20, mx, my);
+
+        modeButton(c, "Name", x + 12, y + 80, 50, 20, mx, my, ServerInfoModule.showName);
+        modeButton(c, "Server", x + 66, y + 80, 54, 20, mx, my, ServerInfoModule.showServer);
+        modeButton(c, "Time", x + 124, y + 80, 48, 20, mx, my, ServerInfoModule.showTime);
+    }
+
+    private String serverInfoBgName() {
+        return switch (ServerInfoModule.bgMode) {
+            case 1 -> "Transparent";
+            case 2 -> "Rainbow";
+            case 3 -> "Theme";
+            default -> "Dark";
+        };
     }
 
     private void renderVisualsRow(DrawContext c, int mx, int my, float delta, int yOffset) {
@@ -552,11 +639,11 @@ public class BameClientScreen extends Screen {
     }
     private int thumbHeight() { return Math.max(24,(int)(ch*(ch/(double)Math.max(ch,contentHeight())))); }
     private int thumbY() { return cy+(int)((ch-thumbHeight())*(scroll/Math.max(1,maxScroll()))); }
-    private void unfocus() { search.setFocused(false); corner1.setFocused(false); corner2.setFocused(false); setFocused(null); }
+    private void unfocus() { search.setFocused(false); corner1.setFocused(false); corner2.setFocused(false); if (nameProtectAliasField != null) nameProtectAliasField.setFocused(false); setFocused(null); }
     @Override public boolean mouseClicked(Click click,boolean twice) {
         layout(); double mx=click.x(),my=click.y();
         if(click.button()!=0) return false;
-        picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release();
+        picker.release();
         int step=Math.min(26,Math.max(17,(ph-165)/6));
         for(int i=0;i<CATEGORIES.length;i++) if(inside(mx,my,px+6,py+70+i*step,sidebar-12,22)) { select(CATEGORIES[i]); return true; }
         int gy=py+73+5*step+9;
@@ -607,10 +694,10 @@ public class BameClientScreen extends Screen {
                     if(inside(mx,my,cx+cw-50,myY+132,38,20)) { setCorner(true); return true; }
                     if(inside(mx,my,cx+cw-50,myY+156,38,20)) { setCorner(false); return true; }
                     if(inside(mx,my,cx+12,myY+184,cw-24,22)) { AutoAreaMinerModule.mode3x3=!AutoAreaMinerModule.mode3x3; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,cx+170,myY+228,45,18)) { BameClientConfig.renderMode=0; return true; }
-                    if(inside(mx,my,cx+220,myY+228,55,18)) { BameClientConfig.renderMode=1; return true; }
-                    if(inside(mx,my,cx+170,myY+250,55,18)) { BameClientConfig.renderMode=2; return true; }
-                    if(inside(mx,my,cx+230,myY+250,45,18)) { BameClientConfig.renderMode=3; return true; }
+                    if(inside(mx,my,cx+170,myY+228,45,18)) { BameClientConfig.renderMode=0; BameClientConfig.save(); return true; }
+                    if(inside(mx,my,cx+220,myY+228,55,18)) { BameClientConfig.renderMode=1; BameClientConfig.save(); return true; }
+                    if(inside(mx,my,cx+170,myY+250,55,18)) { BameClientConfig.renderMode=2; BameClientConfig.save(); return true; }
+                    if(inside(mx,my,cx+230,myY+250,45,18)) { BameClientConfig.renderMode=3; BameClientConfig.save(); return true; }
                     
                     if(picker.click(mx,my)) return true;
                 }
@@ -649,15 +736,26 @@ public class BameClientScreen extends Screen {
                 if(inside(mx,my,cx,myY,halfW,46)) { pingExpanded=!pingExpanded; layout(); return true; }
                 if(pingExpanded) {
                     if(inside(mx,my,cx+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    int bx = cx + 36;
-                    if(inside(mx,my,bx,myY+84,32,16)) { PingModule.bgMode=0; pingPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+36,myY+84,34,16)) { PingModule.bgMode=1; pingPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+74,myY+84,34,16)) { PingModule.bgMode=2; pingPickerOpen=true; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+112,myY+84,42,16)) { PingModule.bgMode=3; pingPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(PingModule.bgMode==2 && inside(mx,my,bx+158,myY+84,16,16)) { pingPickerOpen=!pingPickerOpen; layout(); return true; }
-                    if(PingModule.bgMode==2 && pingPickerOpen && pingPicker.click(mx,my)) return true;
+                    if(inside(mx,my,cx+78,myY+58,94,20)) {
+                        PingModule.bgMode = (PingModule.bgMode + 1) % 4;
+                        BameClientConfig.save();
+                        return true;
+                    }
                 }
-                leftY += getModuleHeight(pingExpanded, PingModule.bgMode, pingPickerOpen) + 12;
+                leftY += getModuleHeight(pingExpanded) + 12;
+            }
+            if(nameProtectVisible()) {
+                int myY = baseY() + leftY;
+                if(inside(mx,my,cx+halfW-38,myY+12,26,14)) { NameProtectModule.enabled=!NameProtectModule.enabled; BameClientConfig.save(); return true; }
+                if(inside(mx,my,cx+60,myY+25,48,16)) { listeningNameProtect=true; return true; }
+                if(inside(mx,my,cx,myY,halfW,46)) { NameProtectModule.expanded=!NameProtectModule.expanded; layout(); return true; }
+                if(NameProtectModule.expanded) {
+                    if(nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
+                        setFocused(nameProtectAliasField);
+                        return true;
+                    }
+                }
+                leftY += (NameProtectModule.expanded ? 92 : 46) + 12;
             }
 
             if(keyStrokesVisible()) {
@@ -674,15 +772,8 @@ public class BameClientScreen extends Screen {
                         BameClientConfig.save();
                         return true;
                     }
-                    int bx = kX + 36;
-                    if(inside(mx,my,bx,myY+84,32,16)) { KeyStrokesModule.bgMode=0; ksPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+36,myY+84,34,16)) { KeyStrokesModule.bgMode=1; ksPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+74,myY+84,34,16)) { KeyStrokesModule.bgMode=2; ksPickerOpen=true; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+112,myY+84,42,16)) { KeyStrokesModule.bgMode=3; ksPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(KeyStrokesModule.bgMode==2 && inside(mx,my,bx+158,myY+84,16,16)) { ksPickerOpen=!ksPickerOpen; layout(); return true; }
-                    if(KeyStrokesModule.bgMode==2 && ksPickerOpen && ksPicker.click(mx,my)) return true;
                 }
-                rightY += getModuleHeight(keyStrokesExpanded, KeyStrokesModule.bgMode, ksPickerOpen) + 12;
+                rightY += getModuleHeight(keyStrokesExpanded) + 12;
             }
             if(fpsVisible()) {
                 int myY = baseY() + rightY;
@@ -692,15 +783,13 @@ public class BameClientScreen extends Screen {
                 if(inside(mx,my,kX,myY,halfW,46)) { fpsExpanded=!fpsExpanded; layout(); return true; }
                 if(fpsExpanded) {
                     if(inside(mx,my,kX+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    int bx = kX + 36;
-                    if(inside(mx,my,bx,myY+84,32,16)) { FpsModule.bgMode=0; fpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+36,myY+84,34,16)) { FpsModule.bgMode=1; fpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+74,myY+84,34,16)) { FpsModule.bgMode=2; fpsPickerOpen=true; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+112,myY+84,42,16)) { FpsModule.bgMode=3; fpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(FpsModule.bgMode==2 && inside(mx,my,bx+158,myY+84,16,16)) { fpsPickerOpen=!fpsPickerOpen; layout(); return true; }
-                    if(FpsModule.bgMode==2 && fpsPickerOpen && fpsPicker.click(mx,my)) return true;
+                    if(inside(mx,my,kX+78,myY+58,94,20)) {
+                        FpsModule.bgMode = (FpsModule.bgMode + 1) % 4;
+                        BameClientConfig.save();
+                        return true;
+                    }
                 }
-                rightY += getModuleHeight(fpsExpanded, FpsModule.bgMode, fpsPickerOpen) + 12;
+                rightY += getModuleHeight(fpsExpanded) + 12;
             }
             if(cpsVisible()) {
                 int myY = baseY() + rightY;
@@ -710,19 +799,48 @@ public class BameClientScreen extends Screen {
                 if(inside(mx,my,kX,myY,halfW,46)) { cpsExpanded=!cpsExpanded; layout(); return true; }
                 if(cpsExpanded) {
                     if(inside(mx,my,kX+12,myY+58,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
-                    int bx = kX + 36;
-                    if(inside(mx,my,bx,myY+84,32,16)) { CpsModule.bgMode=0; cpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+36,myY+84,34,16)) { CpsModule.bgMode=1; cpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+74,myY+84,34,16)) { CpsModule.bgMode=2; cpsPickerOpen=true; BameClientConfig.save(); return true; }
-                    if(inside(mx,my,bx+112,myY+84,42,16)) { CpsModule.bgMode=3; cpsPickerOpen=false; BameClientConfig.save(); return true; }
-                    if(CpsModule.bgMode==2 && inside(mx,my,bx+158,myY+84,16,16)) { cpsPickerOpen=!cpsPickerOpen; layout(); return true; }
-                    if(CpsModule.bgMode==2 && cpsPickerOpen && cpsPicker.click(mx,my)) return true;
+                    if(inside(mx,my,kX+78,myY+58,94,20)) {
+                        CpsModule.bgMode = (CpsModule.bgMode + 1) % 4;
+                        BameClientConfig.save();
+                        return true;
+                    }
                 }
-                rightY += getModuleHeight(cpsExpanded, CpsModule.bgMode, cpsPickerOpen) + 12;
+                rightY += getModuleHeight(cpsExpanded) + 12;
+            }
+            if(serverInfoVisible()) {
+                int myY = baseY() + rightY;
+                int kX = cx + halfW + gap;
+                if(inside(mx,my,kX+halfW-38,myY+12,26,14)) { ServerInfoModule.enabled=!ServerInfoModule.enabled; BameClientConfig.save(); return true; }
+                if(inside(mx,my,kX+60,myY+25,48,16)) { listeningServerInfo=true; return true; }
+                if(inside(mx,my,kX,myY,halfW,46)) { ServerInfoModule.expanded=!ServerInfoModule.expanded; layout(); return true; }
+                if(ServerInfoModule.expanded) {
+                    if(inside(mx,my,kX+12,myY+54,60,20)) { client.setScreen(new HudEditorScreen(this)); return true; }
+                    if(inside(mx,my,kX+78,myY+54,94,20)) {
+                        ServerInfoModule.bgMode = (ServerInfoModule.bgMode + 1) % 4;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if(inside(mx,my,kX+12,myY+80,50,20)) {
+                        ServerInfoModule.showName = !ServerInfoModule.showName;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if(inside(mx,my,kX+66,myY+80,54,20)) {
+                        ServerInfoModule.showServer = !ServerInfoModule.showServer;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if(inside(mx,my,kX+124,myY+80,48,20)) {
+                        ServerInfoModule.showTime = !ServerInfoModule.showTime;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                }
+                rightY += (ServerInfoModule.expanded ? 112 : 46) + 12;
             }
         }return false;
     }
-    private void select(String category) { picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release(); themeSettings.close(); selected=category; scroll=0; listening=false; listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; unfocus(); layout(); }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; listeningServerInfo=false; listeningNameProtect=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -772,7 +890,7 @@ public class BameClientScreen extends Screen {
     }
     @Override public boolean mouseReleased(Click click) {
         boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; com.bame.client.BameClientConfig.save(); picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release(); themeSettings.release();
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {
@@ -780,20 +898,26 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningKeyStrokes && !listeningZoom) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningKeyStrokes && !listeningZoom && !listeningFps && !listeningPing && !listeningCps && !listeningServerInfo && !listeningNameProtect) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
         if(listeningKeyStrokes) { com.bame.client.module.KeyStrokesModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningKeyStrokes=false; BameClientConfig.save(); return true; }
-        if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; BameClientConfig.save(); return true; }
+        if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; BameClientConfig.save(); return true; }
+        if(listeningFps) { com.bame.client.module.FpsModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFps=false; BameClientConfig.save(); return true; }
+        if(listeningPing) { com.bame.client.module.PingModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningPing=false; BameClientConfig.save(); return true; }
+        if(listeningCps) { com.bame.client.module.CpsModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningCps=false; BameClientConfig.save(); return true; }
+        if(listeningServerInfo) { com.bame.client.module.ServerInfoModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningServerInfo=false; BameClientConfig.save(); return true; }
+        if(listeningNameProtect) { com.bame.client.module.NameProtectModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningNameProtect=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
-    @Override public void removed() { picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }
+    @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }
     @Override public boolean shouldPause() { return false; }
 
     @Override public void close() {
         super.close();
         openTime = 0;
+        BameClientConfig.save();
     }
 
 }
