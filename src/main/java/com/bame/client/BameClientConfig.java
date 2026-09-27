@@ -32,6 +32,28 @@ public class BameClientConfig {
         try (InputStream in = Files.newInputStream(CONFIG_FILE)) {
             Properties props = new Properties();
             props.load(in);
+            if (props.containsKey("keyBind")) AutoAreaMinerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+            if (props.containsKey("mode3x3")) AutoAreaMinerModule.mode3x3 = Boolean.parseBoolean(props.getProperty("mode3x3"));
+            if (props.containsKey("corner1")) {
+                String[] parts = props.getProperty("corner1").trim().split("\\s+");
+                if (parts.length == 3) {
+                    try {
+                        AutoAreaMinerModule.corner1 = new net.minecraft.util.math.BlockPos(
+                            Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])
+                        );
+                    } catch (Exception ignored) {}
+                }
+            }
+            if (props.containsKey("corner2")) {
+                String[] parts = props.getProperty("corner2").trim().split("\\s+");
+                if (parts.length == 3) {
+                    try {
+                        AutoAreaMinerModule.corner2 = new net.minecraft.util.math.BlockPos(
+                            Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])
+                        );
+                    } catch (Exception ignored) {}
+                }
+            }
             customMainColor = Boolean.parseBoolean(props.getProperty("customMainColor", String.valueOf(customMainColor)));
             classicToggle = Boolean.parseBoolean(props.getProperty("classicToggle", String.valueOf(classicToggle)));
             ambientAnimation = Boolean.parseBoolean(props.getProperty("ambientAnimation", String.valueOf(ambientAnimation)));
@@ -73,6 +95,12 @@ public class BameClientConfig {
             Properties props = new Properties();
             props.setProperty("keyBind", String.valueOf(AutoAreaMinerModule.keyBind));
             props.setProperty("mode3x3", String.valueOf(AutoAreaMinerModule.mode3x3));
+            if (AutoAreaMinerModule.corner1 != null) {
+                props.setProperty("corner1", AutoAreaMinerModule.corner1.getX() + " " + AutoAreaMinerModule.corner1.getY() + " " + AutoAreaMinerModule.corner1.getZ());
+            }
+            if (AutoAreaMinerModule.corner2 != null) {
+                props.setProperty("corner2", AutoAreaMinerModule.corner2.getX() + " " + AutoAreaMinerModule.corner2.getY() + " " + AutoAreaMinerModule.corner2.getZ());
+            }
             props.setProperty("outlineColor", Integer.toHexString(outlineColor));
             props.setProperty("renderMode", String.valueOf(renderMode));
             props.setProperty("outlineWidth", String.valueOf(outlineWidth));

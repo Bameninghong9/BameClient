@@ -17,6 +17,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 import org.lwjgl.glfw.GLFW;
 
 public class BameClientScreen extends Screen {
@@ -75,8 +77,8 @@ public class BameClientScreen extends Screen {
         corner2=new CustomTextFieldWidget(0,0,cw-24,22,Text.literal("Corner 2"));
         corner1.setText(format(AutoAreaMinerModule.corner1)); corner2.setText(format(AutoAreaMinerModule.corner2));
         corner1.setPlaceholder("X Y Z"); corner2.setPlaceholder("X Y Z");
-        corner1.setChangedListener(s->AutoAreaMinerModule.corner1=parse(s));
-        corner2.setChangedListener(s->AutoAreaMinerModule.corner2=parse(s));
+        corner1.setChangedListener(s->{ AutoAreaMinerModule.corner1=parse(s); BameClientConfig.save(); });
+        corner2.setChangedListener(s->{ AutoAreaMinerModule.corner2=parse(s); BameClientConfig.save(); });
         addSelectableChild(corner1); addSelectableChild(corner2); layout();
     }
     private boolean isVisible(String moduleName, String category) {
@@ -587,7 +589,16 @@ public class BameClientScreen extends Screen {
             int leftY = 0;
             if(minerVisible()) {
                 int myY = baseY() + leftY;
-                if(inside(mx,my,cx+cw-38,myY+12,26,14)) { com.bame.client.module.AutoAreaMinerModule.enabled=!com.bame.client.module.AutoAreaMinerModule.enabled; return true; }
+                if(inside(mx,my,cx+cw-38,myY+12,26,14)) {
+                    com.bame.client.module.AutoAreaMinerModule.enabled=!com.bame.client.module.AutoAreaMinerModule.enabled;
+                    if(com.bame.client.module.AutoAreaMinerModule.enabled && (com.bame.client.module.AutoAreaMinerModule.corner1==null || com.bame.client.module.AutoAreaMinerModule.corner2==null)) {
+                        if(client != null && client.player != null) {
+                            client.player.sendMessage(Text.literal("§c[AutoAreaMiner] Bitte zuerst Corner 1 und Corner 2 festlegen!"), false);
+                        }
+                        com.bame.client.module.AutoAreaMinerModule.enabled=false;
+                    }
+                    return true;
+                }
                 if(inside(mx,my,cx+60,myY+25,48,16)) { listening=true; return true; }
                 if(inside(mx,my,cx,myY,cw,46)) { expanded=!expanded; layout(); return true; }
                 if(expanded) {
@@ -595,7 +606,7 @@ public class BameClientScreen extends Screen {
                     if(corner2.mouseClicked(click,twice)) { setFocused(corner2); return true; }
                     if(inside(mx,my,cx+cw-50,myY+132,38,20)) { setCorner(true); return true; }
                     if(inside(mx,my,cx+cw-50,myY+156,38,20)) { setCorner(false); return true; }
-                    if(inside(mx,my,cx+12,myY+184,cw-24,22)) { AutoAreaMinerModule.mode3x3=!AutoAreaMinerModule.mode3x3; return true; }
+                    if(inside(mx,my,cx+12,myY+184,cw-24,22)) { AutoAreaMinerModule.mode3x3=!AutoAreaMinerModule.mode3x3; BameClientConfig.save(); return true; }
                     if(inside(mx,my,cx+170,myY+228,45,18)) { BameClientConfig.renderMode=0; return true; }
                     if(inside(mx,my,cx+220,myY+228,55,18)) { BameClientConfig.renderMode=1; return true; }
                     if(inside(mx,my,cx+170,myY+250,55,18)) { BameClientConfig.renderMode=2; return true; }
@@ -713,10 +724,37 @@ public class BameClientScreen extends Screen {
     }
     private void select(String category) { picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release(); themeSettings.close(); selected=category; scroll=0; listening=false; listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
-        if(client.player==null||!(client.crosshairTarget instanceof BlockHitResult hit)||hit.getType()!=HitResult.Type.BLOCK) return;
-        BlockPos p=hit.getBlockPos();
-        if(first) corner1.setText(format(new BlockPos(p.getX(),client.player.getBlockY(),p.getZ())));
-        else corner2.setText(format(p));
+        if(client.player==null) return;
+        if(first) {
+            BlockPos p = client.player.getBlockPos();
+            AutoAreaMinerModule.corner1 = p;
+            corner1.setText(format(p));
+            BameClientConfig.save();
+        } else {
+            HitResult hit = client.crosshairTarget;
+            if(hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+                BlockPos p = bhr.getBlockPos();
+                AutoAreaMinerModule.corner2 = p;
+                corner2.setText(format(p));
+                BameClientConfig.save();
+            } else if(client.world != null) {
+                Vec3d eye = client.player.getEyePos();
+                Vec3d look = client.player.getRotationVec(1.0f);
+                Vec3d end = eye.add(look.multiply(50.0));
+                HitResult ray = client.world.raycast(new RaycastContext(eye, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, client.player));
+                if(ray.getType() == HitResult.Type.BLOCK && ray instanceof BlockHitResult bhr) {
+                    BlockPos p = bhr.getBlockPos();
+                    AutoAreaMinerModule.corner2 = p;
+                    corner2.setText(format(p));
+                    BameClientConfig.save();
+                } else {
+                    BlockPos p = client.player.getBlockPos();
+                    AutoAreaMinerModule.corner2 = p;
+                    corner2.setText(format(p));
+                    BameClientConfig.save();
+                }
+            }
+        }
     }
     private void dragScroll(double my) { scroll=Math.clamp((my-cy-scrollGrab)/Math.max(1,ch-thumbHeight())*maxScroll(),0,maxScroll()); layout(); }
     @Override public boolean mouseDragged(Click click,double dx,double dy) {

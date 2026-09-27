@@ -43,6 +43,9 @@ final class ThreeByThreeMiner {
     private static void stop(MinecraftClient c,String reason) {
         reset(c); AutoAreaMinerModule.enabled=false; AutoAreaMinerModule.wasEnabled=false;
         com.bame.client.BameClient.LOGGER.info("Miner stopped: {}", reason);
+        if (c.player != null) {
+            c.player.sendMessage(net.minecraft.text.Text.literal("§c[AutoAreaMiner] " + reason), false);
+        }
     }
     private static boolean clear(MinecraftClient c,Cell p) {
         var s=c.world.getBlockState(pos(p));
