@@ -187,14 +187,14 @@ public class BameClientScreen extends Screen {
     }
     private void modeButton(DrawContext c,String label,int x,int y,int w,int h,int mx,int my,boolean selected) {
         boolean hover=inside(mx,my,x,y,w,h);
-        box(c,x,y,w,h,selected?GuiTheme.alpha(GuiTheme.accent(), 80):(hover?0xFF252A34:0xFF181C24));
+        CustomGuiUtils.fillUltraRounded(c,x,y,w,h,selected?GuiTheme.alpha(GuiTheme.accent(), 80):(hover?0xFF252A34:0xFF181C24),4);
         CustomGuiUtils.drawUltraRoundedOutline(c,x,y,w,h,selected?GuiTheme.accent():(hover?0xFF606575:0xFF292D36),4);
         int tw=textRenderer.getWidth(CustomGuiUtils.getFontText(label));
         text(c,label,x+(w-tw)/2,y+(h-8)/2,selected?0xFFFFFFFF:0xFFD4D8E0);
     }
     private void button(DrawContext c,String label,int x,int y,int w,int h,int mx,int my) {
         boolean hover=inside(mx,my,x,y,w,h);
-        box(c,x,y,w,h,hover?0xFF252A34:0xFF181C24);
+        CustomGuiUtils.fillUltraRounded(c,x,y,w,h,hover?0xFF252A34:0xFF181C24,4);
         CustomGuiUtils.drawUltraRoundedOutline(c,x,y,w,h,hover?GuiTheme.accent():0xFF292D36,4);
         int tw=textRenderer.getWidth(CustomGuiUtils.getFontText(label));
         text(c,label,x+(w-tw)/2,y+(h-8)/2,0xFFD4D8E0);
@@ -338,7 +338,7 @@ public class BameClientScreen extends Screen {
         c.fill(cx+8,y+46,cx+cw-8,y+47,0xFF292D36);
         text(c,"Corner 1",cx+12,y+52,0xFFABB1BE); corner1.render(c,mx,my,delta);
         text(c,"Corner 2",cx+12,y+92,0xFFABB1BE); corner2.render(c,mx,my,delta);
-        text(c,"Corner 1 - Feet",cx+12,y+138,0xFFABB1BE);
+        text(c,"Corner 1 - Looking",cx+12,y+138,0xFFABB1BE);
         text(c,"Corner 2 - Looking",cx+12,y+162,0xFFABB1BE);
         button(c,"Set",cx+cw-50,y+132,38,20,mx,my);
         button(c,"Set",cx+cw-50,y+156,38,20,mx,my);
@@ -724,37 +724,31 @@ public class BameClientScreen extends Screen {
     }
     private void select(String category) { picker.release(); ksPicker.release(); fpsPicker.release(); pingPicker.release(); cpsPicker.release(); themeSettings.close(); selected=category; scroll=0; listening=false; listeningZoom=false; listeningFps=false; listeningPing=false; listeningCps=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
-        if(client.player==null) return;
-        if(first) {
-            BlockPos p = client.player.getBlockPos();
-            AutoAreaMinerModule.corner1 = p;
-            corner1.setText(format(p));
-            BameClientConfig.save();
+        if(client.player==null || client.world==null) return;
+        BlockPos p = null;
+        HitResult hit = client.crosshairTarget;
+        if(hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+            p = bhr.getBlockPos();
         } else {
-            HitResult hit = client.crosshairTarget;
-            if(hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
-                BlockPos p = bhr.getBlockPos();
-                AutoAreaMinerModule.corner2 = p;
-                corner2.setText(format(p));
-                BameClientConfig.save();
-            } else if(client.world != null) {
-                Vec3d eye = client.player.getEyePos();
-                Vec3d look = client.player.getRotationVec(1.0f);
-                Vec3d end = eye.add(look.multiply(50.0));
-                HitResult ray = client.world.raycast(new RaycastContext(eye, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, client.player));
-                if(ray.getType() == HitResult.Type.BLOCK && ray instanceof BlockHitResult bhr) {
-                    BlockPos p = bhr.getBlockPos();
-                    AutoAreaMinerModule.corner2 = p;
-                    corner2.setText(format(p));
-                    BameClientConfig.save();
-                } else {
-                    BlockPos p = client.player.getBlockPos();
-                    AutoAreaMinerModule.corner2 = p;
-                    corner2.setText(format(p));
-                    BameClientConfig.save();
-                }
+            Vec3d eye = client.player.getEyePos();
+            Vec3d look = client.player.getRotationVec(1.0f);
+            Vec3d end = eye.add(look.multiply(50.0));
+            HitResult ray = client.world.raycast(new RaycastContext(eye, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, client.player));
+            if(ray.getType() == HitResult.Type.BLOCK && ray instanceof BlockHitResult bhr) {
+                p = bhr.getBlockPos();
             }
         }
+        if(p == null) {
+            p = client.player.getBlockPos();
+        }
+        if(first) {
+            AutoAreaMinerModule.corner1 = p;
+            corner1.setText(format(p));
+        } else {
+            AutoAreaMinerModule.corner2 = p;
+            corner2.setText(format(p));
+        }
+        BameClientConfig.save();
     }
     private void dragScroll(double my) { scroll=Math.clamp((my-cy-scrollGrab)/Math.max(1,ch-thumbHeight())*maxScroll(),0,maxScroll()); layout(); }
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
