@@ -2,10 +2,12 @@ package com.bame.client.gui;
 
 import com.bame.client.module.CpsModule;
 import com.bame.client.module.FpsModule;
+import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.KeyStrokesModule;
 import com.bame.client.module.KeyStrokesModule.KeyStroke;
 import com.bame.client.module.PingModule;
 import com.bame.client.module.ServerInfoModule;
+import com.bame.client.render.FakeScoreboardRenderer;
 import com.bame.client.render.KeyStrokesRenderer;
 import com.bame.client.render.StatusHudRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -15,7 +17,7 @@ import net.minecraft.text.Text;
 public class HudEditorScreen extends Screen {
     private final Screen parent;
     
-    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo"
+    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo", "fakeScoreboard"
     private String resizingTarget = NoneTarget;
     private static final String NoneTarget = "none";
     private KeyStroke draggingKey = null;
@@ -26,6 +28,41 @@ public class HudEditorScreen extends Screen {
 
     private int snapLineX = -1;
     private int snapLineY = -1;
+
+    private String popupTarget = null;
+    private int popupX, popupY;
+    private static final int POPUP_W = 120;
+    private static final int POPUP_H = 114;
+
+    private void openPopup(String target, int mx, int my) {
+        this.popupTarget = target;
+        this.popupX = Math.max(10, Math.min(width - POPUP_W - 10, mx));
+        this.popupY = Math.max(10, Math.min(height - POPUP_H - 10, my));
+    }
+
+    private int getBgMode(String target) {
+        return switch (target) {
+            case "fps" -> FpsModule.bgMode;
+            case "ping" -> PingModule.bgMode;
+            case "cps" -> CpsModule.bgMode;
+            case "keystrokes" -> KeyStrokesModule.bgMode;
+            case "serverInfo" -> ServerInfoModule.bgMode;
+            case "fakeScoreboard" -> FakeScoreboardModule.bgMode;
+            default -> 0;
+        };
+    }
+
+    private void setBgMode(String target, int mode) {
+        switch (target) {
+            case "fps" -> FpsModule.bgMode = mode;
+            case "ping" -> PingModule.bgMode = mode;
+            case "cps" -> CpsModule.bgMode = mode;
+            case "keystrokes" -> KeyStrokesModule.bgMode = mode;
+            case "serverInfo" -> ServerInfoModule.bgMode = mode;
+            case "fakeScoreboard" -> FakeScoreboardModule.bgMode = mode;
+        }
+        com.bame.client.BameClientConfig.save();
+    }
 
     public HudEditorScreen(Screen parent) {
         super(Text.literal("HUD Editor"));
@@ -162,10 +199,60 @@ public class HudEditorScreen extends Screen {
             }
         }
 
+        // 6. Render Fake Scoreboard Module
+        if (FakeScoreboardModule.enabled) {
+            int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight();
+            float s = FakeScoreboardModule.scale;
+            int x = FakeScoreboardModule.hudX;
+            if (x == -1) {
+                x = width - (int)(w * s) - 10;
+                FakeScoreboardModule.hudX = x;
+            }
+            int y = FakeScoreboardModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            FakeScoreboardRenderer.render(context, x, y, s);
+            if (hover || draggingTarget.equals("fakeScoreboard") || resizingTarget.equals("fakeScoreboard")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
         if (snapLineX != -1) context.fill(snapLineX, 0, snapLineX + 1, height, 0xFF00FF00);
         if (snapLineY != -1) context.fill(0, snapLineY, width, snapLineY + 1, 0xFF00FF00);
 
         context.drawText(client.textRenderer, "Press ESC to save and return", width / 2 - 70, 10, 0xFFFFFFFF, true);
+
+        // Render right-click popup on top of everything
+        if (popupTarget != null) {
+            CustomGuiUtils.fillUltraRounded(context, popupX, popupY, POPUP_W, POPUP_H, 0xF5141822, 6);
+            CustomGuiUtils.drawUltraRoundedOutline(context, popupX, popupY, POPUP_W, POPUP_H, GuiTheme.accent(), 6);
+
+            String title = switch (popupTarget) {
+                case "fps" -> "FPS";
+                case "ping" -> "Ping";
+                case "cps" -> "CPS";
+                case "keystrokes" -> "KeyStrokes";
+                case "serverInfo" -> "Server Info";
+                case "fakeScoreboard" -> "Scoreboard";
+                default -> "HUD";
+            };
+            context.drawText(client.textRenderer, CustomGuiUtils.getFontText(title + " BG"), popupX + 8, popupY + 8, 0xFFFFFFFF, false);
+            context.drawText(client.textRenderer, Text.literal("×"), popupX + POPUP_W - 14, popupY + 6, 0xFF8E95A4, false);
+
+            int curBg = getBgMode(popupTarget);
+            String[] bgs = {"Dark", "Transparent", "Rainbow", "Theme"};
+            for (int i = 0; i < 4; i++) {
+                int by = popupY + 24 + i * 21;
+                boolean selected = (curBg == i);
+                boolean hover = inside(mouseX, mouseY, popupX + 8, by, POPUP_W - 16, 18);
+                int fill = selected ? GuiTheme.alpha(GuiTheme.accent(), 90) : (hover ? 0xFF252A34 : 0xFF181C24);
+                int outline = selected ? GuiTheme.accent() : (hover ? 0xFF606575 : 0xFF292D36);
+                CustomGuiUtils.fillUltraRounded(context, popupX + 8, by, POPUP_W - 16, 18, fill, 4);
+                CustomGuiUtils.drawUltraRoundedOutline(context, popupX + 8, by, POPUP_W - 16, 18, outline, 4);
+                int tw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(bgs[i]));
+                context.drawText(client.textRenderer, CustomGuiUtils.getFontText(bgs[i]), popupX + 8 + (POPUP_W - 16 - tw) / 2, by + 5, selected ? 0xFFFFFFFF : 0xFFD4D8E0, false);
+            }
+        }
     }
 
     private void drawBoundingControls(DrawContext context, int x, int y, int w, int h, float scale) {
@@ -197,6 +284,69 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean twice) {
         double mouseX = click.x(); double mouseY = click.y();
+
+        if (popupTarget != null) {
+            if (click.button() == 0) {
+                if (inside(mouseX, mouseY, popupX + POPUP_W - 18, popupY + 4, 16, 16)) {
+                    popupTarget = null;
+                    return true;
+                }
+                for (int i = 0; i < 4; i++) {
+                    int by = popupY + 24 + i * 21;
+                    if (inside(mouseX, mouseY, popupX + 8, by, POPUP_W - 16, 18)) {
+                        setBgMode(popupTarget, i);
+                        return true;
+                    }
+                }
+            }
+            popupTarget = null;
+            return true;
+        }
+
+        // Right-click: Open Background context popup!
+        if (click.button() == 1) {
+            if (FpsModule.enabled) {
+                int w = StatusHudRenderer.getFpsWidth(client); int h = 18; float s = FpsModule.scale;
+                if (inside(mouseX, mouseY, FpsModule.hudX - 2, FpsModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("fps", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (PingModule.enabled) {
+                int w = StatusHudRenderer.getPingWidth(client); int h = 18; float s = PingModule.scale;
+                if (inside(mouseX, mouseY, PingModule.hudX - 2, PingModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("ping", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (CpsModule.enabled) {
+                int w = StatusHudRenderer.getCpsWidth(client); int h = 18; float s = CpsModule.scale;
+                if (inside(mouseX, mouseY, CpsModule.hudX - 2, CpsModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("cps", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (KeyStrokesModule.enabled) {
+                float s = KeyStrokesModule.scale;
+                int minX = getKeyMinX(); int minY = getKeyMinY();
+                int maxX = getKeyMaxX(); int maxY = getKeyMaxY();
+                int gw = maxX - minX; int gh = maxY - minY;
+                if (inside(mouseX, mouseY, KeyStrokesModule.hudX + (minX - 4) * s, KeyStrokesModule.hudY + (minY - 4) * s, (gw + 8) * s, (gh + 8) * s)) {
+                    openPopup("keystrokes", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (ServerInfoModule.enabled) {
+                int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
+                if (inside(mouseX, mouseY, ServerInfoModule.hudX - 2, ServerInfoModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (FakeScoreboardModule.enabled) {
+                int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight(); float s = FakeScoreboardModule.scale;
+                if (inside(mouseX, mouseY, FakeScoreboardModule.hudX - 2, FakeScoreboardModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("fakeScoreboard", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            return false;
+        }
+
         if (click.button() != 0) return false;
 
         // 1. Check KeyStrokes
@@ -297,6 +447,26 @@ public class HudEditorScreen extends Screen {
             }
         }
 
+        // 6. Check Fake Scoreboard
+        if (FakeScoreboardModule.enabled) {
+            int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight(); float s = FakeScoreboardModule.scale;
+            int x = FakeScoreboardModule.hudX;
+            if (x == -1) {
+                x = width - (int)(w * s) - 10;
+                FakeScoreboardModule.hudX = x;
+            }
+            int y = FakeScoreboardModule.hudY;
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                FakeScoreboardModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "fakeScoreboard"; startX = (int)mouseX; startScale = FakeScoreboardModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "fakeScoreboard"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
         return super.mouseClicked(click, twice);
     }
 
@@ -313,6 +483,7 @@ public class HudEditorScreen extends Screen {
                 case "ping" -> PingModule.scale = newScale;
                 case "cps" -> CpsModule.scale = newScale;
                 case "serverInfo" -> ServerInfoModule.scale = newScale;
+                case "fakeScoreboard" -> FakeScoreboardModule.scale = newScale;
             }
             return true;
         }
@@ -337,6 +508,7 @@ public class HudEditorScreen extends Screen {
                 case "ping" -> { gw = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale); gh = (int)(18 * PingModule.scale); s = PingModule.scale; }
                 case "cps" -> { gw = (int)(StatusHudRenderer.getCpsWidth(client) * CpsModule.scale); gh = (int)(18 * CpsModule.scale); s = CpsModule.scale; }
                 case "serverInfo" -> { gw = (int)(StatusHudRenderer.getServerInfoWidth(client) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
+                case "fakeScoreboard" -> { gw = (int)(FakeScoreboardRenderer.getWidth(client) * FakeScoreboardModule.scale); gh = (int)(FakeScoreboardRenderer.getHeight() * FakeScoreboardModule.scale); s = FakeScoreboardModule.scale; }
             }
 
             int centerX = width / 2; int centerY = height / 2;
@@ -354,6 +526,7 @@ public class HudEditorScreen extends Screen {
                 case "ping" -> { PingModule.hudX = newX; PingModule.hudY = newY; }
                 case "cps" -> { CpsModule.hudX = newX; CpsModule.hudY = newY; }
                 case "serverInfo" -> { ServerInfoModule.hudX = newX; ServerInfoModule.hudY = newY; }
+                case "fakeScoreboard" -> { FakeScoreboardModule.hudX = newX; FakeScoreboardModule.hudY = newY; }
             }
             return true;
         }
@@ -367,5 +540,16 @@ public class HudEditorScreen extends Screen {
         resizingTarget = NoneTarget;
         draggingKey = null;
         return super.mouseReleased(click);
+    }
+
+    @Override
+    public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            if (popupTarget != null) {
+                popupTarget = null;
+                return true;
+            }
+        }
+        return super.keyPressed(input);
     }
 }

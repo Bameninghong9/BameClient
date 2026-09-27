@@ -24,6 +24,7 @@ public class BameClient implements ClientModInitializer {
     private static boolean serverInfoWasPressed = false;
     private static boolean nameProtectWasPressed = false;
     private static boolean showHudWasPressed = false;
+    private static boolean fakeScoreboardWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -137,6 +138,16 @@ public class BameClient implements ClientModInitializer {
                     showHudWasPressed = down;
                 }
 
+                // FakeScoreboard bind
+                if (com.bame.client.module.FakeScoreboardModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.FakeScoreboardModule.keyBind);
+                    if (down && !fakeScoreboardWasPressed) {
+                        com.bame.client.module.FakeScoreboardModule.enabled = !com.bame.client.module.FakeScoreboardModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    fakeScoreboardWasPressed = down;
+                }
+
                 // Menu bind
                 if (BameClientConfig.menuBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), BameClientConfig.menuBind);
@@ -150,6 +161,7 @@ public class BameClient implements ClientModInitializer {
         
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.KeyStrokesRenderer());
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.StatusHudRenderer());
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.FakeScoreboardRenderer());
         
         WorldRenderEvents.END_MAIN.register(context -> {
             AreaRenderer.render(context);

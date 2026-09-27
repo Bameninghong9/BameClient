@@ -130,6 +130,20 @@ public class BameClientConfig {
             if (props.containsKey("showHudKeyBind")) com.bame.client.module.ShowHudModule.keyBind = Integer.parseInt(props.getProperty("showHudKeyBind"));
             if (props.containsKey("showHudExpanded")) com.bame.client.module.ShowHudModule.expanded = Boolean.parseBoolean(props.getProperty("showHudExpanded"));
 
+            // Fake Scoreboard
+            if (props.containsKey("fakeScoreboardEnabled")) com.bame.client.module.FakeScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("fakeScoreboardEnabled"));
+            if (props.containsKey("fakeScoreboardKeyBind")) com.bame.client.module.FakeScoreboardModule.keyBind = Integer.parseInt(props.getProperty("fakeScoreboardKeyBind"));
+            if (props.containsKey("fakeScoreboardExpanded")) com.bame.client.module.FakeScoreboardModule.expanded = Boolean.parseBoolean(props.getProperty("fakeScoreboardExpanded"));
+            if (props.containsKey("fakeScoreboardHudX")) com.bame.client.module.FakeScoreboardModule.hudX = Integer.parseInt(props.getProperty("fakeScoreboardHudX"));
+            if (props.containsKey("fakeScoreboardHudY")) com.bame.client.module.FakeScoreboardModule.hudY = Integer.parseInt(props.getProperty("fakeScoreboardHudY"));
+            if (props.containsKey("fakeScoreboardScale")) com.bame.client.module.FakeScoreboardModule.scale = Float.parseFloat(props.getProperty("fakeScoreboardScale"));
+            if (props.containsKey("fakeScoreboardBgMode")) com.bame.client.module.FakeScoreboardModule.bgMode = Integer.parseInt(props.getProperty("fakeScoreboardBgMode"));
+            if (props.containsKey("fakeScoreboardMoney")) com.bame.client.module.FakeScoreboardModule.money = props.getProperty("fakeScoreboardMoney");
+            if (props.containsKey("fakeScoreboardStars")) com.bame.client.module.FakeScoreboardModule.stars = props.getProperty("fakeScoreboardStars");
+            if (props.containsKey("fakeScoreboardKills")) com.bame.client.module.FakeScoreboardModule.kills = props.getProperty("fakeScoreboardKills");
+            if (props.containsKey("fakeScoreboardDeaths")) com.bame.client.module.FakeScoreboardModule.deaths = props.getProperty("fakeScoreboardDeaths");
+            if (props.containsKey("fakeScoreboardTime")) com.bame.client.module.FakeScoreboardModule.playtime = props.getProperty("fakeScoreboardTime");
+
             // Theme, Effects & Appearance
             if (props.containsKey("theme")) theme = props.getProperty("theme");
             if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));
@@ -246,6 +260,20 @@ public class BameClientConfig {
             props.setProperty("showHudEnabled", String.valueOf(com.bame.client.module.ShowHudModule.enabled));
             props.setProperty("showHudKeyBind", String.valueOf(com.bame.client.module.ShowHudModule.keyBind));
             props.setProperty("showHudExpanded", String.valueOf(com.bame.client.module.ShowHudModule.expanded));
+
+            // Fake Scoreboard
+            props.setProperty("fakeScoreboardEnabled", String.valueOf(com.bame.client.module.FakeScoreboardModule.enabled));
+            props.setProperty("fakeScoreboardKeyBind", String.valueOf(com.bame.client.module.FakeScoreboardModule.keyBind));
+            props.setProperty("fakeScoreboardExpanded", String.valueOf(com.bame.client.module.FakeScoreboardModule.expanded));
+            props.setProperty("fakeScoreboardHudX", String.valueOf(com.bame.client.module.FakeScoreboardModule.hudX));
+            props.setProperty("fakeScoreboardHudY", String.valueOf(com.bame.client.module.FakeScoreboardModule.hudY));
+            props.setProperty("fakeScoreboardScale", String.valueOf(com.bame.client.module.FakeScoreboardModule.scale));
+            props.setProperty("fakeScoreboardBgMode", String.valueOf(com.bame.client.module.FakeScoreboardModule.bgMode));
+            if (com.bame.client.module.FakeScoreboardModule.money != null) props.setProperty("fakeScoreboardMoney", com.bame.client.module.FakeScoreboardModule.money);
+            if (com.bame.client.module.FakeScoreboardModule.stars != null) props.setProperty("fakeScoreboardStars", com.bame.client.module.FakeScoreboardModule.stars);
+            if (com.bame.client.module.FakeScoreboardModule.kills != null) props.setProperty("fakeScoreboardKills", com.bame.client.module.FakeScoreboardModule.kills);
+            if (com.bame.client.module.FakeScoreboardModule.deaths != null) props.setProperty("fakeScoreboardDeaths", com.bame.client.module.FakeScoreboardModule.deaths);
+            if (com.bame.client.module.FakeScoreboardModule.playtime != null) props.setProperty("fakeScoreboardTime", com.bame.client.module.FakeScoreboardModule.playtime);
 
             // Theme, Effects & Appearance
             props.setProperty("theme", theme);

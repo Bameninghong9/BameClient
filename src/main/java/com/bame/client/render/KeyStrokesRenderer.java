@@ -22,7 +22,7 @@ public class KeyStrokesRenderer implements HudRenderCallback {
         drawContext.getMatrices().scale(s, s);
 
         int chromaColor = 0;
-        if (KeyStrokesModule.bgMode == 3) {
+        if (KeyStrokesModule.bgMode == 2) {
             long time = System.currentTimeMillis();
             float hue = (time % 3000L) / 3000.0f;
             chromaColor = 0xD0000000 | (java.awt.Color.HSBtoRGB(hue, 0.75f, 0.9f) & 0xFFFFFF);
@@ -43,10 +43,11 @@ public class KeyStrokesRenderer implements HudRenderCallback {
         } else {
             if (bgMode == 1) { // Transparent
                 color = 0x00000000;
-            } else if (bgMode == 2) { // Color
-                color = bgColor;
-            } else if (bgMode == 3) { // Chroma
+            } else if (bgMode == 2) { // Rainbow
                 color = chromaColor;
+            } else if (bgMode == 3) { // Theme
+                int accent = com.bame.client.gui.GuiTheme.accent();
+                color = 0xB0000000 | (accent & 0xFFFFFF);
             } else { // Dark
                 color = 0x88000000;
             }
