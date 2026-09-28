@@ -12,6 +12,12 @@ import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.ServerInfoModule;
 import com.bame.client.module.ShowHudModule;
 import com.bame.client.module.FakeScoreboardModule;
+import com.bame.client.module.ClockModule;
+import com.bame.client.module.CoordinatesModule;
+import com.bame.client.module.PotionsModule;
+import com.bame.client.module.TargetHudModule;
+import com.bame.client.module.ArmorHudModule;
+import com.bame.client.module.SpotifyHudModule;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Click;
@@ -28,7 +34,7 @@ import org.lwjgl.glfw.GLFW;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
-    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard;
+    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify;
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
     private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField,fakeMoneyField,fakeStarsField,fakeKillsField,fakeDeathsField,fakeTimeField;
@@ -40,7 +46,7 @@ public class BameClientScreen extends Screen {
 
     private final AmbientLighting ambient=new AmbientLighting();
 
-    public BameClientScreen() { super(Text.literal("BameClient")); }
+    public BameClientScreen() { super(Text.literal("Caeser Client")); }
     private void text(DrawContext c,String s,int x,int y,int color) {
         c.drawText(textRenderer,CustomGuiUtils.getFontText(s),x,y,color,false);
     }
@@ -132,13 +138,19 @@ public class BameClientScreen extends Screen {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
         if (!q.isEmpty()) {
             return "show hud".contains(q) || "hud".contains(q) || "fps".contains(q) || "ping".contains(q) ||
-                   "cps".contains(q) || "keystrokes".contains(q) || "server info".contains(q) || "name protect".contains(q);
+                   "cps".contains(q) || "keystrokes".contains(q) || "server info".contains(q) || "name protect".contains(q) ||
+                   "clock".contains(q) || "coordinates".contains(q) || "potions".contains(q) || "target hud".contains(q) || "armor hud".contains(q);
         }
         return selected.equals("Visuals");
     }
     private boolean fakeScoreboardVisible() {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
         if (!q.isEmpty()) return "fake scoreboard".contains(q) || "scoreboard".contains(q);
+        return selected.equals("Visuals");
+    }
+    private boolean spotifyHudVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "spotify hud".contains(q) || "spotify".contains(q) || "music".contains(q) || "song".contains(q);
         return selected.equals("Visuals");
     }
 
@@ -148,7 +160,8 @@ public class BameClientScreen extends Screen {
 
     private int getShowHudHeight() {
         if (!ShowHudModule.expanded) return 46;
-        return 46 + 8 + 6 * 26 + (ServerInfoModule.enabled ? 24 : 0) + (NameProtectModule.enabled ? 26 : 0) + 10;
+        int extra = (ServerInfoModule.enabled ? 24 : 0) + (NameProtectModule.enabled ? 26 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + 28 + 10;
+        return 46 + 8 + 11 * 26 + extra;
     }
     private int getFakeScoreboardHeight() {
         if (!FakeScoreboardModule.expanded) return 46;
@@ -167,6 +180,7 @@ public class BameClientScreen extends Screen {
 
         if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
         if (zoomVisible()) rightY += (ZoomModule.expanded?92:46) + 12;
+        if (spotifyHudVisible()) rightY += (SpotifyHudModule.expanded?84:46) + 12;
 
         return Math.max(leftY, rightY);
     }
@@ -195,15 +209,7 @@ public class BameClientScreen extends Screen {
 
         if (nameProtectAliasField != null) {
             if (showHudVisible() && ShowHudModule.expanded && NameProtectModule.enabled) {
-                int gap = 16;
-                int halfW = (cw - gap) / 2;
-                int aliasY = leftY + 54 + 5 * 26 + (ServerInfoModule.enabled ? 24 : 0) + 26;
-                nameProtectAliasField.setX(cx + 56);
-                nameProtectAliasField.setY(aliasY + 2);
-                nameProtectAliasField.setWidth(halfW - 68);
                 nameProtectAliasField.visible = true;
-                nameProtectAliasField.active = nameProtectAliasField.getY() + 20 > cy && nameProtectAliasField.getY() < cy + ch;
-                if (!nameProtectAliasField.active) nameProtectAliasField.setFocused(false);
             } else {
                 nameProtectAliasField.visible = false;
                 nameProtectAliasField.active = false;
@@ -356,8 +362,8 @@ public class BameClientScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(c,px,py,pw,ph,0xFF292D36);
         ambient.render(c,px+sidebar+1,py+1,pw-sidebar-9,ph-9);
         c.fill(px+sidebar,py+12,px+sidebar+1,py+ph-12,0xFF292D36);
-        c.drawTexturedQuad(net.minecraft.util.Identifier.of("bameclient","icon.png"),px+14,py+15,24,24,0f,0f,1f,1f);
-        text(c,"Bame",px+44,py+23,0xFFFFFFFF);
+        CustomGuiUtils.drawCLogo(c, px + 14, py + 15, 20);
+        text(c,"CAESER",px+40,py+21,0xFFFFFFFF);
         text(c,"MODULES",px+14,py+56,0xFF7F8694);
         int step=Math.min(26,Math.max(17,(ph-165)/6));
         for(int i=0;i<CATEGORIES.length;i++) {
@@ -427,6 +433,10 @@ public class BameClientScreen extends Screen {
             if (zoomVisible()) {
                 renderZoom(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += (ZoomModule.expanded?92:46) + 12;
+            }
+            if (spotifyHudVisible()) {
+                renderSpotifyHudModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += (SpotifyHudModule.expanded?84:46) + 12;
             }
         }
         c.disableScissor();
@@ -509,38 +519,83 @@ public class BameClientScreen extends Screen {
         int y = baseY() + yOffset;
         int h = getShowHudHeight();
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Show HUD", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "Show HUD", x + 12, y + 10, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
         String kb = listeningShowHud ? "..." : formatKey(ShowHudModule.keyBind);
         button(c, kb, x + 58, y + 25, 42, 16, mx, my);
-        button(c, "Edit HUD", x + w - 66, y + 26, 54, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, ShowHudModule.enabled, mx, my, delta);
+        button(c, "Edit HUD", x + w - 62, y + 25, 50, 16, mx, my);
+        toggle(c, x + w - 50, y + 7, ShowHudModule.enabled, mx, my, delta);
 
         if (!ShowHudModule.expanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
 
         int curY = y + 54;
-        // 1. Keystrokes
+        // 1. Clock
+        text(c, "Clock", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, ClockModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 2. Coordinates
+        text(c, "Coordinates", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, CoordinatesModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 3. Potions
+        text(c, "Potions", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, PotionsModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 4. Target HUD
+        boolean thHover = inside(mx, my, x + 8, curY, w - 16, 22);
+        if (thHover) {
+            CustomGuiUtils.fillUltraRounded(c, x + 8, curY, w - 16, 22, 0x14FFFFFF, 4);
+        }
+        text(c, (TargetHudModule.expanded ? "- " : "+ ") + "Target HUD", x + 14, curY + 5, TargetHudModule.expanded ? GuiTheme.accent() : 0xFFD4D8E0);
+        curY += 26;
+
+        if (TargetHudModule.expanded) {
+            // Sub 1: Show Hearts
+            text(c, "Show Hearts", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, TargetHudModule.showHearts, mx, my, delta);
+            curY += 26;
+
+            // Sub 2: Show Armor
+            text(c, "Show Armor", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, TargetHudModule.showArmor, mx, my, delta);
+            curY += 26;
+
+            // Sub 3: Target Players Only
+            text(c, "Target Players Only", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, TargetHudModule.playersOnly, mx, my, delta);
+            curY += 26;
+        }
+
+        // 6. Armor HUD
+        text(c, "Armor HUD", x + 14, curY + 5, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 3, ArmorHudModule.enabled, mx, my, delta);
+        curY += 26;
+
+        // 7. Keystrokes
         text(c, "Keystrokes", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, KeyStrokesModule.enabled, mx, my, delta);
         curY += 26;
 
-        // 2. CPS
+        // 8. CPS
         text(c, "CPS", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, CpsModule.enabled, mx, my, delta);
         curY += 26;
 
-        // 3. FPS
+        // 9. FPS
         text(c, "FPS", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, FpsModule.enabled, mx, my, delta);
         curY += 26;
 
-        // 4. Ping
+        // 10. Ping
         text(c, "Ping", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, PingModule.enabled, mx, my, delta);
         curY += 26;
 
-        // 5. Server Info
+        // 11. Server Info
         text(c, "Server Info", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, ServerInfoModule.enabled, mx, my, delta);
         curY += 26;
@@ -551,17 +606,29 @@ public class BameClientScreen extends Screen {
             curY += 24;
         }
 
-        // 6. Name Protect
+        // 12. Name Protect
         text(c, "Name Protect", x + 14, curY + 5, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, NameProtectModule.enabled, mx, my, delta);
         curY += 26;
         if (NameProtectModule.enabled) {
             text(c, "Alias:", x + 14, curY + 5, 0xFF8E95A4);
             if (nameProtectAliasField != null) {
+                nameProtectAliasField.setX(x + 56);
+                nameProtectAliasField.setY(curY + 2);
+                nameProtectAliasField.setWidth(w - 68);
+                nameProtectAliasField.visible = true;
+                nameProtectAliasField.active = curY + 20 > cy && curY < cy + ch;
                 nameProtectAliasField.render(c, mx, my, delta);
             }
             curY += 26;
+        } else if (nameProtectAliasField != null) {
+            nameProtectAliasField.visible = false;
+            nameProtectAliasField.active = false;
         }
+
+        // Reset button
+        curY += 4;
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
     private void renderFakeScoreboardModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -612,6 +679,25 @@ public class BameClientScreen extends Screen {
         
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
         button(c, ZoomModule.mode == 0 ? "Smooth" : "Instant", x + 12, y + 58, 60, 20, mx, my);
+    }
+
+    private void renderSpotifyHudModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = SpotifyHudModule.expanded ? 84 : 46;
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Spotify HUD", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningSpotify ? "..." : formatKey(SpotifyHudModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        button(c, "Edit HUD", x + w - 62, y + 25, 50, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, SpotifyHudModule.enabled, mx, my, delta);
+
+        if (!SpotifyHudModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        text(c, "Auto-Hide (wenn pausiert)", x + 14, y + 58, 0xFFD4D8E0);
+        toggle(c, x + w - 38, y + 56, SpotifyHudModule.autoHide, mx, my, delta);
     }
 
     private void renderTheme(DrawContext c,int mx,int my,float delta) {
@@ -720,16 +806,16 @@ public class BameClientScreen extends Screen {
             
             if (showHudVisible()) {
                 int myY = baseY() + leftY;
-                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                if (inside(mx, my, cx + halfW - 52, myY + 5, 30, 18)) {
                     ShowHudModule.enabled = !ShowHudModule.enabled;
                     BameClientConfig.save();
                     return true;
                 }
-                if (inside(mx, my, cx + 58, myY + 25, 42, 16)) {
+                if (inside(mx, my, cx + 58, myY + 24, 44, 18)) {
                     listeningShowHud = true;
                     return true;
                 }
-                if (inside(mx, my, cx + halfW - 66, myY + 26, 54, 16)) {
+                if (inside(mx, my, cx + halfW - 64, myY + 24, 54, 18)) {
                     client.setScreen(new HudEditorScreen(this));
                     return true;
                 }
@@ -740,7 +826,75 @@ public class BameClientScreen extends Screen {
                 }
                 if (ShowHudModule.expanded) {
                     int curY = myY + 54;
-                    // 1. Keystrokes
+                    // 1. Clock
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        ClockModule.enabled = !ClockModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 2. Coordinates
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        CoordinatesModule.enabled = !CoordinatesModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 3. Potions
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        PotionsModule.enabled = !PotionsModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 4. Target HUD (Click row to expand/collapse dropdown)
+                    if (inside(mx, my, cx + 8, curY, halfW - 16, 22)) {
+                        TargetHudModule.expanded = !TargetHudModule.expanded;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    if (TargetHudModule.expanded) {
+                        // Sub 1: Show Hearts
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            TargetHudModule.showHearts = !TargetHudModule.showHearts;
+                            TargetHudModule.enabled = TargetHudModule.showHearts || TargetHudModule.showArmor;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 2: Show Armor
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            TargetHudModule.showArmor = !TargetHudModule.showArmor;
+                            TargetHudModule.enabled = TargetHudModule.showHearts || TargetHudModule.showArmor;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 3: Target Players Only
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            TargetHudModule.playersOnly = !TargetHudModule.playersOnly;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+                    }
+
+                    // 6. Armor HUD
+                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                        ArmorHudModule.enabled = !ArmorHudModule.enabled;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // 7. Keystrokes
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
                         BameClientConfig.save();
@@ -748,7 +902,7 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 26;
 
-                    // 2. CPS
+                    // 8. CPS
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         CpsModule.enabled = !CpsModule.enabled;
                         BameClientConfig.save();
@@ -756,7 +910,7 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 26;
 
-                    // 3. FPS
+                    // 9. FPS
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         FpsModule.enabled = !FpsModule.enabled;
                         BameClientConfig.save();
@@ -764,7 +918,7 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 26;
 
-                    // 4. Ping
+                    // 10. Ping
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         PingModule.enabled = !PingModule.enabled;
                         BameClientConfig.save();
@@ -772,7 +926,7 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 26;
 
-                    // 5. Server Info
+                    // 11. Server Info
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         ServerInfoModule.enabled = !ServerInfoModule.enabled;
                         BameClientConfig.save();
@@ -800,7 +954,7 @@ public class BameClientScreen extends Screen {
                         curY += 24;
                     }
 
-                    // 6. Name Protect
+                    // 12. Name Protect
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
                         NameProtectModule.enabled = !NameProtectModule.enabled;
                         BameClientConfig.save();
@@ -814,6 +968,14 @@ public class BameClientScreen extends Screen {
                             setFocused(nameProtectAliasField);
                             return true;
                         }
+                        curY += 26;
+                    }
+
+                    // Reset button
+                    curY += 4;
+                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                        resetShowHud();
+                        return true;
                     }
                 }
                 leftY += getShowHudHeight() + 12;
@@ -917,9 +1079,88 @@ public class BameClientScreen extends Screen {
                 }
                 rightY += (ZoomModule.expanded ? 92 : 46) + 12;
             }
-        }return false;
+
+            if (spotifyHudVisible()) {
+                int myY = baseY() + rightY;
+                int sX = cx + halfW + gap;
+                if (inside(mx, my, sX + halfW - 38, myY + 12, 26, 14)) {
+                    SpotifyHudModule.enabled = !SpotifyHudModule.enabled;
+                    if (SpotifyHudModule.enabled) {
+                        com.bame.client.spotify.SpotifyService.start();
+                    }
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, sX + halfW - 62, myY + 25, 50, 16)) {
+                    if (client != null) client.setScreen(new HudEditorScreen(this));
+                    return true;
+                }
+                if (inside(mx, my, sX + 60, myY + 25, 48, 16)) {
+                    listeningSpotify = true;
+                    return true;
+                }
+                if (inside(mx, my, sX, myY, halfW, 46)) {
+                    SpotifyHudModule.expanded = !SpotifyHudModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (SpotifyHudModule.expanded) {
+                    if (inside(mx, my, sX + halfW - 38, myY + 56, 26, 14)) {
+                        SpotifyHudModule.autoHide = !SpotifyHudModule.autoHide;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                }
+                rightY += (SpotifyHudModule.expanded ? 84 : 46) + 12;
+            }
+        }
+        return false;
     }
-    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; unfocus(); layout(); }
+
+    private void resetShowHud() {
+        ClockModule.enabled = false;
+        CoordinatesModule.enabled = false;
+        PotionsModule.enabled = false;
+        TargetHudModule.enabled = true;
+        TargetHudModule.expanded = false;
+        TargetHudModule.showHearts = true;
+        TargetHudModule.showArmor = false;
+        TargetHudModule.playersOnly = false;
+        KeyStrokesModule.enabled = false;
+        CpsModule.enabled = false;
+        FpsModule.enabled = false;
+        PingModule.enabled = false;
+        ServerInfoModule.enabled = false;
+        ServerInfoModule.showName = true;
+        ServerInfoModule.showServer = true;
+        ServerInfoModule.showTime = true;
+        ServerInfoModule.dockedElements = new java.util.ArrayList<>(java.util.Arrays.asList("name", "server", "time"));
+        ServerInfoModule.nameX = 10; ServerInfoModule.nameY = 10;
+        ServerInfoModule.serverX = 10; ServerInfoModule.serverY = 32;
+        ServerInfoModule.timeX = 10; ServerInfoModule.timeY = 54;
+        NameProtectModule.enabled = false;
+        NameProtectModule.alias = "";
+        if (nameProtectAliasField != null) nameProtectAliasField.setText("");
+        ArmorHudModule.enabled = false;
+
+        FpsModule.hudX = 10; FpsModule.hudY = 10; FpsModule.scale = 1.0f; FpsModule.bgMode = 0;
+        PingModule.hudX = 10; PingModule.hudY = 34; PingModule.scale = 1.0f; PingModule.bgMode = 0;
+        CpsModule.hudX = 10; CpsModule.hudY = 58; CpsModule.scale = 1.0f; CpsModule.bgMode = 0;
+        ClockModule.hudX = 10; ClockModule.hudY = 82; ClockModule.scale = 1.0f; ClockModule.bgMode = 0;
+        CoordinatesModule.hudX = 10; CoordinatesModule.hudY = 106; CoordinatesModule.scale = 1.0f; CoordinatesModule.bgMode = 0;
+        PotionsModule.hudX = 10; PotionsModule.hudY = 130; PotionsModule.scale = 1.0f; PotionsModule.bgMode = 0;
+        ServerInfoModule.hudX = -1; ServerInfoModule.hudY = 10; ServerInfoModule.scale = 1.0f; ServerInfoModule.bgMode = 0;
+        KeyStrokesModule.hudX = 10; KeyStrokesModule.hudY = 160; KeyStrokesModule.scale = 1.0f; KeyStrokesModule.bgMode = 0;
+        TargetHudModule.hudX = -1; TargetHudModule.hudY = -1; TargetHudModule.scale = 1.0f; TargetHudModule.bgMode = 0;
+        ArmorHudModule.hudX = -1; ArmorHudModule.hudY = -1; ArmorHudModule.scale = 1.0f; ArmorHudModule.bgMode = 0;
+
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Show HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
+        }
+    }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -977,13 +1218,14 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
         if(listeningShowHud) { com.bame.client.module.ShowHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningShowHud=false; BameClientConfig.save(); return true; }
         if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; BameClientConfig.save(); return true; }
         if(listeningFakeScoreboard) { com.bame.client.module.FakeScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFakeScoreboard=false; BameClientConfig.save(); return true; }
+        if(listeningSpotify) { com.bame.client.module.SpotifyHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningSpotify=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }

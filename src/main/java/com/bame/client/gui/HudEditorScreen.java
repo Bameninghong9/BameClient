@@ -1,14 +1,11 @@
 package com.bame.client.gui;
 
-import com.bame.client.module.CpsModule;
-import com.bame.client.module.FpsModule;
-import com.bame.client.module.FakeScoreboardModule;
-import com.bame.client.module.KeyStrokesModule;
+import com.bame.client.BameClientConfig;
+import com.bame.client.module.*;
 import com.bame.client.module.KeyStrokesModule.KeyStroke;
-import com.bame.client.module.PingModule;
-import com.bame.client.module.ServerInfoModule;
 import com.bame.client.render.FakeScoreboardRenderer;
 import com.bame.client.render.KeyStrokesRenderer;
+import com.bame.client.render.SpotifyHudRenderer;
 import com.bame.client.render.StatusHudRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -17,7 +14,7 @@ import net.minecraft.text.Text;
 public class HudEditorScreen extends Screen {
     private final Screen parent;
     
-    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo", "fakeScoreboard"
+    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo", "fakeScoreboard", "clock", "coordinates", "potions", "targetHud", "armorHud", "spotifyHud"
     private String resizingTarget = NoneTarget;
     private static final String NoneTarget = "none";
     private KeyStroke draggingKey = null;
@@ -29,10 +26,47 @@ public class HudEditorScreen extends Screen {
     private int snapLineX = -1;
     private int snapLineY = -1;
 
+    private String snapDockTarget = null;
+    private int snapDockIndex = -1;
+    private String clickedDockedSegment = null;
+    private int clickStartX = 0, clickStartY = 0;
+    private int initialServerInfoX = 0, initialServerInfoY = 0;
+    private boolean isDetached = false;
+
     private String popupTarget = null;
     private int popupX, popupY;
     private static final int POPUP_W = 120;
     private static final int POPUP_H = 114;
+
+    private boolean isDockableTarget(String target) {
+        return target.equals("fps") || target.equals("ping") || target.equals("serverInfo_name") || target.equals("serverInfo_server") || target.equals("serverInfo_time");
+    }
+
+    private String getDockedSegmentAt(double mouseX, double mouseY) {
+        if (!ServerInfoModule.enabled) return null;
+        java.util.List<String> active = ServerInfoModule.getActiveDockedElements();
+        if (active.isEmpty()) return null;
+        int x = ServerInfoModule.hudX;
+        int y = ServerInfoModule.hudY;
+        float s = ServerInfoModule.scale;
+        int w = StatusHudRenderer.getServerInfoWidth(client);
+        int h = 18;
+        if (!inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+            return null;
+        }
+        double relX = (mouseX - x) / s;
+        int curX = 8;
+        for (int i = 0; i < active.size(); i++) {
+            String elem = active.get(i);
+            int elemW = StatusHudRenderer.getElementWidth(client, elem);
+            int segEnd = curX + elemW + (i < active.size() - 1 ? 16 : 8);
+            if (relX >= curX - 4 && relX <= segEnd) {
+                return elem;
+            }
+            curX = segEnd;
+        }
+        return active.get(active.size() - 1);
+    }
 
     private void openPopup(String target, int mx, int my) {
         this.popupTarget = target;
@@ -46,8 +80,14 @@ public class HudEditorScreen extends Screen {
             case "ping" -> PingModule.bgMode;
             case "cps" -> CpsModule.bgMode;
             case "keystrokes" -> KeyStrokesModule.bgMode;
-            case "serverInfo" -> ServerInfoModule.bgMode;
+            case "serverInfo", "serverInfo_name", "serverInfo_server", "serverInfo_time" -> ServerInfoModule.bgMode;
             case "fakeScoreboard" -> FakeScoreboardModule.bgMode;
+            case "clock" -> ClockModule.bgMode;
+            case "coordinates" -> CoordinatesModule.bgMode;
+            case "potions" -> PotionsModule.bgMode;
+            case "targetHud" -> TargetHudModule.bgMode;
+            case "armorHud" -> ArmorHudModule.bgMode;
+            case "spotifyHud" -> SpotifyHudModule.bgMode;
             default -> 0;
         };
     }
@@ -58,8 +98,14 @@ public class HudEditorScreen extends Screen {
             case "ping" -> PingModule.bgMode = mode;
             case "cps" -> CpsModule.bgMode = mode;
             case "keystrokes" -> KeyStrokesModule.bgMode = mode;
-            case "serverInfo" -> ServerInfoModule.bgMode = mode;
+            case "serverInfo", "serverInfo_name", "serverInfo_server", "serverInfo_time" -> ServerInfoModule.bgMode = mode;
             case "fakeScoreboard" -> FakeScoreboardModule.bgMode = mode;
+            case "clock" -> ClockModule.bgMode = mode;
+            case "coordinates" -> CoordinatesModule.bgMode = mode;
+            case "potions" -> PotionsModule.bgMode = mode;
+            case "targetHud" -> TargetHudModule.bgMode = mode;
+            case "armorHud" -> ArmorHudModule.bgMode = mode;
+            case "spotifyHud" -> SpotifyHudModule.bgMode = mode;
         }
         com.bame.client.BameClientConfig.save();
     }
@@ -143,7 +189,7 @@ public class HudEditorScreen extends Screen {
         }
 
         // 2. Render FPS Module
-        if (FpsModule.enabled) {
+        if (FpsModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("fps"))) {
             int w = StatusHudRenderer.getFpsWidth(client); int h = 18;
             float s = FpsModule.scale;
             int x = FpsModule.hudX; int y = FpsModule.hudY;
@@ -156,7 +202,7 @@ public class HudEditorScreen extends Screen {
         }
 
         // 3. Render Ping Module
-        if (PingModule.enabled) {
+        if (PingModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("ping"))) {
             int w = StatusHudRenderer.getPingWidth(client); int h = 18;
             float s = PingModule.scale;
             int x = PingModule.hudX; int y = PingModule.hudY;
@@ -183,19 +229,62 @@ public class HudEditorScreen extends Screen {
 
         // 5. Render Server Info Module
         if (ServerInfoModule.enabled) {
-            int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18;
-            float s = ServerInfoModule.scale;
-            int x = ServerInfoModule.hudX;
-            if (x == -1) {
-                x = width - (int)(w * s) - 10;
-                ServerInfoModule.hudX = x;
-            }
-            int y = ServerInfoModule.hudY;
-            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+            java.util.List<String> activeDocked = ServerInfoModule.getActiveDockedElements();
+            if (!activeDocked.isEmpty()) {
+                int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18;
+                float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.hudX;
+                if (x == -1) {
+                    x = width - (int)(w * s) - 10;
+                    ServerInfoModule.hudX = x;
+                }
+                int y = ServerInfoModule.hudY;
+                boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
 
-            StatusHudRenderer.renderServerInfo(context, x, y, s);
-            if (hover || draggingTarget.equals("serverInfo") || resizingTarget.equals("serverInfo")) {
-                drawBoundingControls(context, x, y, w, h, s);
+                StatusHudRenderer.renderServerInfo(context, x, y, s);
+                if (hover || draggingTarget.equals("serverInfo") || resizingTarget.equals("serverInfo")) {
+                    drawBoundingControls(context, x, y, w, h, s);
+                }
+
+                if (snapDockTarget != null && snapDockTarget.equals("serverInfo")) {
+                    CustomGuiUtils.drawUltraRoundedOutline(context, x - 4, y - 4, (int)(w * s) + 8, (int)(h * s) + 8, 0xFF00E5FF, 6);
+                }
+            }
+
+            // Standalone name if undocked
+            if (ServerInfoModule.showName && !ServerInfoModule.isDocked("name")) {
+                int w = StatusHudRenderer.getElementWidth(client, "name") + 16; int h = 18;
+                float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.nameX; int y = ServerInfoModule.nameY;
+                boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+                StatusHudRenderer.renderStandaloneName(context, x, y, s);
+                if (hover || draggingTarget.equals("serverInfo_name")) {
+                    drawBoundingControls(context, x, y, w, h, s);
+                }
+            }
+
+            // Standalone server if undocked
+            if (ServerInfoModule.showServer && !ServerInfoModule.isDocked("server")) {
+                int w = StatusHudRenderer.getElementWidth(client, "server") + 16; int h = 18;
+                float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.serverX; int y = ServerInfoModule.serverY;
+                boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+                StatusHudRenderer.renderStandaloneServer(context, x, y, s);
+                if (hover || draggingTarget.equals("serverInfo_server")) {
+                    drawBoundingControls(context, x, y, w, h, s);
+                }
+            }
+
+            // Standalone time if undocked
+            if (ServerInfoModule.showTime && !ServerInfoModule.isDocked("time")) {
+                int w = StatusHudRenderer.getElementWidth(client, "time") + 16; int h = 18;
+                float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.timeX; int y = ServerInfoModule.timeY;
+                boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+                StatusHudRenderer.renderStandaloneTime(context, x, y, s);
+                if (hover || draggingTarget.equals("serverInfo_time")) {
+                    drawBoundingControls(context, x, y, w, h, s);
+                }
             }
         }
 
@@ -205,7 +294,7 @@ public class HudEditorScreen extends Screen {
             float s = FakeScoreboardModule.scale;
             int x = FakeScoreboardModule.hudX;
             if (x == -1) {
-                x = width - (int)(w * s) - 10;
+                x = width - (int)(w * s) - 3;
                 FakeScoreboardModule.hudX = x;
             }
             int y = FakeScoreboardModule.hudY;
@@ -217,6 +306,111 @@ public class HudEditorScreen extends Screen {
 
             FakeScoreboardRenderer.render(context, x, y, s);
             if (hover || draggingTarget.equals("fakeScoreboard") || resizingTarget.equals("fakeScoreboard")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 7. Render Clock Module
+        if (ClockModule.enabled) {
+            int w = StatusHudRenderer.getClockWidth(client); int h = 18;
+            float s = ClockModule.scale;
+            int x = ClockModule.hudX; int y = ClockModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderClock(context, x, y, s);
+            if (hover || draggingTarget.equals("clock") || resizingTarget.equals("clock")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 8. Render Coordinates Module
+        if (CoordinatesModule.enabled) {
+            int w = StatusHudRenderer.getCoordinatesWidth(client); int h = 18;
+            float s = CoordinatesModule.scale;
+            int x = CoordinatesModule.hudX; int y = CoordinatesModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderCoordinates(context, x, y, s);
+            if (hover || draggingTarget.equals("coordinates") || resizingTarget.equals("coordinates")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 9. Render Potions Module
+        if (PotionsModule.enabled) {
+            int w = StatusHudRenderer.getPotionsWidth(client, true); int h = StatusHudRenderer.getPotionsHeight(client, true);
+            float s = PotionsModule.scale;
+            int x = PotionsModule.hudX; int y = PotionsModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderPotions(context, x, y, s, true);
+            if (hover || draggingTarget.equals("potions") || resizingTarget.equals("potions")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 10. Render Target HUD Module
+        if (TargetHudModule.enabled) {
+            int w = StatusHudRenderer.getTargetHudWidth(); int h = StatusHudRenderer.getTargetHudHeight();
+            float s = TargetHudModule.scale;
+            int x = TargetHudModule.hudX;
+            if (x == -1) {
+                x = (width - (int)(w * s)) / 2;
+                TargetHudModule.hudX = x;
+            }
+            int y = TargetHudModule.hudY;
+            if (y == -1) {
+                y = height - 120;
+                TargetHudModule.hudY = y;
+            }
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderTargetHud(context, x, y, s, true);
+            if (hover || draggingTarget.equals("targetHud") || resizingTarget.equals("targetHud")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 11. Render Armor HUD Module
+        if (ArmorHudModule.enabled) {
+            int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight();
+            float s = ArmorHudModule.scale;
+            int x = ArmorHudModule.hudX;
+            if (x == -1) {
+                x = (width - (int)(w * s)) / 2;
+                ArmorHudModule.hudX = x;
+            }
+            int y = ArmorHudModule.hudY;
+            if (y == -1) {
+                y = height - 100;
+                ArmorHudModule.hudY = y;
+            }
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderArmorHud(context, x, y, s, true);
+            if (hover || draggingTarget.equals("armorHud") || resizingTarget.equals("armorHud")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 12. Render Spotify HUD Module
+        if (SpotifyHudModule.enabled) {
+            int w = SpotifyHudRenderer.getWidth(); int h = SpotifyHudRenderer.getHeight();
+            float s = SpotifyHudModule.scale;
+            int x = SpotifyHudModule.hudX;
+            if (x == -1) {
+                x = 10;
+                SpotifyHudModule.hudX = x;
+            }
+            int y = SpotifyHudModule.hudY;
+            if (y == -1) {
+                y = 180;
+                SpotifyHudModule.hudY = y;
+            }
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            SpotifyHudRenderer.render(context, x, y, s, true);
+            if (hover || draggingTarget.equals("spotifyHud") || resizingTarget.equals("spotifyHud")) {
                 drawBoundingControls(context, x, y, w, h, s);
             }
         }
@@ -238,6 +432,12 @@ public class HudEditorScreen extends Screen {
                 case "keystrokes" -> "KeyStrokes";
                 case "serverInfo" -> "Server Info";
                 case "fakeScoreboard" -> "Scoreboard";
+                case "clock" -> "Clock";
+                case "coordinates" -> "Coordinates";
+                case "potions" -> "Potions";
+                case "targetHud" -> "Target HUD";
+                case "armorHud" -> "Armor HUD";
+                case "spotifyHud" -> "Spotify HUD";
                 default -> "HUD";
             };
             context.drawText(client.textRenderer, CustomGuiUtils.getFontText(title + " BG"), popupX + 8, popupY + 8, 0xFFFFFFFF, false);
@@ -309,13 +509,13 @@ public class HudEditorScreen extends Screen {
 
         // Right-click: Open Background context popup!
         if (click.button() == 1) {
-            if (FpsModule.enabled) {
+            if (FpsModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("fps"))) {
                 int w = StatusHudRenderer.getFpsWidth(client); int h = 18; float s = FpsModule.scale;
                 if (inside(mouseX, mouseY, FpsModule.hudX - 2, FpsModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
                     openPopup("fps", (int)mouseX, (int)mouseY); return true;
                 }
             }
-            if (PingModule.enabled) {
+            if (PingModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("ping"))) {
                 int w = StatusHudRenderer.getPingWidth(client); int h = 18; float s = PingModule.scale;
                 if (inside(mouseX, mouseY, PingModule.hudX - 2, PingModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
                     openPopup("ping", (int)mouseX, (int)mouseY); return true;
@@ -337,19 +537,82 @@ public class HudEditorScreen extends Screen {
                 }
             }
             if (ServerInfoModule.enabled) {
-                int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
-                if (inside(mouseX, mouseY, ServerInfoModule.hudX - 2, ServerInfoModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
-                    openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                java.util.List<String> active = ServerInfoModule.getActiveDockedElements();
+                if (!active.isEmpty()) {
+                    int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
+                    if (inside(mouseX, mouseY, ServerInfoModule.hudX - 2, ServerInfoModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                        openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                    }
+                }
+                if (ServerInfoModule.showName && !ServerInfoModule.isDocked("name")) {
+                    int w = StatusHudRenderer.getElementWidth(client, "name") + 16; int h = 18; float s = ServerInfoModule.scale;
+                    if (inside(mouseX, mouseY, ServerInfoModule.nameX - 2, ServerInfoModule.nameY - 2, (w + 4) * s, (h + 4) * s)) {
+                        openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                    }
+                }
+                if (ServerInfoModule.showServer && !ServerInfoModule.isDocked("server")) {
+                    int w = StatusHudRenderer.getElementWidth(client, "server") + 16; int h = 18; float s = ServerInfoModule.scale;
+                    if (inside(mouseX, mouseY, ServerInfoModule.serverX - 2, ServerInfoModule.serverY - 2, (w + 4) * s, (h + 4) * s)) {
+                        openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                    }
+                }
+                if (ServerInfoModule.showTime && !ServerInfoModule.isDocked("time")) {
+                    int w = StatusHudRenderer.getElementWidth(client, "time") + 16; int h = 18; float s = ServerInfoModule.scale;
+                    if (inside(mouseX, mouseY, ServerInfoModule.timeX - 2, ServerInfoModule.timeY - 2, (w + 4) * s, (h + 4) * s)) {
+                        openPopup("serverInfo", (int)mouseX, (int)mouseY); return true;
+                    }
                 }
             }
             if (FakeScoreboardModule.enabled) {
                 int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight(); float s = FakeScoreboardModule.scale;
                 int x = FakeScoreboardModule.hudX;
-                if (x == -1) x = width - (int)(w * s) - 10;
+                if (x == -1) x = width - (int)(w * s) - 3;
                 int y = FakeScoreboardModule.hudY;
                 if (y == -1) y = (height - (int)(h * s)) / 2;
                 if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
                     openPopup("fakeScoreboard", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (ClockModule.enabled) {
+                int w = StatusHudRenderer.getClockWidth(client); int h = 18; float s = ClockModule.scale;
+                if (inside(mouseX, mouseY, ClockModule.hudX - 2, ClockModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("clock", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (CoordinatesModule.enabled) {
+                int w = StatusHudRenderer.getCoordinatesWidth(client); int h = 18; float s = CoordinatesModule.scale;
+                if (inside(mouseX, mouseY, CoordinatesModule.hudX - 2, CoordinatesModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("coordinates", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (PotionsModule.enabled) {
+                int w = StatusHudRenderer.getPotionsWidth(client, true); int h = StatusHudRenderer.getPotionsHeight(client, true); float s = PotionsModule.scale;
+                if (inside(mouseX, mouseY, PotionsModule.hudX - 2, PotionsModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("potions", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (TargetHudModule.enabled) {
+                int w = StatusHudRenderer.getTargetHudWidth(); int h = StatusHudRenderer.getTargetHudHeight(); float s = TargetHudModule.scale;
+                int x = TargetHudModule.hudX; if (x == -1) x = (width - (int)(w * s)) / 2;
+                int y = TargetHudModule.hudY; if (y == -1) y = height - 120;
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("targetHud", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (ArmorHudModule.enabled) {
+                int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight(); float s = ArmorHudModule.scale;
+                int x = ArmorHudModule.hudX; if (x == -1) x = (width - (int)(w * s)) / 2;
+                int y = ArmorHudModule.hudY; if (y == -1) y = height - 100;
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("armorHud", (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (SpotifyHudModule.enabled) {
+                int w = SpotifyHudRenderer.getWidth(); int h = SpotifyHudRenderer.getHeight(); float s = SpotifyHudModule.scale;
+                int x = SpotifyHudModule.hudX; if (x == -1) x = 10;
+                int y = SpotifyHudModule.hudY; if (y == -1) y = 180;
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("spotifyHud", (int)mouseX, (int)mouseY); return true;
                 }
             }
             return false;
@@ -391,7 +654,7 @@ public class HudEditorScreen extends Screen {
         }
 
         // 2. Check FPS
-        if (FpsModule.enabled) {
+        if (FpsModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("fps"))) {
             int w = StatusHudRenderer.getFpsWidth(client); int h = 18; float s = FpsModule.scale;
             int x = FpsModule.hudX; int y = FpsModule.hudY;
             if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
@@ -406,7 +669,7 @@ public class HudEditorScreen extends Screen {
         }
 
         // 3. Check Ping
-        if (PingModule.enabled) {
+        if (PingModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("ping"))) {
             int w = StatusHudRenderer.getPingWidth(client); int h = 18; float s = PingModule.scale;
             int x = PingModule.hudX; int y = PingModule.hudY;
             if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
@@ -437,21 +700,74 @@ public class HudEditorScreen extends Screen {
 
         // 5. Check Server Info
         if (ServerInfoModule.enabled) {
-            int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
-            int x = ServerInfoModule.hudX;
-            if (x == -1) {
-                x = width - (int)(w * s) - 10;
-                ServerInfoModule.hudX = x;
+            java.util.List<String> active = ServerInfoModule.getActiveDockedElements();
+            if (!active.isEmpty()) {
+                int w = StatusHudRenderer.getServerInfoWidth(client); int h = 18; float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.hudX;
+                if (x == -1) {
+                    x = width - (int)(w * s) - 10;
+                    ServerInfoModule.hudX = x;
+                }
+                int y = ServerInfoModule.hudY;
+                if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                    ServerInfoModule.enabled = false;
+                    if (ServerInfoModule.isDocked("fps")) FpsModule.enabled = false;
+                    if (ServerInfoModule.isDocked("ping")) PingModule.enabled = false;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                    resizingTarget = "serverInfo"; startX = (int)mouseX; startScale = ServerInfoModule.scale; return true;
+                }
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    String seg = getDockedSegmentAt(mouseX, mouseY);
+                    clickedDockedSegment = seg;
+                    clickStartX = (int)mouseX;
+                    clickStartY = (int)mouseY;
+                    initialServerInfoX = ServerInfoModule.hudX;
+                    initialServerInfoY = ServerInfoModule.hudY;
+                    isDetached = false;
+                    draggingTarget = "serverInfo";
+                    dragOffsetX = (int)mouseX - x;
+                    dragOffsetY = (int)mouseY - y;
+                    return true;
+                }
             }
-            int y = ServerInfoModule.hudY;
-            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
-                ServerInfoModule.enabled = false; return true;
+
+            // Standalone name
+            if (ServerInfoModule.showName && !ServerInfoModule.isDocked("name")) {
+                int w = StatusHudRenderer.getElementWidth(client, "name") + 16; int h = 18; float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.nameX; int y = ServerInfoModule.nameY;
+                if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                    ServerInfoModule.dock("name"); BameClientConfig.save(); return true;
+                }
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    draggingTarget = "serverInfo_name"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+                }
             }
-            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
-                resizingTarget = "serverInfo"; startX = (int)mouseX; startScale = ServerInfoModule.scale; return true;
+
+            // Standalone server
+            if (ServerInfoModule.showServer && !ServerInfoModule.isDocked("server")) {
+                int w = StatusHudRenderer.getElementWidth(client, "server") + 16; int h = 18; float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.serverX; int y = ServerInfoModule.serverY;
+                if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                    ServerInfoModule.dock("server"); BameClientConfig.save(); return true;
+                }
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    draggingTarget = "serverInfo_server"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+                }
             }
-            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
-                draggingTarget = "serverInfo"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+
+            // Standalone time
+            if (ServerInfoModule.showTime && !ServerInfoModule.isDocked("time")) {
+                int w = StatusHudRenderer.getElementWidth(client, "time") + 16; int h = 18; float s = ServerInfoModule.scale;
+                int x = ServerInfoModule.timeX; int y = ServerInfoModule.timeY;
+                if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                    ServerInfoModule.dock("time"); BameClientConfig.save(); return true;
+                }
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    draggingTarget = "serverInfo_time"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+                }
             }
         }
 
@@ -460,7 +776,7 @@ public class HudEditorScreen extends Screen {
             int w = FakeScoreboardRenderer.getWidth(client); int h = FakeScoreboardRenderer.getHeight(); float s = FakeScoreboardModule.scale;
             int x = FakeScoreboardModule.hudX;
             if (x == -1) {
-                x = width - (int)(w * s) - 10;
+                x = width - (int)(w * s) - 3;
                 FakeScoreboardModule.hudX = x;
             }
             int y = FakeScoreboardModule.hudY;
@@ -476,6 +792,127 @@ public class HudEditorScreen extends Screen {
             }
             if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
                 draggingTarget = "fakeScoreboard"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 7. Check Clock
+        if (ClockModule.enabled) {
+            int w = StatusHudRenderer.getClockWidth(client); int h = 18; float s = ClockModule.scale;
+            int x = ClockModule.hudX; int y = ClockModule.hudY;
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                ClockModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "clock"; startX = (int)mouseX; startScale = ClockModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "clock"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 8. Check Coordinates
+        if (CoordinatesModule.enabled) {
+            int w = StatusHudRenderer.getCoordinatesWidth(client); int h = 18; float s = CoordinatesModule.scale;
+            int x = CoordinatesModule.hudX; int y = CoordinatesModule.hudY;
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                CoordinatesModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "coordinates"; startX = (int)mouseX; startScale = CoordinatesModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "coordinates"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 9. Check Potions
+        if (PotionsModule.enabled) {
+            int w = StatusHudRenderer.getPotionsWidth(client, true); int h = StatusHudRenderer.getPotionsHeight(client, true); float s = PotionsModule.scale;
+            int x = PotionsModule.hudX; int y = PotionsModule.hudY;
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                PotionsModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "potions"; startX = (int)mouseX; startScale = PotionsModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "potions"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 10. Check Target HUD
+        if (TargetHudModule.enabled) {
+            int w = StatusHudRenderer.getTargetHudWidth(); int h = StatusHudRenderer.getTargetHudHeight(); float s = TargetHudModule.scale;
+            int x = TargetHudModule.hudX;
+            if (x == -1) {
+                x = (width - (int)(w * s)) / 2;
+                TargetHudModule.hudX = x;
+            }
+            int y = TargetHudModule.hudY;
+            if (y == -1) {
+                y = height - 120;
+                TargetHudModule.hudY = y;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                TargetHudModule.enabled = false;
+                TargetHudModule.showHearts = false;
+                TargetHudModule.showArmor = false;
+                BameClientConfig.save();
+                return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "targetHud"; startX = (int)mouseX; startScale = TargetHudModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "targetHud"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 11. Check Armor HUD
+        if (ArmorHudModule.enabled) {
+            int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight(); float s = ArmorHudModule.scale;
+            int x = ArmorHudModule.hudX;
+            if (x == -1) {
+                x = (width - (int)(w * s)) / 2;
+                ArmorHudModule.hudX = x;
+            }
+            int y = ArmorHudModule.hudY;
+            if (y == -1) {
+                y = height - 100;
+                ArmorHudModule.hudY = y;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                ArmorHudModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "armorHud"; startX = (int)mouseX; startScale = ArmorHudModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "armorHud"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
+            }
+        }
+
+        // 12. Check Spotify HUD
+        if (SpotifyHudModule.enabled) {
+            int w = SpotifyHudRenderer.getWidth(); int h = SpotifyHudRenderer.getHeight(); float s = SpotifyHudModule.scale;
+            int x = SpotifyHudModule.hudX;
+            if (x == -1) {
+                x = 10;
+                SpotifyHudModule.hudX = x;
+            }
+            int y = SpotifyHudModule.hudY;
+            if (y == -1) {
+                y = 180;
+                SpotifyHudModule.hudY = y;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+                SpotifyHudModule.enabled = false; return true;
+            }
+            if (inside(mouseX, mouseY, x + w * s - 10 * s, y + h * s - 10 * s, 14 * s, 14 * s)) {
+                resizingTarget = "spotifyHud"; startX = (int)mouseX; startScale = SpotifyHudModule.scale; return true;
+            }
+            if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                draggingTarget = "spotifyHud"; dragOffsetX = (int)mouseX - x; dragOffsetY = (int)mouseY - y; return true;
             }
         }
 
@@ -496,6 +933,12 @@ public class HudEditorScreen extends Screen {
                 case "cps" -> CpsModule.scale = newScale;
                 case "serverInfo" -> ServerInfoModule.scale = newScale;
                 case "fakeScoreboard" -> FakeScoreboardModule.scale = newScale;
+                case "clock" -> ClockModule.scale = newScale;
+                case "coordinates" -> CoordinatesModule.scale = newScale;
+                case "potions" -> PotionsModule.scale = newScale;
+                case "targetHud" -> TargetHudModule.scale = newScale;
+                case "armorHud" -> ArmorHudModule.scale = newScale;
+                case "spotifyHud" -> SpotifyHudModule.scale = newScale;
             }
             return true;
         }
@@ -509,6 +952,58 @@ public class HudEditorScreen extends Screen {
             return true;
         }
 
+        // Check if pulling apart a docked segment from Server Info
+        if (draggingTarget.equals("serverInfo") && !isDetached && clickedDockedSegment != null && ServerInfoModule.dockedElements.size() > 1) {
+            int dx = (int)mouseX - clickStartX;
+            int dy = (int)mouseY - clickStartY;
+            if (Math.abs(dy) > 12 || Math.abs(dx) > 35) {
+                isDetached = true;
+                String seg = clickedDockedSegment;
+                ServerInfoModule.undock(seg);
+                ServerInfoModule.hudX = initialServerInfoX;
+                ServerInfoModule.hudY = initialServerInfoY;
+
+                if (seg.equals("fps")) {
+                    FpsModule.enabled = true;
+                    int elemW = (int)(StatusHudRenderer.getFpsWidth(client) * FpsModule.scale);
+                    FpsModule.hudX = (int)mouseX - elemW / 2;
+                    FpsModule.hudY = (int)mouseY - (int)(9 * FpsModule.scale);
+                    draggingTarget = "fps";
+                    dragOffsetX = elemW / 2;
+                    dragOffsetY = (int)(9 * FpsModule.scale);
+                } else if (seg.equals("ping")) {
+                    PingModule.enabled = true;
+                    int elemW = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale);
+                    PingModule.hudX = (int)mouseX - elemW / 2;
+                    PingModule.hudY = (int)mouseY - (int)(9 * PingModule.scale);
+                    draggingTarget = "ping";
+                    dragOffsetX = elemW / 2;
+                    dragOffsetY = (int)(9 * PingModule.scale);
+                } else if (seg.equals("name")) {
+                    int elemW = (int)((StatusHudRenderer.getElementWidth(client, "name") + 16) * ServerInfoModule.scale);
+                    ServerInfoModule.nameX = (int)mouseX - elemW / 2;
+                    ServerInfoModule.nameY = (int)mouseY - (int)(9 * ServerInfoModule.scale);
+                    draggingTarget = "serverInfo_name";
+                    dragOffsetX = elemW / 2;
+                    dragOffsetY = (int)(9 * ServerInfoModule.scale);
+                } else if (seg.equals("server")) {
+                    int elemW = (int)((StatusHudRenderer.getElementWidth(client, "server") + 16) * ServerInfoModule.scale);
+                    ServerInfoModule.serverX = (int)mouseX - elemW / 2;
+                    ServerInfoModule.serverY = (int)mouseY - (int)(9 * ServerInfoModule.scale);
+                    draggingTarget = "serverInfo_server";
+                    dragOffsetX = elemW / 2;
+                    dragOffsetY = (int)(9 * ServerInfoModule.scale);
+                } else if (seg.equals("time")) {
+                    int elemW = (int)((StatusHudRenderer.getElementWidth(client, "time") + 16) * ServerInfoModule.scale);
+                    ServerInfoModule.timeX = (int)mouseX - elemW / 2;
+                    ServerInfoModule.timeY = (int)mouseY - (int)(9 * ServerInfoModule.scale);
+                    draggingTarget = "serverInfo_time";
+                    dragOffsetX = elemW / 2;
+                    dragOffsetY = (int)(9 * ServerInfoModule.scale);
+                }
+            }
+        }
+
         if (!draggingTarget.equals(NoneTarget)) {
             int newX = (int)mouseX - dragOffsetX;
             int newY = (int)mouseY - dragOffsetY;
@@ -520,7 +1015,16 @@ public class HudEditorScreen extends Screen {
                 case "ping" -> { gw = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale); gh = (int)(18 * PingModule.scale); s = PingModule.scale; }
                 case "cps" -> { gw = (int)(StatusHudRenderer.getCpsWidth(client) * CpsModule.scale); gh = (int)(18 * CpsModule.scale); s = CpsModule.scale; }
                 case "serverInfo" -> { gw = (int)(StatusHudRenderer.getServerInfoWidth(client) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
+                case "serverInfo_name" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "name") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
+                case "serverInfo_server" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "server") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
+                case "serverInfo_time" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "time") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
                 case "fakeScoreboard" -> { gw = (int)(FakeScoreboardRenderer.getWidth(client) * FakeScoreboardModule.scale); gh = (int)(FakeScoreboardRenderer.getHeight() * FakeScoreboardModule.scale); s = FakeScoreboardModule.scale; }
+                case "clock" -> { gw = (int)(StatusHudRenderer.getClockWidth(client) * ClockModule.scale); gh = (int)(18 * ClockModule.scale); s = ClockModule.scale; }
+                case "coordinates" -> { gw = (int)(StatusHudRenderer.getCoordinatesWidth(client) * CoordinatesModule.scale); gh = (int)(18 * CoordinatesModule.scale); s = CoordinatesModule.scale; }
+                case "potions" -> { gw = (int)(StatusHudRenderer.getPotionsWidth(client, true) * PotionsModule.scale); gh = (int)(StatusHudRenderer.getPotionsHeight(client, true) * PotionsModule.scale); s = PotionsModule.scale; }
+                case "targetHud" -> { gw = (int)(StatusHudRenderer.getTargetHudWidth() * TargetHudModule.scale); gh = (int)(StatusHudRenderer.getTargetHudHeight() * TargetHudModule.scale); s = TargetHudModule.scale; }
+                case "armorHud" -> { gw = (int)(StatusHudRenderer.getArmorHudWidth(client) * ArmorHudModule.scale); gh = (int)(StatusHudRenderer.getArmorHudHeight() * ArmorHudModule.scale); s = ArmorHudModule.scale; }
+                case "spotifyHud" -> { gw = (int)(SpotifyHudRenderer.getWidth() * SpotifyHudModule.scale); gh = (int)(SpotifyHudRenderer.getHeight() * SpotifyHudModule.scale); s = SpotifyHudModule.scale; }
             }
 
             int centerX = width / 2; int centerY = height / 2;
@@ -532,13 +1036,49 @@ public class HudEditorScreen extends Screen {
             newX = Math.max(0, Math.min(newX, width - gw));
             newY = Math.max(0, Math.min(newY, height - gh));
 
+            // Snap docking check
+            snapDockTarget = null;
+            snapDockIndex = -1;
+            if (ServerInfoModule.enabled && isDockableTarget(draggingTarget)) {
+                int siX = ServerInfoModule.hudX;
+                int siY = ServerInfoModule.hudY;
+                float siScale = ServerInfoModule.scale;
+                int siW = (int)(StatusHudRenderer.getServerInfoWidth(client) * siScale);
+                int siH = (int)(18 * siScale);
+
+                int draggedCenterX = newX + gw / 2;
+                int draggedCenterY = newY + gh / 2;
+                boolean nearY = Math.abs(draggedCenterY - (siY + siH / 2)) < 24 * siScale;
+                boolean nearLeft = Math.abs(newX + gw - siX) < 30 * siScale;
+                boolean nearRight = Math.abs(newX - (siX + siW)) < 30 * siScale;
+                boolean insideBar = inside(draggedCenterX, draggedCenterY, siX - 10, siY - 10, siW + 20, siH + 20);
+
+                if (nearY && (nearLeft || nearRight || insideBar)) {
+                    snapDockTarget = "serverInfo";
+                    if (nearLeft || draggedCenterX < siX + siW / 3) {
+                        snapDockIndex = 0;
+                    } else {
+                        snapDockIndex = ServerInfoModule.dockedElements.size();
+                    }
+                }
+            }
+
             switch (draggingTarget) {
                 case "keystrokes" -> { KeyStrokesModule.hudX = newX; KeyStrokesModule.hudY = newY; }
                 case "fps" -> { FpsModule.hudX = newX; FpsModule.hudY = newY; }
                 case "ping" -> { PingModule.hudX = newX; PingModule.hudY = newY; }
                 case "cps" -> { CpsModule.hudX = newX; CpsModule.hudY = newY; }
                 case "serverInfo" -> { ServerInfoModule.hudX = newX; ServerInfoModule.hudY = newY; }
+                case "serverInfo_name" -> { ServerInfoModule.nameX = newX; ServerInfoModule.nameY = newY; }
+                case "serverInfo_server" -> { ServerInfoModule.serverX = newX; ServerInfoModule.serverY = newY; }
+                case "serverInfo_time" -> { ServerInfoModule.timeX = newX; ServerInfoModule.timeY = newY; }
                 case "fakeScoreboard" -> { FakeScoreboardModule.hudX = newX; FakeScoreboardModule.hudY = newY; }
+                case "clock" -> { ClockModule.hudX = newX; ClockModule.hudY = newY; }
+                case "coordinates" -> { CoordinatesModule.hudX = newX; CoordinatesModule.hudY = newY; }
+                case "potions" -> { PotionsModule.hudX = newX; PotionsModule.hudY = newY; }
+                case "targetHud" -> { TargetHudModule.hudX = newX; TargetHudModule.hudY = newY; }
+                case "armorHud" -> { ArmorHudModule.hudX = newX; ArmorHudModule.hudY = newY; }
+                case "spotifyHud" -> { SpotifyHudModule.hudX = newX; SpotifyHudModule.hudY = newY; }
             }
             return true;
         }
@@ -548,9 +1088,29 @@ public class HudEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(net.minecraft.client.gui.Click click) {
+        if (snapDockTarget != null && snapDockTarget.equals("serverInfo")) {
+            String elem = switch (draggingTarget) {
+                case "fps" -> "fps";
+                case "ping" -> "ping";
+                case "serverInfo_name" -> "name";
+                case "serverInfo_server" -> "server";
+                case "serverInfo_time" -> "time";
+                default -> null;
+            };
+            if (elem != null) {
+                ServerInfoModule.dock(snapDockIndex, elem);
+                if (elem.equals("fps")) FpsModule.enabled = true;
+                if (elem.equals("ping")) PingModule.enabled = true;
+                BameClientConfig.save();
+            }
+            snapDockTarget = null;
+            snapDockIndex = -1;
+        }
         draggingTarget = NoneTarget;
         resizingTarget = NoneTarget;
         draggingKey = null;
+        clickedDockedSegment = null;
+        isDetached = false;
         return super.mouseReleased(click);
     }
 

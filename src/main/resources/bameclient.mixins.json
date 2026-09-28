@@ -13,7 +13,8 @@
     "TeamMixin",
     "PlayerEntityMixin",
     "EntityRendererMixin",
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "ScoreboardMixin"
   ],
   "injectors": {
     "defaultRequire": 1

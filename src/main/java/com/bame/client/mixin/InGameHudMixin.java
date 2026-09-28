@@ -16,14 +16,21 @@ public class InGameHudMixin {
 
     @Inject(method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("HEAD"), cancellable = true)
     private void onRenderScoreboardSidebarTick(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        if (ShowHudModule.enabled && FakeScoreboardModule.enabled) {
+        if (FakeScoreboardModule.enabled) {
             ci.cancel();
         }
     }
 
     @Inject(method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V", at = @At("HEAD"), cancellable = true)
     private void onRenderScoreboardSidebarObjective(DrawContext context, ScoreboardObjective objective, CallbackInfo ci) {
-        if (ShowHudModule.enabled && FakeScoreboardModule.enabled) {
+        if (FakeScoreboardModule.enabled) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "renderStatusEffectOverlay(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("HEAD"), cancellable = true)
+    private void onRenderStatusEffectOverlay(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        if (ShowHudModule.enabled && com.bame.client.module.PotionsModule.enabled) {
             ci.cancel();
         }
     }

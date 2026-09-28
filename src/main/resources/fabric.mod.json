@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "bameclient",
   "version": "${version}",
-  "name": "BameClient",
-  "description": "A clean modern custom client gui.",
+  "name": "Caeser Client",
+  "description": "Caeser Client for Fabric.",
   "authors": [
     "Me"
   ],
@@ -12,7 +12,7 @@
     "sources": ""
   },
   "license": "CC0-1.0",
-  "icon": "assets/bameclient/icon.png",
+  "icon": "assets/caeserclient/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [

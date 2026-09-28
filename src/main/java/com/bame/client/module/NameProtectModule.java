@@ -25,8 +25,12 @@ public class NameProtectModule {
     }
 
     public static String getProtectedName(String realName) {
-        if (!enabled) return realName;
-        return getAlias();
+        if (!enabled || realName == null) return realName;
+        String myName = getRealUsername();
+        if (myName != null && !myName.isEmpty() && realName.equalsIgnoreCase(myName)) {
+            return getAlias();
+        }
+        return realName;
     }
 
     public static String protect(String text) {

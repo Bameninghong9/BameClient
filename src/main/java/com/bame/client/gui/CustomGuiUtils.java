@@ -256,6 +256,12 @@ public class CustomGuiUtils {
     public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, color); }
     public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, color); }
 
+    private static final Identifier C_LOGO = Identifier.of("bameclient", "textures/gui/c_logo.png");
+    public static void drawCLogo(DrawContext context, int x, int y, int size) {
+        context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
+            C_LOGO, x, y, 0.0f, 0.0f, size, size, 34, 34, 34, 34, 0xFFFFFFFF);
+    }
+
     private static final Style SANS_STYLE = Style.EMPTY
         .withFont(new StyleSpriteSource.Font(Identifier.of("bameclient", "sans")));
     private static final Map<String, Text> TEXT_CACHE = new ConcurrentHashMap<>();

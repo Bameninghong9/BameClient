@@ -24,13 +24,13 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
     @Override
     public void onHudRender(DrawContext context, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.options.hudHidden || !ShowHudModule.enabled || !FakeScoreboardModule.enabled) return;
+        if (client.options.hudHidden || !FakeScoreboardModule.enabled) return;
 
         int w = getWidth(client);
         int h = getHeight();
         int x = FakeScoreboardModule.hudX;
         if (x == -1) {
-            x = client.getWindow().getScaledWidth() - (int)(w * FakeScoreboardModule.scale) - 10;
+            x = client.getWindow().getScaledWidth() - (int)(w * FakeScoreboardModule.scale) - 3;
         }
         int y = FakeScoreboardModule.hudY;
         if (y == -1) {
@@ -49,12 +49,12 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         maxW = Math.max(maxW, swordW + client.textRenderer.getWidth(" " + FakeScoreboardModule.kills));
         int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
         maxW = Math.max(maxW, skullW + client.textRenderer.getWidth(" " + FakeScoreboardModule.deaths));
-        maxW = Math.max(maxW, 11 + client.textRenderer.getWidth(FakeScoreboardModule.playtime));
-        return maxW + 16;
+        maxW = Math.max(maxW, 9 + client.textRenderer.getWidth(" " + FakeScoreboardModule.playtime));
+        return maxW + 6;
     }
 
     public static int getHeight() {
-        return 74;
+        return 62;
     }
 
     public static void render(DrawContext c, int x, int y, float scale) {
@@ -67,65 +67,59 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         c.getMatrices().scale(scale, scale);
 
         int bgMode = FakeScoreboardModule.bgMode;
-        int fill = 0xD012161E;
-        int outline = 0xFF292D36;
-
-        if (bgMode == 1) { // Transparent
-            fill = 0;
-            outline = 0;
+        if (bgMode == 0) { // Dark (Classic Vanilla Scoreboard)
+            c.fill(0, 0, w, 11, 0x60000000);
+            c.fill(0, 11, w, h, 0x40000000);
+        } else if (bgMode == 1) { // Transparent
+            // No background fill
         } else if (bgMode == 2) { // Rainbow
             long time = System.currentTimeMillis();
             float hue = (time % 3000L) / 3000.0f;
             int rgb = java.awt.Color.HSBtoRGB(hue, 0.75f, 0.9f);
-            fill = 0xD0000000 | (rgb & 0xFFFFFF);
-            outline = 0xFF000000 | (rgb & 0xFFFFFF);
+            c.fill(0, 0, w, 11, 0x80000000 | (rgb & 0xFFFFFF));
+            c.fill(0, 11, w, h, 0x50000000 | (rgb & 0xFFFFFF));
         } else if (bgMode == 3) { // Theme
             int accent = com.bame.client.gui.GuiTheme.accent();
-            fill = 0xB0000000 | (accent & 0xFFFFFF);
-            outline = accent;
+            c.fill(0, 0, w, 11, 0x80000000 | (accent & 0xFFFFFF));
+            c.fill(0, 11, w, h, 0x50000000 | (accent & 0xFFFFFF));
         }
 
-        if (fill != 0) {
-            CustomGuiUtils.fillUltraRounded(c, 0, 0, w, h, fill, 4);
-        }
-        if (outline != 0) {
-            CustomGuiUtils.drawUltraRoundedOutline(c, 0, 0, w, h, outline, 4);
-        }
+        int startX = 3;
+        int curY = 1;
 
-        boolean shadow = (bgMode == 1);
-        int startX = 8;
-        int curY = 6;
-
-        // Line 1: Player Name (White)
+        // Line 1: Player Name / Title (Centered with drop shadow)
         String name = FakeScoreboardModule.getDisplayName();
-        c.drawText(client.textRenderer, name, startX, curY, 0xFFFFFFFF, shadow);
+        int nameW = client.textRenderer.getWidth(name);
+        int nameX = (w - nameW) / 2;
+        c.drawText(client.textRenderer, name, Math.max(3, nameX), curY, 0xFFFFFFFF, true);
         curY += 11;
 
-        // Line 2: Money ($ in Green, value in White)
-        c.drawText(client.textRenderer, "$", startX, curY, 0xFF55FF55, shadow);
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.money, startX + client.textRenderer.getWidth("$"), curY, 0xFFFFFFFF, shadow);
-        curY += 11;
+        // Line 2: Money ($ in Green, value in White, with drop shadow)
+        c.drawText(client.textRenderer, "$", startX, curY, 0xFF55FF55, true);
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.money, startX + client.textRenderer.getWidth("$"), curY, 0xFFFFFFFF, true);
+        curY += 10;
 
-        // Line 3: Stars (★ in Purple, value in White)
-        c.drawText(client.textRenderer, "★", startX, curY, 0xFFFF55FF, shadow);
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.stars, startX + client.textRenderer.getWidth("★"), curY, 0xFFFFFFFF, shadow);
-        curY += 11;
+        // Line 3: Stars (★ in Purple, value in White, with drop shadow)
+        c.drawText(client.textRenderer, "★", startX, curY, 0xFFFF55FF, true);
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.stars, startX + client.textRenderer.getWidth("★"), curY, 0xFFFFFFFF, true);
+        curY += 10;
 
-        // Line 4: Kills (🗡 in Red, value in White)
-        c.drawText(client.textRenderer, "🗡", startX, curY, 0xFFFF2222, shadow);
+        // Line 4: Kills (🗡 in Red, value in White, with drop shadow)
+        c.drawText(client.textRenderer, "🗡", startX, curY, 0xFFFF2222, true);
         int swordW = Math.max(9, client.textRenderer.getWidth("🗡"));
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.kills, startX + swordW, curY, 0xFFFFFFFF, shadow);
-        curY += 11;
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.kills, startX + swordW, curY, 0xFFFFFFFF, true);
+        curY += 10;
 
-        // Line 5: Deaths (☠ in Orange, value in White)
-        c.drawText(client.textRenderer, "☠", startX, curY, 0xFFFF7700, shadow);
+        // Line 5: Deaths (☠ in Orange, value in White, with drop shadow)
+        c.drawText(client.textRenderer, "☠", startX, curY, 0xFFFF7700, true);
         int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.deaths, startX + skullW, curY, 0xFFFFFFFF, shadow);
-        curY += 11;
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.deaths, startX + skullW, curY, 0xFFFFFFFF, true);
+        curY += 10;
 
-        // Line 6: Playtime (Clock in Yellow, value in White)
+        // Line 6: Playtime (Clock in Yellow, value in White, with drop shadow)
+        drawPixelIcon(c, CLOCK_PIXELS, startX + 1, curY + 1, 0x80000000); // shadow
         drawPixelIcon(c, CLOCK_PIXELS, startX, curY, 0xFFFFDD00);
-        c.drawText(client.textRenderer, " " + FakeScoreboardModule.playtime, startX + 11, curY, 0xFFFFFFFF, shadow);
+        c.drawText(client.textRenderer, " " + FakeScoreboardModule.playtime, startX + 9, curY, 0xFFFFFFFF, true);
 
         c.getMatrices().popMatrix();
     }

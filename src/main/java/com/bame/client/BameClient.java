@@ -25,6 +25,7 @@ public class BameClient implements ClientModInitializer {
     private static boolean nameProtectWasPressed = false;
     private static boolean showHudWasPressed = false;
     private static boolean fakeScoreboardWasPressed = false;
+    private static boolean spotifyHudWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -32,9 +33,12 @@ public class BameClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Initializing BameClient!");
         BameClientConfig.load();
+        if (SpotifyHudModule.enabled) {
+            com.bame.client.spotify.SpotifyService.start();
+        }
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-            dispatcher.register(ClientCommandManager.literal("bameclient")
+            dispatcher.register(ClientCommandManager.literal("caeserclient")
                 .executes(context -> {
                     MinecraftClient client = MinecraftClient.getInstance();
                     client.send(() -> client.setScreen(new BameClientScreen()));
@@ -42,10 +46,22 @@ public class BameClient implements ClientModInitializer {
                 }));
         });
         
+        net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (world.isClient() && TargetHudModule.enabled && entity instanceof net.minecraft.entity.LivingEntity living) {
+                if (!TargetHudModule.playersOnly || living instanceof net.minecraft.entity.player.PlayerEntity) {
+                    TargetHudModule.currentTarget = living;
+                    TargetHudModule.lastTargetTime = System.currentTimeMillis();
+                }
+            }
+            return net.minecraft.util.ActionResult.PASS;
+        });
+
         // Client Tick Events
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             AutoAreaMinerModule.onTick(client);
             FullbrightModule.onTick(client);
+
+            TargetHudModule.onClientTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind
@@ -146,6 +162,19 @@ public class BameClient implements ClientModInitializer {
                         BameClientConfig.save();
                     }
                     fakeScoreboardWasPressed = down;
+                }
+
+                // Spotify HUD bind
+                if (SpotifyHudModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), SpotifyHudModule.keyBind);
+                    if (down && !spotifyHudWasPressed) {
+                        SpotifyHudModule.enabled = !SpotifyHudModule.enabled;
+                        if (SpotifyHudModule.enabled) {
+                            com.bame.client.spotify.SpotifyService.start();
+                        }
+                        BameClientConfig.save();
+                    }
+                    spotifyHudWasPressed = down;
                 }
 
                 // Menu bind
