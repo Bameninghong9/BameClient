@@ -101,6 +101,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.bgMode;
             case "armorHud" -> ArmorHudModule.bgMode;
             case "spotifyHud" -> SpotifyHudModule.bgMode;
+            case "reachDisplay" -> ReachDisplayModule.bgMode;
             default -> 0;
         };
     }
@@ -120,6 +121,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.bgMode = mode;
             case "armorHud" -> ArmorHudModule.bgMode = mode;
             case "spotifyHud" -> SpotifyHudModule.bgMode = mode;
+            case "reachDisplay" -> ReachDisplayModule.bgMode = mode;
         }
         com.bame.client.BameClientConfig.save();
     }
@@ -139,6 +141,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.outlineColor;
             case "armorHud" -> ArmorHudModule.outlineColor;
             case "spotifyHud" -> SpotifyHudModule.outlineColor;
+            case "reachDisplay" -> ReachDisplayModule.outlineColor;
             default -> 0xFFFFFFFF;
         };
     }
@@ -158,6 +161,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.outlineColor = color;
             case "armorHud" -> ArmorHudModule.outlineColor = color;
             case "spotifyHud" -> SpotifyHudModule.outlineColor = color;
+            case "reachDisplay" -> ReachDisplayModule.outlineColor = color;
         }
         com.bame.client.BameClientConfig.save();
     }
@@ -177,6 +181,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.scale = scale;
             case "armorHud" -> ArmorHudModule.scale = scale;
             case "spotifyHud" -> SpotifyHudModule.scale = scale;
+            case "reachDisplay" -> ReachDisplayModule.scale = scale;
         }
     }
 
@@ -194,6 +199,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.customWidth = width;
             case "armorHud" -> ArmorHudModule.customWidth = width;
             case "spotifyHud" -> SpotifyHudModule.customWidth = width;
+            case "reachDisplay" -> ReachDisplayModule.customWidth = width;
         }
     }
 
@@ -211,6 +217,7 @@ public class HudEditorScreen extends Screen {
             case "targetHud" -> TargetHudModule.customHeight = height;
             case "armorHud" -> ArmorHudModule.customHeight = height;
             case "spotifyHud" -> SpotifyHudModule.customHeight = height;
+            case "reachDisplay" -> ReachDisplayModule.customHeight = height;
         }
     }
 
@@ -575,6 +582,19 @@ public class HudEditorScreen extends Screen {
 
             SpotifyHudRenderer.render(context, x, y, s, true);
             if (hover || draggingTarget.equals("spotifyHud") || resizingTarget.equals("spotifyHud")) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
+        // 13. Render Reach Display Module
+        if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
+            int w = StatusHudRenderer.getReachDisplayWidth(client); int h = StatusHudRenderer.getReachDisplayHeight();
+            float s = ReachDisplayModule.scale;
+            int x = ReachDisplayModule.hudX; int y = ReachDisplayModule.hudY;
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            StatusHudRenderer.renderReachDisplay(context, x, y, s);
+            if (hover || draggingTarget.equals("reachDisplay") || resizingTarget.equals("reachDisplay")) {
                 drawBoundingControls(context, x, y, w, h, s);
             }
         }
@@ -1012,6 +1032,12 @@ public class HudEditorScreen extends Screen {
                     openPopup("spotifyHud", (int)mouseX, (int)mouseY); return true;
                 }
             }
+            if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
+                int w = StatusHudRenderer.getReachDisplayWidth(client); int h = StatusHudRenderer.getReachDisplayHeight(); float s = ReachDisplayModule.scale;
+                if (inside(mouseX, mouseY, ReachDisplayModule.hudX - 2, ReachDisplayModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup("reachDisplay", (int)mouseX, (int)mouseY); return true;
+                }
+            }
             return false;
         }
 
@@ -1221,6 +1247,12 @@ public class HudEditorScreen extends Screen {
             if (checkControls(mouseX, mouseY, "spotifyHud", x, y, w, h, s, () -> SpotifyHudModule.enabled = false)) return true;
         }
 
+        // 13. Check Reach Display
+        if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
+            int w = StatusHudRenderer.getReachDisplayWidth(client); int h = StatusHudRenderer.getReachDisplayHeight(); float s = ReachDisplayModule.scale;
+            if (checkControls(mouseX, mouseY, "reachDisplay", ReachDisplayModule.hudX, ReachDisplayModule.hudY, w, h, s, () -> ReachDisplayModule.enabled = false)) return true;
+        }
+
         return super.mouseClicked(click, twice);
     }
 
@@ -1333,6 +1365,7 @@ public class HudEditorScreen extends Screen {
                 case "targetHud" -> { gw = (int)(StatusHudRenderer.getTargetHudWidth() * TargetHudModule.scale); gh = (int)(StatusHudRenderer.getTargetHudHeight() * TargetHudModule.scale); s = TargetHudModule.scale; }
                 case "armorHud" -> { gw = (int)(StatusHudRenderer.getArmorHudWidth(client) * ArmorHudModule.scale); gh = (int)(StatusHudRenderer.getArmorHudHeight() * ArmorHudModule.scale); s = ArmorHudModule.scale; }
                 case "spotifyHud" -> { gw = (int)(SpotifyHudRenderer.getWidth() * SpotifyHudModule.scale); gh = (int)(SpotifyHudRenderer.getHeight() * SpotifyHudModule.scale); s = SpotifyHudModule.scale; }
+                case "reachDisplay" -> { gw = (int)(StatusHudRenderer.getReachDisplayWidth(client) * ReachDisplayModule.scale); gh = (int)(StatusHudRenderer.getReachDisplayHeight() * ReachDisplayModule.scale); s = ReachDisplayModule.scale; }
             }
 
             int centerX = width / 2; int centerY = height / 2;
@@ -1388,6 +1421,7 @@ public class HudEditorScreen extends Screen {
                 case "targetHud" -> { TargetHudModule.hudX = newX; TargetHudModule.hudY = newY; }
                 case "armorHud" -> { ArmorHudModule.hudX = newX; ArmorHudModule.hudY = newY; }
                 case "spotifyHud" -> { SpotifyHudModule.hudX = newX; SpotifyHudModule.hudY = newY; }
+                case "reachDisplay" -> { ReachDisplayModule.hudX = newX; ReachDisplayModule.hudY = newY; }
             }
             return true;
         }

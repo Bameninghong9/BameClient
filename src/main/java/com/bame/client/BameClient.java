@@ -38,6 +38,7 @@ public class BameClient implements ClientModInitializer {
         if (SpotifyHudModule.enabled) {
             com.bame.client.spotify.SpotifyService.start();
         }
+        HitColorModule.apply();
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommandManager.literal("caeserclient")
@@ -64,6 +65,10 @@ public class BameClient implements ClientModInitializer {
             FullbrightModule.onTick(client);
 
             TargetHudModule.onClientTick(client);
+            AutoClickerModule.onTick(client);
+            HitColorModule.onTick(client);
+            ReachDisplayModule.onTick(client);
+            LowShieldModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind

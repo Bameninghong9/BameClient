@@ -15,7 +15,12 @@
     "EntityRendererMixin",
     "InGameHudMixin",
     "ScoreboardMixin",
-    "ClientPlayNetworkHandlerMixin"
+    "ClientPlayNetworkHandlerMixin",
+    "MinecraftClientAccessor",
+    "OverlayTextureAccessor",
+    "OverlayTextureMixin",
+    "HeldItemRendererMixin",
+    "ClientPlayerInteractionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

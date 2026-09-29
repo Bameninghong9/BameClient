@@ -21,6 +21,10 @@ import com.bame.client.module.SpotifyHudModule;
 import com.bame.client.module.ScoreboardModule;
 import com.bame.client.module.CustomCrosshairModule;
 import com.bame.client.module.InvMoveModule;
+import com.bame.client.module.AutoClickerModule;
+import com.bame.client.module.HitColorModule;
+import com.bame.client.module.ReachDisplayModule;
+import com.bame.client.module.LowShieldModule;
 import com.bame.client.render.CustomCrosshairRenderer;
 
 import net.minecraft.client.gui.DrawContext;
@@ -39,7 +43,9 @@ public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
-    private boolean crosshairColorPickerOpen = false;
+    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield;
+    private boolean draggingCps,draggingHitColorAlpha,draggingLowShieldHeight;
+    private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false;
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
     private int cpX, cpY;
@@ -178,6 +184,26 @@ public class BameClientScreen extends Screen {
         if (!q.isEmpty()) return "invmove".contains(q) || "inv move".contains(q) || "inventory walk".contains(q) || "inventory".contains(q) || "movement".contains(q);
         return selected.equals("Movement");
     }
+    private boolean autoClickerVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "autoclicker".contains(q) || "auto clicker".contains(q) || "cps".contains(q);
+        return selected.equals("Combat");
+    }
+    private boolean hitColorVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "hitcolor".contains(q) || "hit color".contains(q) || "color".contains(q) || "hurt".contains(q);
+        return selected.equals("Combat");
+    }
+    private boolean reachDisplayVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "reachdisplay".contains(q) || "reach display".contains(q) || "reach".contains(q);
+        return selected.equals("Combat");
+    }
+    private boolean lowShieldVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q);
+        return selected.equals("Combat");
+    }
 
     private int columns() { return 4; }
     private int effectsY() { return 44+((GuiTheme.PRESETS.length+columns()-1)/columns())*58+18; }
@@ -204,6 +230,18 @@ public class BameClientScreen extends Screen {
     private int getInvMoveHeight() {
         return InvMoveModule.expanded ? 182 : 46;
     }
+    private int getAutoClickerHeight() {
+        return AutoClickerModule.expanded ? 182 : 46;
+    }
+    private int getHitColorHeight() {
+        return HitColorModule.expanded ? 130 : 46;
+    }
+    private int getReachDisplayHeight() {
+        return ReachDisplayModule.expanded ? 124 : 46;
+    }
+    private int getLowShieldHeight() {
+        return LowShieldModule.expanded ? 104 : 46;
+    }
 
     private int contentHeight() { 
         if (selected.equals("Theme")) return settingsY()+themeSettings.height()+8;
@@ -216,11 +254,15 @@ public class BameClientScreen extends Screen {
         if (fakeScoreboardVisible()) leftY += getFakeScoreboardHeight() + 12;
         if (scoreboardVisible()) leftY += getScoreboardHeight() + 12;
         if (invMoveVisible()) leftY += getInvMoveHeight() + 12;
+        if (autoClickerVisible()) leftY += getAutoClickerHeight() + 12;
+        if (reachDisplayVisible()) leftY += getReachDisplayHeight() + 12;
 
         if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
         if (zoomVisible()) rightY += (ZoomModule.expanded?92:46) + 12;
         if (spotifyHudVisible()) rightY += getSpotifyHudHeight() + 12;
         if (customCrosshairVisible()) rightY += getCustomCrosshairHeight() + 12;
+        if (hitColorVisible()) rightY += getHitColorHeight() + 12;
+        if (lowShieldVisible()) rightY += getLowShieldHeight() + 12;
 
         return Math.max(leftY, rightY);
     }
@@ -474,6 +516,14 @@ public class BameClientScreen extends Screen {
                 renderInvMoveModule(c, mx, my, delta, cx, leftY, halfW);
                 leftY += getInvMoveHeight() + 12;
             }
+            if (autoClickerVisible()) {
+                renderAutoClickerModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getAutoClickerHeight() + 12;
+            }
+            if (reachDisplayVisible()) {
+                renderReachDisplayModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getReachDisplayHeight() + 12;
+            }
             if (fullbrightVisible()) {
                 renderFullbright(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += (fullbrightExpanded?92:46) + 12;
@@ -490,6 +540,14 @@ public class BameClientScreen extends Screen {
                 renderCustomCrosshairModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += getCustomCrosshairHeight() + 12;
             }
+            if (hitColorVisible()) {
+                renderHitColorModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += getHitColorHeight() + 12;
+            }
+            if (lowShieldVisible()) {
+                renderLowShieldModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += getLowShieldHeight() + 12;
+            }
         }
         c.disableScissor();
         if(maxScroll()>0) {
@@ -501,8 +559,8 @@ public class BameClientScreen extends Screen {
             c.getMatrices().popMatrix();
         }
 
-        if (crosshairColorPickerOpen) {
-            renderCrosshairColorPicker(c, mx, my);
+        if (crosshairColorPickerOpen || hitColorColorPickerOpen) {
+            renderModalColorPicker(c, mx, my);
         }
     }
     private void renderMiner(DrawContext c,int mx,int my,float delta, int yOffset) {
@@ -909,6 +967,151 @@ public class BameClientScreen extends Screen {
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
+    private void renderAutoClickerModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getAutoClickerHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "AutoClicker", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningAutoClicker ? "..." : formatKey(AutoClickerModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, AutoClickerModule.enabled, mx, my, delta);
+
+        if (!AutoClickerModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        // CPS Slider (6 to 20 CPS)
+        text(c, "CPS: " + AutoClickerModule.cps, x + 14, curY + 4, 0xFFD4D8E0);
+        int sx = x + 72;
+        int sw = w - 86;
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float cpsNorm = (AutoClickerModule.cps - 6) / 14.0f;
+        int fill = Math.round(sw * cpsNorm);
+        if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Random Jitter
+        text(c, "Random Jitter", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, AutoClickerModule.randomJitter, mx, my, delta);
+        curY += 26;
+
+        // Weapon Only
+        text(c, "Weapon Only", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, AutoClickerModule.weaponOnly, mx, my, delta);
+        curY += 26;
+
+        // Button Mode
+        text(c, "Button:", x + 14, curY + 4, 0xFFD4D8E0);
+        modeButton(c, "Left", x + 60, curY + 2, 44, 18, mx, my, AutoClickerModule.button == 0);
+        modeButton(c, "Right", x + 108, curY + 2, 48, 18, mx, my, AutoClickerModule.button == 1);
+        curY += 26;
+
+        // Reset button
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderHitColorModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getHitColorHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "HitColor", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningHitColor ? "..." : formatKey(HitColorModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, HitColorModule.enabled, mx, my, delta);
+
+        if (!HitColorModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        // Color row
+        text(c, "Color:", x + 14, curY + 4, 0xFFD4D8E0);
+        int colBtnX = x + 56;
+        int colBtnSize = 16;
+        boolean hoverCol = inside(mx, my, colBtnX, curY + 2, colBtnSize, colBtnSize);
+        c.fill(colBtnX, curY + 2, colBtnX + colBtnSize, curY + 2 + colBtnSize, 0xFF000000 | (HitColorModule.color & 0xFFFFFF));
+        CustomGuiUtils.drawUltraRoundedOutline(c, colBtnX, curY + 2, colBtnSize, colBtnSize, hoverCol ? 0xFFFFFFFF : 0xFF353C4D, 2);
+        button(c, "Pick Color", colBtnX + 22, curY + 2, 64, 16, mx, my);
+        curY += 26;
+
+        // Opacity / Intensity Slider (10% to 100%)
+        int pct = Math.round(HitColorModule.alpha * 100);
+        text(c, "Opacity: " + pct + "%", x + 14, curY + 4, 0xFFD4D8E0);
+        int sx = x + 88;
+        int sw = w - 102;
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float alphaNorm = (HitColorModule.alpha - 0.1f) / 0.9f;
+        int fill = Math.round(sw * Math.clamp(alphaNorm, 0f, 1f));
+        if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Reset button
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderReachDisplayModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getReachDisplayHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "ReachDisplay", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningReachDisplay ? "..." : formatKey(ReachDisplayModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, ReachDisplayModule.enabled, mx, my, delta);
+
+        if (!ReachDisplayModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        text(c, "Display Mode:", x + 14, curY + 4, 0xFFD4D8E0);
+        curY += 20;
+
+        modeButton(c, "Above Crosshair", x + 14, curY, 96, 18, mx, my, ReachDisplayModule.mode == 0);
+        modeButton(c, "HUD Element", x + 114, curY, 78, 18, mx, my, ReachDisplayModule.mode == 1);
+        curY += 26;
+
+        if (ReachDisplayModule.mode == 1) {
+            button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
+        }
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderLowShieldModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getLowShieldHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "LowShield", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningLowShield ? "..." : formatKey(LowShieldModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, LowShieldModule.enabled, mx, my, delta);
+
+        if (!LowShieldModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        // Height Slider (1% to 100%)
+        text(c, "Height: " + LowShieldModule.heightPercent + "%", x + 14, curY + 4, 0xFFD4D8E0);
+        int sx = x + 84;
+        int sw = w - 98;
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float hNorm = (LowShieldModule.heightPercent - 1) / 99.0f;
+        int fill = Math.round(sw * Math.clamp(hNorm, 0f, 1f));
+        if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Reset button
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
     private void syncCrosshairHsv() {
         int col = CustomCrosshairModule.color;
         float[] hsb = java.awt.Color.RGBtoHSB((col >> 16) & 0xFF, (col >> 8) & 0xFF, col & 0xFF, null);
@@ -917,7 +1120,15 @@ public class BameClientScreen extends Screen {
         cpVal = hsb[2];
     }
 
-    private void updateCrosshairColor(double mx, double my) {
+    private void syncHitColorHsv() {
+        int col = HitColorModule.color;
+        float[] hsb = java.awt.Color.RGBtoHSB((col >> 16) & 0xFF, (col >> 8) & 0xFF, col & 0xFF, null);
+        cpHue = hsb[0];
+        cpSat = hsb[1];
+        cpVal = hsb[2];
+    }
+
+    private void updateModalColor(double mx, double my) {
         int CP_W = 150;
         int CP_H = 100;
         int myCpX = (width - CP_W) / 2;
@@ -928,7 +1139,6 @@ public class BameClientScreen extends Screen {
         int svH = 30;
         int barX = myCpX + 10;
         int barW = 128;
-        int hueY = myCpY + 58;
 
         if (cpDrag == 0) { // SV
             cpSat = (float) Math.clamp((mx - svX) / (double) (svW - 1), 0.0, 1.0);
@@ -937,11 +1147,16 @@ public class BameClientScreen extends Screen {
             cpHue = (float) Math.clamp((mx - barX) / (double) (barW - 1), 0.0, 1.0);
         }
         int rgb = java.awt.Color.HSBtoRGB(cpHue, cpSat, cpVal);
-        CustomCrosshairModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
+        if (hitColorColorPickerOpen) {
+            HitColorModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
+            HitColorModule.apply();
+        } else {
+            CustomCrosshairModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
+        }
         BameClientConfig.save();
     }
 
-    private void renderCrosshairColorPicker(DrawContext context, int mouseX, int mouseY) {
+    private void renderModalColorPicker(DrawContext context, int mouseX, int mouseY) {
         int CP_W = 150;
         int CP_H = 100;
         cpX = (width - CP_W) / 2;
@@ -954,10 +1169,11 @@ public class BameClientScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(context, cpX, cpY, CP_W, CP_H, 0xFF353C4D, 6);
 
         // Title
-        context.drawText(textRenderer, CustomGuiUtils.getFontText("COLOR PICKER"), cpX + 10, cpY + 8, 0xFFFFFFFF, false);
+        String title = hitColorColorPickerOpen ? "HIT COLOR" : "COLOR PICKER";
+        context.drawText(textRenderer, CustomGuiUtils.getFontText(title), cpX + 10, cpY + 8, 0xFFFFFFFF, false);
         context.drawText(textRenderer, Text.literal("×"), cpX + CP_W - 14, cpY + 6, 0xFF8E95A4, false);
 
-        int curCol = CustomCrosshairModule.color;
+        int curCol = hitColorColorPickerOpen ? HitColorModule.color : CustomCrosshairModule.color;
 
         // 1. Preview box (Top Left, Bild 3)
         int prevX = cpX + 10;
@@ -1053,13 +1269,14 @@ public class BameClientScreen extends Screen {
         layout(); double mx=click.x(),my=click.y();
         if(click.button()!=0) return false;
 
-        if (crosshairColorPickerOpen) {
+        if (crosshairColorPickerOpen || hitColorColorPickerOpen) {
             int CP_W = 150;
             int CP_H = 100;
             int myCpX = (width - CP_W) / 2;
             int myCpY = (height - CP_H) / 2;
             if (inside(mx, my, myCpX + CP_W - 16, myCpY + 4, 14, 14)) {
                 crosshairColorPickerOpen = false;
+                hitColorColorPickerOpen = false;
                 cpDrag = -1;
                 return true;
             }
@@ -1069,7 +1286,7 @@ public class BameClientScreen extends Screen {
             int svH = 30;
             if (inside(mx, my, svX, svY, svW, svH)) {
                 cpDrag = 0;
-                updateCrosshairColor(mx, my);
+                updateModalColor(mx, my);
                 return true;
             }
             int barX = myCpX + 10;
@@ -1078,13 +1295,14 @@ public class BameClientScreen extends Screen {
             int barH = 8;
             if (inside(mx, my, barX, hueY, barW, barH)) {
                 cpDrag = 1;
-                updateCrosshairColor(mx, my);
+                updateModalColor(mx, my);
                 return true;
             }
             if (inside(mx, my, myCpX, myCpY, CP_W, CP_H)) {
                 return true;
             }
             crosshairColorPickerOpen = false;
+            hitColorColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
@@ -1469,6 +1687,116 @@ public class BameClientScreen extends Screen {
                 leftY += getInvMoveHeight() + 12;
             }
 
+            if (autoClickerVisible()) {
+                int myY = baseY() + leftY;
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    AutoClickerModule.enabled = !AutoClickerModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
+                    listeningAutoClicker = true;
+                    return true;
+                }
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    AutoClickerModule.expanded = !AutoClickerModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (AutoClickerModule.expanded) {
+                    int curY = myY + 54;
+                    // CPS Slider (6 to 20 CPS)
+                    int sx = cx + 72;
+                    int sw = halfW - 86;
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingCps = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        AutoClickerModule.cps = Math.round(6 + fval * 14);
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Random Jitter
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        AutoClickerModule.randomJitter = !AutoClickerModule.randomJitter;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Weapon Only
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        AutoClickerModule.weaponOnly = !AutoClickerModule.weaponOnly;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Button Left / Right
+                    if (inside(mx, my, cx + 60, curY + 2, 44, 18)) {
+                        AutoClickerModule.button = 0;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, cx + 108, curY + 2, 48, 18)) {
+                        AutoClickerModule.button = 1;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Reset button
+                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                        resetAutoClicker();
+                        return true;
+                    }
+                }
+                leftY += getAutoClickerHeight() + 12;
+            }
+
+            if (reachDisplayVisible()) {
+                int myY = baseY() + leftY;
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    ReachDisplayModule.enabled = !ReachDisplayModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
+                    listeningReachDisplay = true;
+                    return true;
+                }
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    ReachDisplayModule.expanded = !ReachDisplayModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (ReachDisplayModule.expanded) {
+                    int curY = myY + 54 + 20;
+                    if (inside(mx, my, cx + 14, curY, 96, 18)) {
+                        ReachDisplayModule.mode = 0;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, cx + 114, curY, 78, 18)) {
+                        ReachDisplayModule.mode = 1;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    if (ReachDisplayModule.mode == 1 && inside(mx, my, cx + 14, curY, 50, 16)) {
+                        client.setScreen(new HudEditorScreen(this));
+                        return true;
+                    }
+                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                        resetReachDisplay();
+                        return true;
+                    }
+                }
+                leftY += getReachDisplayHeight() + 12;
+            }
+
             if (fullbrightVisible()) {
                 int myY = baseY() + rightY;
                 int fX = cx + halfW + gap;
@@ -1634,6 +1962,97 @@ public class BameClientScreen extends Screen {
                 }
                 rightY += getCustomCrosshairHeight() + 12;
             }
+
+            if (hitColorVisible()) {
+                int myY = baseY() + rightY;
+                int hX = cx + halfW + gap;
+                if (inside(mx, my, hX + halfW - 38, myY + 12, 26, 14)) {
+                    HitColorModule.enabled = !HitColorModule.enabled;
+                    HitColorModule.apply();
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, hX + 60, myY + 25, 48, 16)) {
+                    listeningHitColor = true;
+                    return true;
+                }
+                if (inside(mx, my, hX, myY, halfW, 46)) {
+                    HitColorModule.expanded = !HitColorModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (HitColorModule.expanded) {
+                    int curY = myY + 54;
+                    // Color button / square or Pick Color button
+                    if (inside(mx, my, hX + 56, curY + 2, 16, 16) || inside(mx, my, hX + 78, curY + 2, 64, 16)) {
+                        hitColorColorPickerOpen = true;
+                        crosshairColorPickerOpen = false;
+                        syncHitColorHsv();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Opacity Slider (0.1 to 1.0)
+                    int sx = hX + 88;
+                    int sw = halfW - 102;
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHitColorAlpha = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        HitColorModule.alpha = 0.1f + fval * 0.9f;
+                        HitColorModule.apply();
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Reset button
+                    if (inside(mx, my, hX + halfW - 58, curY, 46, 16)) {
+                        resetHitColor();
+                        return true;
+                    }
+                }
+                rightY += getHitColorHeight() + 12;
+            }
+
+            if (lowShieldVisible()) {
+                int myY = baseY() + rightY;
+                int lX = cx + halfW + gap;
+                if (inside(mx, my, lX + halfW - 38, myY + 12, 26, 14)) {
+                    LowShieldModule.enabled = !LowShieldModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, lX + 60, myY + 25, 48, 16)) {
+                    listeningLowShield = true;
+                    return true;
+                }
+                if (inside(mx, my, lX, myY, halfW, 46)) {
+                    LowShieldModule.expanded = !LowShieldModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (LowShieldModule.expanded) {
+                    int curY = myY + 54;
+                    // Height Slider (1 to 100%)
+                    int sx = lX + 84;
+                    int sw = halfW - 98;
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingLowShieldHeight = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        LowShieldModule.heightPercent = Math.max(1, Math.round(1 + fval * 99));
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Reset button
+                    if (inside(mx, my, lX + halfW - 58, curY, 46, 16)) {
+                        resetLowShield();
+                        return true;
+                    }
+                }
+                rightY += getLowShieldHeight() + 12;
+            }
         }
         return false;
     }
@@ -1712,6 +2131,42 @@ public class BameClientScreen extends Screen {
         }
     }
 
+    private void resetAutoClicker() {
+        AutoClickerModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[AutoClicker] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetHitColor() {
+        HitColorModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[HitColor] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetReachDisplay() {
+        ReachDisplayModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[ReachDisplay] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetLowShield() {
+        LowShieldModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[LowShield] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
     private void resetShowHud() {
         ClockModule.enabled = false;
         CoordinatesModule.enabled = false;
@@ -1764,7 +2219,7 @@ public class BameClientScreen extends Screen {
             client.player.sendMessage(Text.literal("§a[Show HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
         }
     }
-    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; unfocus(); layout(); }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -1794,8 +2249,8 @@ public class BameClientScreen extends Screen {
     }
     private void dragScroll(double my) { scroll=Math.clamp((my-cy-scrollGrab)/Math.max(1,ch-thumbHeight())*maxScroll(),0,maxScroll()); layout(); }
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
-        if (crosshairColorPickerOpen && cpDrag >= 0) {
-            updateCrosshairColor(click.x(), click.y());
+        if ((crosshairColorPickerOpen || hitColorColorPickerOpen) && cpDrag >= 0) {
+            updateModalColor(click.x(), click.y());
             return true;
         }
         if (gridDragMode >= 0) {
@@ -1830,6 +2285,34 @@ public class BameClientScreen extends Screen {
             com.bame.client.module.FullbrightModule.intensity = fval;
             return true;
         }
+        if(draggingCps) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 72;
+            int sw = halfW - 86;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            AutoClickerModule.cps = Math.round(6 + fval * 14);
+            return true;
+        }
+        if(draggingHitColorAlpha) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + halfW + gap + 88;
+            int sw = halfW - 102;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            HitColorModule.alpha = 0.1f + fval * 0.9f;
+            HitColorModule.apply();
+            return true;
+        }
+        if(draggingLowShieldHeight) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + halfW + gap + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            LowShieldModule.heightPercent = Math.max(1, Math.round(1 + fval * 99));
+            return true;
+        }
         if(draggingWidth) {
             float val = (float)Math.clamp(((click.x() - (cx+14)) / 140.0), 0.0, 1.0);
             BameClientConfig.outlineWidth = 1.0f + val * 4.0f;
@@ -1846,8 +2329,8 @@ public class BameClientScreen extends Screen {
             BameClientConfig.save();
         }
         cpDrag = -1;
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingHitColorAlpha||draggingLowShieldHeight;
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {
@@ -1855,12 +2338,13 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && crosshairColorPickerOpen) {
+        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen)) {
             crosshairColorPickerOpen = false;
+            hitColorColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
@@ -1871,6 +2355,10 @@ public class BameClientScreen extends Screen {
         if(listeningScoreboard) { com.bame.client.module.ScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningScoreboard=false; BameClientConfig.save(); return true; }
         if(listeningCrosshair) { com.bame.client.module.CustomCrosshairModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningCrosshair=false; BameClientConfig.save(); return true; }
         if(listeningInvMove) { com.bame.client.module.InvMoveModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningInvMove=false; BameClientConfig.save(); return true; }
+        if(listeningAutoClicker) { AutoClickerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningAutoClicker=false; BameClientConfig.save(); return true; }
+        if(listeningHitColor) { HitColorModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningHitColor=false; BameClientConfig.save(); return true; }
+        if(listeningReachDisplay) { ReachDisplayModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningReachDisplay=false; BameClientConfig.save(); return true; }
+        if(listeningLowShield) { LowShieldModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningLowShield=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }

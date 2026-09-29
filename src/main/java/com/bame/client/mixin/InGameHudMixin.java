@@ -49,5 +49,30 @@ public class InGameHudMixin {
             com.bame.client.render.CustomCrosshairRenderer.render(context);
         }
     }
+
+    @Inject(method = "render(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("TAIL"))
+    private void onRenderHudTail(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        if (com.bame.client.module.ReachDisplayModule.enabled && com.bame.client.module.ReachDisplayModule.mode == 0) {
+            long elapsed = System.currentTimeMillis() - com.bame.client.module.ReachDisplayModule.lastHitTime;
+            if (elapsed < 3000 && com.bame.client.module.ReachDisplayModule.lastReach > 0) {
+                float alpha = 1.0f;
+                if (elapsed > 2000) {
+                    alpha = 1.0f - (float)(elapsed - 2000) / 1000.0f;
+                }
+                int a = (int)(alpha * 255.0f);
+                if (a > 5) {
+                    net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
+                    if (client != null && client.textRenderer != null && client.getWindow() != null) {
+                        String str = com.bame.client.module.ReachDisplayModule.getReachString();
+                        int tw = client.textRenderer.getWidth(com.bame.client.gui.CustomGuiUtils.getFontText(str));
+                        int cx = client.getWindow().getScaledWidth() / 2 - tw / 2;
+                        int cy = client.getWindow().getScaledHeight() / 2 - 18;
+                        int col = (a << 24) | 0x00FFFFFF;
+                        context.drawText(client.textRenderer, com.bame.client.gui.CustomGuiUtils.getFontText(str), cx, cy, col, true);
+                    }
+                }
+            }
+        }
+    }
 }
 

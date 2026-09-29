@@ -324,6 +324,57 @@ public class BameClientConfig {
                 if (props.containsKey("grid")) CustomCrosshairModule.setEncodedGrid(props.getProperty("grid"));
             }
 
+            // Combat - AutoClicker
+            Path acFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_clicker.properties");
+            if (Files.exists(acFile)) {
+                Properties props = loadProps(acFile);
+                if (props.containsKey("enabled")) AutoClickerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) AutoClickerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) AutoClickerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("cps")) AutoClickerModule.cps = Integer.parseInt(props.getProperty("cps"));
+                if (props.containsKey("randomJitter")) AutoClickerModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
+                if (props.containsKey("weaponOnly")) AutoClickerModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
+                if (props.containsKey("button")) AutoClickerModule.button = Integer.parseInt(props.getProperty("button"));
+            }
+
+            // Combat - HitColor
+            Path hcFile = BASE_CONFIG_DIR.resolve("Combat").resolve("hit_color.properties");
+            if (Files.exists(hcFile)) {
+                Properties props = loadProps(hcFile);
+                if (props.containsKey("enabled")) HitColorModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) HitColorModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) HitColorModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("color")) HitColorModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
+                if (props.containsKey("alpha")) HitColorModule.alpha = Float.parseFloat(props.getProperty("alpha"));
+            }
+
+            // Combat - ReachDisplay
+            Path rdFile = BASE_CONFIG_DIR.resolve("Combat").resolve("reach_display.properties");
+            if (Files.exists(rdFile)) {
+                Properties props = loadProps(rdFile);
+                if (props.containsKey("enabled")) ReachDisplayModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) ReachDisplayModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) ReachDisplayModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("mode")) ReachDisplayModule.mode = Integer.parseInt(props.getProperty("mode"));
+                if (props.containsKey("hudX")) ReachDisplayModule.hudX = Integer.parseInt(props.getProperty("hudX"));
+                if (props.containsKey("hudY")) ReachDisplayModule.hudY = Integer.parseInt(props.getProperty("hudY"));
+                if (props.containsKey("scale")) ReachDisplayModule.scale = Float.parseFloat(props.getProperty("scale"));
+                if (props.containsKey("bgMode")) ReachDisplayModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
+                if (props.containsKey("outlineColor")) ReachDisplayModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
+                if (props.containsKey("customWidth")) ReachDisplayModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
+                if (props.containsKey("customHeight")) ReachDisplayModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
+            }
+
+            // Combat - LowShield
+            Path lsFile = BASE_CONFIG_DIR.resolve("Combat").resolve("low_shield.properties");
+            if (Files.exists(lsFile)) {
+                Properties props = loadProps(lsFile);
+                if (props.containsKey("enabled")) LowShieldModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) LowShieldModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) LowShieldModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("heightPercent")) LowShieldModule.heightPercent = Integer.parseInt(props.getProperty("heightPercent"));
+            }
+
             // 6. Theme
             Path themeFile = BASE_CONFIG_DIR.resolve("Theme").resolve("theme.properties");
             if (Files.exists(themeFile)) {
@@ -613,6 +664,49 @@ public class BameClientConfig {
             crosshairProps.setProperty("color", Integer.toHexString(CustomCrosshairModule.color));
             crosshairProps.setProperty("grid", CustomCrosshairModule.getEncodedGrid());
             saveProps(visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
+
+            // Combat - AutoClicker
+            Properties acProps = new Properties();
+            acProps.setProperty("enabled", String.valueOf(AutoClickerModule.enabled));
+            acProps.setProperty("keyBind", String.valueOf(AutoClickerModule.keyBind));
+            acProps.setProperty("expanded", String.valueOf(AutoClickerModule.expanded));
+            acProps.setProperty("cps", String.valueOf(AutoClickerModule.cps));
+            acProps.setProperty("randomJitter", String.valueOf(AutoClickerModule.randomJitter));
+            acProps.setProperty("weaponOnly", String.valueOf(AutoClickerModule.weaponOnly));
+            acProps.setProperty("button", String.valueOf(AutoClickerModule.button));
+            saveProps(combatDir.resolve("auto_clicker.properties"), acProps, "Caeser Client - AutoClicker");
+
+            // Combat - HitColor
+            Properties hcProps = new Properties();
+            hcProps.setProperty("enabled", String.valueOf(HitColorModule.enabled));
+            hcProps.setProperty("keyBind", String.valueOf(HitColorModule.keyBind));
+            hcProps.setProperty("expanded", String.valueOf(HitColorModule.expanded));
+            hcProps.setProperty("color", Integer.toHexString(HitColorModule.color));
+            hcProps.setProperty("alpha", String.valueOf(HitColorModule.alpha));
+            saveProps(combatDir.resolve("hit_color.properties"), hcProps, "Caeser Client - HitColor");
+
+            // Combat - ReachDisplay
+            Properties rdProps = new Properties();
+            rdProps.setProperty("enabled", String.valueOf(ReachDisplayModule.enabled));
+            rdProps.setProperty("keyBind", String.valueOf(ReachDisplayModule.keyBind));
+            rdProps.setProperty("expanded", String.valueOf(ReachDisplayModule.expanded));
+            rdProps.setProperty("mode", String.valueOf(ReachDisplayModule.mode));
+            rdProps.setProperty("hudX", String.valueOf(ReachDisplayModule.hudX));
+            rdProps.setProperty("hudY", String.valueOf(ReachDisplayModule.hudY));
+            rdProps.setProperty("scale", String.valueOf(ReachDisplayModule.scale));
+            rdProps.setProperty("bgMode", String.valueOf(ReachDisplayModule.bgMode));
+            rdProps.setProperty("outlineColor", Integer.toHexString(ReachDisplayModule.outlineColor));
+            rdProps.setProperty("customWidth", String.valueOf(ReachDisplayModule.customWidth));
+            rdProps.setProperty("customHeight", String.valueOf(ReachDisplayModule.customHeight));
+            saveProps(combatDir.resolve("reach_display.properties"), rdProps, "Caeser Client - ReachDisplay");
+
+            // Combat - LowShield
+            Properties lsProps = new Properties();
+            lsProps.setProperty("enabled", String.valueOf(LowShieldModule.enabled));
+            lsProps.setProperty("keyBind", String.valueOf(LowShieldModule.keyBind));
+            lsProps.setProperty("expanded", String.valueOf(LowShieldModule.expanded));
+            lsProps.setProperty("heightPercent", String.valueOf(LowShieldModule.heightPercent));
+            saveProps(combatDir.resolve("low_shield.properties"), lsProps, "Caeser Client - LowShield");
 
             // 6. Theme
             Properties themeProps = new Properties();

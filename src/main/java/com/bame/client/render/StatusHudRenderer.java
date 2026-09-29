@@ -168,6 +168,10 @@ public class StatusHudRenderer implements HudRenderCallback {
             }
             renderArmorHud(context, x, y, ArmorHudModule.scale, false);
         }
+
+        if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
+            renderReachDisplay(context, ReachDisplayModule.hudX, ReachDisplayModule.hudY, ReachDisplayModule.scale);
+        }
     }
 
     public static int getFpsWidth(MinecraftClient client) {
@@ -221,6 +225,19 @@ public class StatusHudRenderer implements HudRenderCallback {
     }
     public static int getCoordinatesHeight() {
         return CoordinatesModule.customHeight > 0 ? Math.max(18, CoordinatesModule.customHeight) : 18;
+    }
+
+    public static int getReachDisplayWidth(MinecraftClient client) {
+        String text = ReachDisplayModule.getReachString();
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return ReachDisplayModule.customWidth > 0 ? Math.max(nw, ReachDisplayModule.customWidth) : nw;
+    }
+    public static int getReachDisplayHeight() {
+        return ReachDisplayModule.customHeight > 0 ? Math.max(18, ReachDisplayModule.customHeight) : 18;
+    }
+    public static void renderReachDisplay(DrawContext c, int x, int y, float scale) {
+        String text = ReachDisplayModule.getReachString();
+        renderPill(c, x, y, scale, text, ReachDisplayModule.bgMode, ReachDisplayModule.outlineColor, ReachDisplayModule.customWidth, ReachDisplayModule.customHeight);
     }
 
     private static String getAmplifierString(int amplifier) {
