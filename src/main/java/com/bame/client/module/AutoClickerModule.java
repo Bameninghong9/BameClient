@@ -15,8 +15,15 @@ public class AutoClickerModule {
     public static int keyBind = -1;
     public static boolean expanded = false;
 
-    public static int cps = 12; // 6 to 20
-    public static boolean randomJitter = true; // +- 1-2 CPS variation
+    // Modes:
+    // 0 = CPS (1 to 20 CPS)
+    // 1 = Delay (0.1s to 5.0s, e.g. 1.0s = hits once every second)
+    // 2 = Cooldown (1.9+ Weapon Full Charge)
+    public static int mode = 0;
+
+    public static int cps = 12; // 1 to 20
+    public static float delaySeconds = 1.0f; // 0.1s to 5.0s
+    public static boolean randomJitter = true; // +- 1-2 CPS or +- 50ms variation
     public static boolean weaponOnly = false;
     public static int button = 0; // 0 = Left Click, 1 = Right Click
 
@@ -63,6 +70,14 @@ public class AutoClickerModule {
         }
 
         long now = System.currentTimeMillis();
+
+        // If in Cooldown mode (Mode 2) for Left Click (Attack)
+        if (mode == 2 && button == 0) {
+            if (client.player.getAttackCooldownProgress(0.0f) < 1.0f) {
+                return;
+            }
+        }
+
         if (now >= nextClickTime) {
             MinecraftClientAccessor accessor = (MinecraftClientAccessor) client;
             if (button == 0) {
@@ -75,19 +90,36 @@ public class AutoClickerModule {
                 CpsModule.registerClick(true);
             }
 
-            // Calculate next click delay in ms
-            double currentCps = cps;
-            if (randomJitter) {
-                currentCps += (random.nextDouble() * 3.0 - 1.5); // +-1.5 CPS jitter
-                if (currentCps < 1.0) currentCps = 1.0;
+            // Calculate next click delay in ms depending on mode
+            if (mode == 0) {
+                // CPS Mode (1 - 20)
+                double currentCps = Math.max(1, cps);
+                if (randomJitter) {
+                    currentCps += (random.nextDouble() * 3.0 - 1.5); // +-1.5 CPS jitter
+                    if (currentCps < 0.5) currentCps = 0.5;
+                }
+                long delay = Math.max(10, Math.round(1000.0 / currentCps));
+                nextClickTime = now + delay;
+            } else if (mode == 1) {
+                // Delay Mode (0.1s - 5.0s, e.g. 1.0s = hit every second)
+                long baseMs = Math.round(Math.max(0.1f, delaySeconds) * 1000.0f);
+                if (randomJitter) {
+                    long jitter = Math.round(random.nextDouble() * 100.0 - 50.0); // +-50ms
+                    baseMs = Math.max(50, baseMs + jitter);
+                }
+                nextClickTime = now + baseMs;
+            } else {
+                // Cooldown Mode (1.9+)
+                // Small buffer (100ms) to allow cooldown counter to begin ticking
+                nextClickTime = now + 100;
             }
-            long delay = Math.max(10, Math.round(1000.0 / currentCps));
-            nextClickTime = now + delay;
         }
     }
 
     public static void resetToDefault() {
+        mode = 0;
         cps = 12;
+        delaySeconds = 1.0f;
         randomJitter = true;
         weaponOnly = false;
         button = 0;

@@ -331,7 +331,9 @@ public class BameClientConfig {
                 if (props.containsKey("enabled")) AutoClickerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
                 if (props.containsKey("keyBind")) AutoClickerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
                 if (props.containsKey("expanded")) AutoClickerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("mode")) AutoClickerModule.mode = Integer.parseInt(props.getProperty("mode"));
                 if (props.containsKey("cps")) AutoClickerModule.cps = Integer.parseInt(props.getProperty("cps"));
+                if (props.containsKey("delaySeconds")) AutoClickerModule.delaySeconds = Float.parseFloat(props.getProperty("delaySeconds"));
                 if (props.containsKey("randomJitter")) AutoClickerModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
                 if (props.containsKey("weaponOnly")) AutoClickerModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
                 if (props.containsKey("button")) AutoClickerModule.button = Integer.parseInt(props.getProperty("button"));
@@ -670,7 +672,9 @@ public class BameClientConfig {
             acProps.setProperty("enabled", String.valueOf(AutoClickerModule.enabled));
             acProps.setProperty("keyBind", String.valueOf(AutoClickerModule.keyBind));
             acProps.setProperty("expanded", String.valueOf(AutoClickerModule.expanded));
+            acProps.setProperty("mode", String.valueOf(AutoClickerModule.mode));
             acProps.setProperty("cps", String.valueOf(AutoClickerModule.cps));
+            acProps.setProperty("delaySeconds", String.valueOf(AutoClickerModule.delaySeconds));
             acProps.setProperty("randomJitter", String.valueOf(AutoClickerModule.randomJitter));
             acProps.setProperty("weaponOnly", String.valueOf(AutoClickerModule.weaponOnly));
             acProps.setProperty("button", String.valueOf(AutoClickerModule.button));

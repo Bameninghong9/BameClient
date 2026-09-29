@@ -44,7 +44,7 @@ public class BameClientScreen extends Screen {
     public static String selected="World";
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
     private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield;
-    private boolean draggingCps,draggingHitColorAlpha,draggingLowShieldHeight;
+    private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight;
     private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false;
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
@@ -231,7 +231,7 @@ public class BameClientScreen extends Screen {
         return InvMoveModule.expanded ? 182 : 46;
     }
     private int getAutoClickerHeight() {
-        return AutoClickerModule.expanded ? 182 : 46;
+        return AutoClickerModule.expanded ? 208 : 46;
     }
     private int getHitColorHeight() {
         return HitColorModule.expanded ? 130 : 46;
@@ -982,34 +982,58 @@ public class BameClientScreen extends Screen {
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
 
         int curY = y + 54;
-        // CPS Slider (6 to 20 CPS)
-        text(c, "CPS: " + AutoClickerModule.cps, x + 14, curY + 4, 0xFFD4D8E0);
-        int sx = x + 72;
-        int sw = w - 86;
-        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
-        float cpsNorm = (AutoClickerModule.cps - 6) / 14.0f;
-        int fill = Math.round(sw * cpsNorm);
-        if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
-        CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        // Row 1: Mode Selection [CPS] [Delay] [Cooldown]
+        text(c, "Mode:", x + 14, curY + 4, 0xFFD4D8E0);
+        modeButton(c, "CPS", x + 54, curY + 2, 38, 18, mx, my, AutoClickerModule.mode == 0);
+        modeButton(c, "Delay", x + 96, curY + 2, 44, 18, mx, my, AutoClickerModule.mode == 1);
+        modeButton(c, "Cooldown", x + 144, curY + 2, 58, 18, mx, my, AutoClickerModule.mode == 2);
         curY += 26;
 
-        // Random Jitter
+        // Row 2: Dynamic setting depending on Mode
+        if (AutoClickerModule.mode == 0) {
+            // CPS Slider (1 to 20 CPS)
+            text(c, "CPS: " + AutoClickerModule.cps, x + 14, curY + 4, 0xFFD4D8E0);
+            int sx = x + 72;
+            int sw = w - 86;
+            CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+            float cpsNorm = Math.clamp((AutoClickerModule.cps - 1) / 19.0f, 0f, 1f);
+            int fill = Math.round(sw * cpsNorm);
+            if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+            CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        } else if (AutoClickerModule.mode == 1) {
+            // Delay Slider (0.1s to 5.0s)
+            String delayText = String.format(java.util.Locale.US, "%.1fs", AutoClickerModule.delaySeconds);
+            text(c, "Delay: " + delayText, x + 14, curY + 4, 0xFFD4D8E0);
+            int sx = x + 88;
+            int sw = w - 102;
+            CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+            float delayNorm = Math.clamp((AutoClickerModule.delaySeconds - 0.1f) / 4.9f, 0f, 1f);
+            int fill = Math.round(sw * delayNorm);
+            if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+            CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        } else {
+            // Cooldown Mode
+            text(c, "100% Full Charge (1.9+ Cooldown)", x + 14, curY + 4, 0xFF8E95A4);
+        }
+        curY += 26;
+
+        // Row 3: Random Jitter
         text(c, "Random Jitter", x + 14, curY + 4, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 2, AutoClickerModule.randomJitter, mx, my, delta);
         curY += 26;
 
-        // Weapon Only
+        // Row 4: Weapon Only
         text(c, "Weapon Only", x + 14, curY + 4, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 2, AutoClickerModule.weaponOnly, mx, my, delta);
         curY += 26;
 
-        // Button Mode
+        // Row 5: Button Mode
         text(c, "Button:", x + 14, curY + 4, 0xFFD4D8E0);
         modeButton(c, "Left", x + 60, curY + 2, 44, 18, mx, my, AutoClickerModule.button == 0);
         modeButton(c, "Right", x + 108, curY + 2, 48, 18, mx, my, AutoClickerModule.button == 1);
         curY += 26;
 
-        // Reset button
+        // Row 6: Reset button
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
@@ -1705,15 +1729,45 @@ public class BameClientScreen extends Screen {
                 }
                 if (AutoClickerModule.expanded) {
                     int curY = myY + 54;
-                    // CPS Slider (6 to 20 CPS)
-                    int sx = cx + 72;
-                    int sw = halfW - 86;
-                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
-                        draggingCps = true;
-                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
-                        AutoClickerModule.cps = Math.round(6 + fval * 14);
+                    // Row 1: Mode buttons
+                    if (inside(mx, my, cx + 54, curY + 2, 38, 18)) {
+                        AutoClickerModule.mode = 0;
                         BameClientConfig.save();
                         return true;
+                    }
+                    if (inside(mx, my, cx + 96, curY + 2, 44, 18)) {
+                        AutoClickerModule.mode = 1;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, cx + 144, curY + 2, 58, 18)) {
+                        AutoClickerModule.mode = 2;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 2: Dynamic setting (CPS or Delay)
+                    if (AutoClickerModule.mode == 0) {
+                        int sx = cx + 72;
+                        int sw = halfW - 86;
+                        if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                            draggingCps = true;
+                            float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                            AutoClickerModule.cps = Math.max(1, Math.round(1 + fval * 19));
+                            BameClientConfig.save();
+                            return true;
+                        }
+                    } else if (AutoClickerModule.mode == 1) {
+                        int sx = cx + 88;
+                        int sw = halfW - 102;
+                        if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                            draggingAutoClickerDelay = true;
+                            float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                            AutoClickerModule.delaySeconds = Math.max(0.1f, Math.round((0.1f + fval * 4.9f) * 10f) / 10f);
+                            BameClientConfig.save();
+                            return true;
+                        }
                     }
                     curY += 26;
 
@@ -2291,7 +2345,16 @@ public class BameClientScreen extends Screen {
             int sx = cx + 72;
             int sw = halfW - 86;
             float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
-            AutoClickerModule.cps = Math.round(6 + fval * 14);
+            AutoClickerModule.cps = Math.max(1, Math.round(1 + fval * 19));
+            return true;
+        }
+        if(draggingAutoClickerDelay) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 88;
+            int sw = halfW - 102;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            AutoClickerModule.delaySeconds = Math.max(0.1f, Math.round((0.1f + fval * 4.9f) * 10f) / 10f);
             return true;
         }
         if(draggingHitColorAlpha) {
@@ -2329,8 +2392,8 @@ public class BameClientScreen extends Screen {
             BameClientConfig.save();
         }
         cpDrag = -1;
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingHitColorAlpha||draggingLowShieldHeight;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight;
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {
