@@ -231,7 +231,7 @@ public class BameClientScreen extends Screen {
         return InvMoveModule.expanded ? 182 : 46;
     }
     private int getAutoClickerHeight() {
-        return AutoClickerModule.expanded ? 208 : 46;
+        return AutoClickerModule.expanded ? 260 : 46;
     }
     private int getHitColorHeight() {
         return HitColorModule.expanded ? 130 : 46;
@@ -1017,23 +1017,33 @@ public class BameClientScreen extends Screen {
         }
         curY += 26;
 
-        // Row 3: Random Jitter
+        // Row 3: Hold Mouse
+        text(c, "Hold Mouse", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, AutoClickerModule.holdMouse, mx, my, delta);
+        curY += 26;
+
+        // Row 4: Only on Target
+        text(c, "Only on Target", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, AutoClickerModule.onlyOnTarget, mx, my, delta);
+        curY += 26;
+
+        // Row 5: Random Jitter
         text(c, "Random Jitter", x + 14, curY + 4, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 2, AutoClickerModule.randomJitter, mx, my, delta);
         curY += 26;
 
-        // Row 4: Weapon Only
+        // Row 6: Weapon Only
         text(c, "Weapon Only", x + 14, curY + 4, 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 2, AutoClickerModule.weaponOnly, mx, my, delta);
         curY += 26;
 
-        // Row 5: Button Mode
+        // Row 7: Button Mode
         text(c, "Button:", x + 14, curY + 4, 0xFFD4D8E0);
         modeButton(c, "Left", x + 60, curY + 2, 44, 18, mx, my, AutoClickerModule.button == 0);
         modeButton(c, "Right", x + 108, curY + 2, 48, 18, mx, my, AutoClickerModule.button == 1);
         curY += 26;
 
-        // Row 6: Reset button
+        // Row 8: Reset button
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
@@ -1771,7 +1781,23 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 26;
 
-                    // Random Jitter
+                    // Row 3: Hold Mouse
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        AutoClickerModule.holdMouse = !AutoClickerModule.holdMouse;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 4: Only on Target
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        AutoClickerModule.onlyOnTarget = !AutoClickerModule.onlyOnTarget;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 5: Random Jitter
                     if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
                         AutoClickerModule.randomJitter = !AutoClickerModule.randomJitter;
                         BameClientConfig.save();

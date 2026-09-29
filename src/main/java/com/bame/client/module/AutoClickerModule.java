@@ -23,6 +23,8 @@ public class AutoClickerModule {
 
     public static int cps = 12; // 1 to 20
     public static float delaySeconds = 1.0f; // 0.1s to 5.0s
+    public static boolean holdMouse = false; // false = automatically hits continuously; true = only when holding mouse
+    public static boolean onlyOnTarget = false; // true = only hits when crosshair aims at an entity
     public static boolean randomJitter = true; // +- 1-2 CPS or +- 50ms variation
     public static boolean weaponOnly = false;
     public static int button = 0; // 0 = Left Click, 1 = Right Click
@@ -45,19 +47,30 @@ public class AutoClickerModule {
             return;
         }
 
-        // Check if mouse button is held down
-        long window = client.getWindow().getHandle();
-        boolean isMouseDown = false;
-        if (button == 0) {
-            isMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS
-                    || client.options.attackKey.isPressed();
-        } else {
-            isMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS
-                    || client.options.useKey.isPressed();
+        // Check if mouse button is held down (if holdMouse is required)
+        if (holdMouse) {
+            long window = client.getWindow().getHandle();
+            boolean isMouseDown = false;
+            if (button == 0) {
+                isMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS
+                        || client.options.attackKey.isPressed();
+            } else {
+                isMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS
+                        || client.options.useKey.isPressed();
+            }
+
+            if (!isMouseDown) {
+                return;
+            }
         }
 
-        if (!isMouseDown) {
-            return;
+        // Check if aiming at an entity (if onlyOnTarget is enabled)
+        if (onlyOnTarget) {
+            boolean hasTarget = client.targetedEntity != null
+                    || (client.crosshairTarget != null && client.crosshairTarget.getType() == net.minecraft.util.hit.HitResult.Type.ENTITY);
+            if (!hasTarget) {
+                return;
+            }
         }
 
         if (weaponOnly) {
@@ -120,6 +133,8 @@ public class AutoClickerModule {
         mode = 0;
         cps = 12;
         delaySeconds = 1.0f;
+        holdMouse = false;
+        onlyOnTarget = false;
         randomJitter = true;
         weaponOnly = false;
         button = 0;

@@ -334,6 +334,8 @@ public class BameClientConfig {
                 if (props.containsKey("mode")) AutoClickerModule.mode = Integer.parseInt(props.getProperty("mode"));
                 if (props.containsKey("cps")) AutoClickerModule.cps = Integer.parseInt(props.getProperty("cps"));
                 if (props.containsKey("delaySeconds")) AutoClickerModule.delaySeconds = Float.parseFloat(props.getProperty("delaySeconds"));
+                if (props.containsKey("holdMouse")) AutoClickerModule.holdMouse = Boolean.parseBoolean(props.getProperty("holdMouse"));
+                if (props.containsKey("onlyOnTarget")) AutoClickerModule.onlyOnTarget = Boolean.parseBoolean(props.getProperty("onlyOnTarget"));
                 if (props.containsKey("randomJitter")) AutoClickerModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
                 if (props.containsKey("weaponOnly")) AutoClickerModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
                 if (props.containsKey("button")) AutoClickerModule.button = Integer.parseInt(props.getProperty("button"));
@@ -675,6 +677,8 @@ public class BameClientConfig {
             acProps.setProperty("mode", String.valueOf(AutoClickerModule.mode));
             acProps.setProperty("cps", String.valueOf(AutoClickerModule.cps));
             acProps.setProperty("delaySeconds", String.valueOf(AutoClickerModule.delaySeconds));
+            acProps.setProperty("holdMouse", String.valueOf(AutoClickerModule.holdMouse));
+            acProps.setProperty("onlyOnTarget", String.valueOf(AutoClickerModule.onlyOnTarget));
             acProps.setProperty("randomJitter", String.valueOf(AutoClickerModule.randomJitter));
             acProps.setProperty("weaponOnly", String.valueOf(AutoClickerModule.weaponOnly));
             acProps.setProperty("button", String.valueOf(AutoClickerModule.button));
