@@ -1,13 +1,19 @@
 package com.bame.client.render;
 
 import com.bame.client.module.KeyStrokesModule;
+import com.bame.client.gui.CustomGuiUtils;
+import net.minecraft.client.gl.RenderPipelines;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.util.Identifier;
 
 public class KeyStrokesRenderer implements HudRenderCallback {
+    private static final Identifier TOOLTIP_BG = Identifier.ofVanilla("tooltip/background");
+    private static final Identifier TOOLTIP_FRAME = Identifier.ofVanilla("tooltip/frame");
+
     @Override
     public void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
         if (!com.bame.client.module.ShowHudModule.enabled || !KeyStrokesModule.enabled) return;
@@ -37,29 +43,17 @@ public class KeyStrokesRenderer implements HudRenderCallback {
 
     private void drawKey(DrawContext context, KeyBinding key, int x, int y, int w, int h, String name, int bgMode, int bgColor, int chromaColor) {
         boolean pressed = key != null && key.isPressed();
-        int color;
-        if (pressed) {
-            color = 0x88FFFFFF;
-        } else {
-            if (bgMode == 1) { // Transparent
-                color = 0x00000000;
-            } else if (bgMode == 2) { // Rainbow
-                color = chromaColor;
-            } else if (bgMode == 3) { // Theme
-                int accent = com.bame.client.gui.GuiTheme.accent();
-                color = 0xB0000000 | (accent & 0xFFFFFF);
-            } else { // Dark
-                color = 0x88000000;
-            }
-        }
         int textColor = pressed ? 0xFF000000 : 0xFFFFFFFF;
         
-        if (color != 0) {
-            context.fill(x, y, x + w, y + h, color);
+        if (pressed) {
+            CustomGuiUtils.fillUltraRounded(context, x, y, w, h, 0x88FFFFFF, 3);
+        } else {
+            StatusHudRenderer.drawBoxBg(context, x, y, w, h, bgMode, KeyStrokesModule.outlineColor);
         }
+
         
         MinecraftClient client = MinecraftClient.getInstance();
         int textWidth = client.textRenderer.getWidth(name);
-        context.drawText(client.textRenderer, name, x + (w - textWidth) / 2, y + (h - 8) / 2, textColor, false);
+        context.drawText(client.textRenderer, name, x + (w - textWidth) / 2, y + (h - 8) / 2, textColor, true);
     }
 }

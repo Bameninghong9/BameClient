@@ -12,11 +12,11 @@ public class SpotifyHudRenderer {
     public static final int HEIGHT = 56;
 
     public static int getWidth() {
-        return WIDTH;
+        return SpotifyHudModule.customWidth > 0 ? Math.max(160, SpotifyHudModule.customWidth) : WIDTH;
     }
 
     public static int getHeight() {
-        return HEIGHT;
+        return SpotifyHudModule.customHeight > 0 ? Math.max(48, SpotifyHudModule.customHeight) : HEIGHT;
     }
 
     public static String formatTime(int totalSeconds) {
@@ -40,23 +40,26 @@ public class SpotifyHudRenderer {
         boolean isPlaying = SpotifyService.isPlaying;
 
         // Auto-hide when not previewing and not playing
-        if (!isPreview && SpotifyHudModule.autoHide && !isPlaying && !hasMedia) {
+        if (!isPreview && SpotifyHudModule.autoHide && !isPlaying) {
             return;
         }
+
+        int w = getWidth();
+        int h = getHeight();
 
         c.getMatrices().pushMatrix();
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        boolean shadow = SpotifyHudModule.bgMode == 1;
+        boolean shadow = (SpotifyHudModule.bgMode == 0 || SpotifyHudModule.bgMode == 3);
 
         // 1. Background Box
-        StatusHudRenderer.drawBoxBg(c, 0, 0, WIDTH, HEIGHT, SpotifyHudModule.bgMode);
+        StatusHudRenderer.drawBoxBg(c, 0, 0, w, h, SpotifyHudModule.bgMode, SpotifyHudModule.outlineColor);
 
-        // 2. Album Cover (32x32)
+        // 2. Album Cover
         int coverX = 6;
         int coverY = 6;
-        int coverSize = 32;
+        int coverSize = Math.max(24, Math.min(32, h - 18));
 
         if (SpotifyService.hasCoverTexture) {
             c.drawTexture(
@@ -74,12 +77,12 @@ public class SpotifyHudRenderer {
             CustomGuiUtils.fillUltraRounded(c, coverX, coverY, coverSize, coverSize, 0x44252A34, 3);
             CustomGuiUtils.drawUltraRoundedOutline(c, coverX, coverY, coverSize, coverSize, 0x338E95A4, 3);
             int tw = client.textRenderer.getWidth("♫");
-            c.drawText(client.textRenderer, "♫", coverX + (coverSize - tw) / 2, coverY + 12, 0xFF8E95A4, shadow);
+            c.drawText(client.textRenderer, "♫", coverX + (coverSize - tw) / 2, coverY + (coverSize - 8) / 2, 0xFF8E95A4, shadow);
         }
 
         // 3. Text Section
-        int textX = 44;
-        int maxTextW = WIDTH - textX - 6;
+        int textX = coverX + coverSize + 8;
+        int maxTextW = Math.max(20, w - textX - 6);
 
         String title = (isPreview && !hasMedia) ? "I Am the Highway" : SpotifyService.title;
         if (title.isEmpty()) title = "Nothing Playing";
@@ -94,7 +97,7 @@ public class SpotifyHudRenderer {
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(trimmedArtist), textX, 15, 0xFFB0B8C5, shadow);
         }
 
-        if (!album.isEmpty()) {
+        if (!album.isEmpty() && h >= 54) {
             String trimmedAlbum = client.textRenderer.trimToWidth(album, maxTextW);
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(trimmedAlbum), textX, 25, 0xFF7E8494, shadow);
         }
@@ -104,8 +107,8 @@ public class SpotifyHudRenderer {
         float dur = (isPreview && !hasMedia) ? 334.9f : SpotifyService.duration;
 
         int barX = 6;
-        int barW = WIDTH - 12;
-        int barY = 41;
+        int barW = Math.max(30, w - 12);
+        int barY = h - 15;
 
         // Background track line
         CustomGuiUtils.fillUltraRounded(c, barX, barY, barW, 2, 0x44FFFFFF, 1);
@@ -122,7 +125,7 @@ public class SpotifyHudRenderer {
         CustomGuiUtils.fillUltraRounded(c, thumbX - 3, barY - 2, 6, 6, 0xFFFFFFFF, 3);
 
         // Times row directly underneath the slider
-        int timeY = 46;
+        int timeY = barY + 4;
         String leftTime = formatTime((int) pos);
         String rightTime = formatTime((int) dur);
 

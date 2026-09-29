@@ -26,6 +26,8 @@ public class BameClient implements ClientModInitializer {
     private static boolean showHudWasPressed = false;
     private static boolean fakeScoreboardWasPressed = false;
     private static boolean spotifyHudWasPressed = false;
+    private static boolean scoreboardWasPressed = false;
+    private static boolean crosshairWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -177,6 +179,26 @@ public class BameClient implements ClientModInitializer {
                     spotifyHudWasPressed = down;
                 }
 
+                // Scoreboard bind
+                if (com.bame.client.module.ScoreboardModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.ScoreboardModule.keyBind);
+                    if (down && !scoreboardWasPressed) {
+                        com.bame.client.module.ScoreboardModule.enabled = !com.bame.client.module.ScoreboardModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    scoreboardWasPressed = down;
+                }
+
+                // Custom Crosshair bind
+                if (com.bame.client.module.CustomCrosshairModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.CustomCrosshairModule.keyBind);
+                    if (down && !crosshairWasPressed) {
+                        com.bame.client.module.CustomCrosshairModule.enabled = !com.bame.client.module.CustomCrosshairModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    crosshairWasPressed = down;
+                }
+
                 // Menu bind
                 if (BameClientConfig.menuBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), BameClientConfig.menuBind);
@@ -185,6 +207,9 @@ public class BameClient implements ClientModInitializer {
                     }
                     menuWasPressed = down;
                 }
+
+                // InvMove tick (keybind & arrow navigation)
+                InvMoveModule.onTick(client);
             }
         });
         

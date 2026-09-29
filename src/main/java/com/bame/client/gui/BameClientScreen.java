@@ -18,6 +18,10 @@ import com.bame.client.module.PotionsModule;
 import com.bame.client.module.TargetHudModule;
 import com.bame.client.module.ArmorHudModule;
 import com.bame.client.module.SpotifyHudModule;
+import com.bame.client.module.ScoreboardModule;
+import com.bame.client.module.CustomCrosshairModule;
+import com.bame.client.module.InvMoveModule;
+import com.bame.client.render.CustomCrosshairRenderer;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Click;
@@ -34,7 +38,13 @@ import org.lwjgl.glfw.GLFW;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
-    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify;
+    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
+    private boolean crosshairColorPickerOpen = false;
+    private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
+    private int cpDrag = -1; // 0=sv, 1=hue
+    private int cpX, cpY;
+    private int gridDragMode = -1;
+    private int lastEditedCol = -1, lastEditedRow = -1;
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
     private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField,fakeMoneyField,fakeStarsField,fakeKillsField,fakeDeathsField,fakeTimeField;
@@ -145,13 +155,28 @@ public class BameClientScreen extends Screen {
     }
     private boolean fakeScoreboardVisible() {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
-        if (!q.isEmpty()) return "fake scoreboard".contains(q) || "scoreboard".contains(q);
+        if (!q.isEmpty()) return "fake scoreboard".contains(q) || "fake".contains(q);
+        return selected.equals("Visuals");
+    }
+    private boolean scoreboardVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "scoreboard".contains(q);
         return selected.equals("Visuals");
     }
     private boolean spotifyHudVisible() {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
         if (!q.isEmpty()) return "spotify hud".contains(q) || "spotify".contains(q) || "music".contains(q) || "song".contains(q);
         return selected.equals("Visuals");
+    }
+    private boolean customCrosshairVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "custom crosshair".contains(q) || "crosshair".contains(q) || "fadenkreuz".contains(q);
+        return selected.equals("Visuals");
+    }
+    private boolean invMoveVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "invmove".contains(q) || "inv move".contains(q) || "inventory walk".contains(q) || "inventory".contains(q) || "movement".contains(q);
+        return selected.equals("Movement");
     }
 
     private int columns() { return 4; }
@@ -165,7 +190,19 @@ public class BameClientScreen extends Screen {
     }
     private int getFakeScoreboardHeight() {
         if (!FakeScoreboardModule.expanded) return 46;
-        return 46 + 8 + 5 * 24 + 8;
+        return 46 + 8 + 5 * 24 + 26 + 8;
+    }
+    private int getScoreboardHeight() {
+        return ScoreboardModule.expanded ? 78 : 46;
+    }
+    private int getSpotifyHudHeight() {
+        return SpotifyHudModule.expanded ? 104 : 46;
+    }
+    private int getCustomCrosshairHeight() {
+        return CustomCrosshairModule.expanded ? 218 : 46;
+    }
+    private int getInvMoveHeight() {
+        return InvMoveModule.expanded ? 182 : 46;
     }
 
     private int contentHeight() { 
@@ -177,10 +214,13 @@ public class BameClientScreen extends Screen {
 
         if (showHudVisible()) leftY += getShowHudHeight() + 12;
         if (fakeScoreboardVisible()) leftY += getFakeScoreboardHeight() + 12;
+        if (scoreboardVisible()) leftY += getScoreboardHeight() + 12;
+        if (invMoveVisible()) leftY += getInvMoveHeight() + 12;
 
         if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
         if (zoomVisible()) rightY += (ZoomModule.expanded?92:46) + 12;
-        if (spotifyHudVisible()) rightY += (SpotifyHudModule.expanded?84:46) + 12;
+        if (spotifyHudVisible()) rightY += getSpotifyHudHeight() + 12;
+        if (customCrosshairVisible()) rightY += getCustomCrosshairHeight() + 12;
 
         return Math.max(leftY, rightY);
     }
@@ -426,6 +466,14 @@ public class BameClientScreen extends Screen {
                 renderFakeScoreboardModule(c, mx, my, delta, cx, leftY, halfW);
                 leftY += getFakeScoreboardHeight() + 12;
             }
+            if (scoreboardVisible()) {
+                renderScoreboardModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getScoreboardHeight() + 12;
+            }
+            if (invMoveVisible()) {
+                renderInvMoveModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getInvMoveHeight() + 12;
+            }
             if (fullbrightVisible()) {
                 renderFullbright(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += (fullbrightExpanded?92:46) + 12;
@@ -436,7 +484,11 @@ public class BameClientScreen extends Screen {
             }
             if (spotifyHudVisible()) {
                 renderSpotifyHudModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
-                rightY += (SpotifyHudModule.expanded?84:46) + 12;
+                rightY += getSpotifyHudHeight() + 12;
+            }
+            if (customCrosshairVisible()) {
+                renderCustomCrosshairModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += getCustomCrosshairHeight() + 12;
             }
         }
         c.disableScissor();
@@ -447,7 +499,10 @@ public class BameClientScreen extends Screen {
         
         if (progress < 1.0f && anim != 2) {
             c.getMatrices().popMatrix();
-            
+        }
+
+        if (crosshairColorPickerOpen) {
+            renderCrosshairColorPicker(c, mx, my);
         }
     }
     private void renderMiner(DrawContext c,int mx,int my,float delta, int yOffset) {
@@ -519,12 +574,11 @@ public class BameClientScreen extends Screen {
         int y = baseY() + yOffset;
         int h = getShowHudHeight();
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Show HUD", x + 12, y + 10, 0xFFE2E5ED);
+        text(c, "Show HUD", x + 12, y + 12, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
         String kb = listeningShowHud ? "..." : formatKey(ShowHudModule.keyBind);
         button(c, kb, x + 58, y + 25, 42, 16, mx, my);
-        button(c, "Edit HUD", x + w - 62, y + 25, 50, 16, mx, my);
-        toggle(c, x + w - 50, y + 7, ShowHudModule.enabled, mx, my, delta);
+        toggle(c, x + w - 38, y + 12, ShowHudModule.enabled, mx, my, delta);
 
         if (!ShowHudModule.expanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
@@ -626,8 +680,9 @@ public class BameClientScreen extends Screen {
             nameProtectAliasField.active = false;
         }
 
-        // Reset button
+        // Bottom buttons in dropdown
         curY += 4;
+        button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
@@ -663,6 +718,10 @@ public class BameClientScreen extends Screen {
 
         text(c, "Time:", x + 14, curY + 4, 0xFFD4D8E0);
         if (fakeTimeField != null) fakeTimeField.render(c, mx, my, delta);
+        curY += 26;
+
+        button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
     private void renderZoom(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -683,21 +742,274 @@ public class BameClientScreen extends Screen {
 
     private void renderSpotifyHudModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
-        int h = SpotifyHudModule.expanded ? 84 : 46;
+        int h = getSpotifyHudHeight();
         box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
         text(c, "Spotify HUD", x + 12, y + 12, 0xFFE2E5ED);
         text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
 
         String kb = listeningSpotify ? "..." : formatKey(SpotifyHudModule.keyBind);
         button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        button(c, "Edit HUD", x + w - 62, y + 25, 50, 16, mx, my);
         toggle(c, x + w - 38, y + 12, SpotifyHudModule.enabled, mx, my, delta);
 
         if (!SpotifyHudModule.expanded) return;
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
 
-        text(c, "Auto-Hide (wenn pausiert)", x + 14, y + 58, 0xFFD4D8E0);
-        toggle(c, x + w - 38, y + 56, SpotifyHudModule.autoHide, mx, my, delta);
+        int curY = y + 54;
+        text(c, "Auto-Hide (wenn pausiert)", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, SpotifyHudModule.autoHide, mx, my, delta);
+
+        curY += 24;
+        button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderScoreboardModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getScoreboardHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Scoreboard", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningScoreboard ? "..." : formatKey(ScoreboardModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, ScoreboardModule.enabled, mx, my, delta);
+
+        if (!ScoreboardModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderCustomCrosshairModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getCustomCrosshairHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Custom Crosshair", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningCrosshair ? "..." : formatKey(CustomCrosshairModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, CustomCrosshairModule.enabled, mx, my, delta);
+
+        if (!CustomCrosshairModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        // 1. 15x15 Pixel Editor Grid (Bild 1) & 1:1 Live Preview Box (CROSSHAIR AT TOP)
+        int gridY = y + 52;
+        int gridX = x + 12;
+        int cellSize = 7;
+        int gridW = 15 * cellSize; // 105px
+        int gridH = 15 * cellSize; // 105px
+
+        CustomGuiUtils.fillUltraRounded(c, gridX - 1, gridY - 1, gridW + 2, gridH + 2, 0xFF14171E, 3);
+        CustomGuiUtils.drawUltraRoundedOutline(c, gridX - 1, gridY - 1, gridW + 2, gridH + 2, 0xFF353C4D, 3);
+
+        for (int r = 0; r < 15; r++) {
+            for (int col = 0; col < 15; col++) {
+                int cellX = gridX + col * cellSize;
+                int cellY = gridY + r * cellSize;
+                boolean active = CustomCrosshairModule.grid[r][col];
+                int cellBg = active ? CustomCrosshairModule.color : 0xFF16181F;
+                c.fill(cellX, cellY, cellX + cellSize, cellY + cellSize, cellBg);
+                // Grid cell borders (subtle lines)
+                c.fill(cellX, cellY + cellSize - 1, cellX + cellSize, cellY + cellSize, 0x1EFFFFFF);
+                c.fill(cellX + cellSize - 1, cellY, cellX + cellSize, cellY + cellSize - 1, 0x1EFFFFFF);
+
+                // Center cell (7, 7) - Blue outline (matching Bild 1)
+                if (col == 7 && r == 7) {
+                    int blue = 0xFF3B82F6;
+                    c.fill(cellX, cellY, cellX + cellSize, cellY + 1, blue);
+                    c.fill(cellX, cellY + cellSize - 1, cellX + cellSize, cellY + cellSize, blue);
+                    c.fill(cellX, cellY + 1, cellX + 1, cellY + cellSize - 1, blue);
+                    c.fill(cellX + cellSize - 1, cellY + 1, cellX + cellSize, cellY + cellSize - 1, blue);
+                }
+            }
+        }
+
+        // Preview box (to the right of the grid)
+        int prevX = gridX + gridW + 12;
+        int prevW = Math.max(50, w - gridW - 24);
+        int prevH = gridH;
+        CustomGuiUtils.fillUltraRounded(c, prevX, gridY, prevW, prevH, 0x880D1117, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(c, prevX, gridY, prevW, prevH, 0xFF2A2E39, 4);
+
+        int pcx = prevX + prevW / 2;
+        int pcy = gridY + prevH / 2;
+        CustomCrosshairRenderer.renderAt(c, pcx, pcy, 1, CustomCrosshairModule.color);
+
+        // 2. Presets row (UNTER DAS CROSSHAIR)
+        int pY = gridY + gridH + 8; // y + 165
+        text(c, "PRESETS", x + 12, pY + 4, 0xFF8E95A4);
+        int pBtnSize = 17;
+        int pGap = 2;
+        int pStartX = x + 58;
+        for (int i = 0; i < 9; i++) {
+            int bx = pStartX + i * (pBtnSize + pGap);
+            int by = pY;
+            boolean hoverP = inside(mx, my, bx, by, pBtnSize, pBtnSize);
+            c.fill(bx, by, bx + pBtnSize, by + pBtnSize, 0xFF151820);
+            CustomGuiUtils.drawUltraRoundedOutline(c, bx, by, pBtnSize, pBtnSize, hoverP ? GuiTheme.accent() : 0xFF2A2E39, 2);
+            boolean[][] tmpl = CustomCrosshairModule.getPresetTemplate(i);
+            for (int r = 0; r < 15; r++) {
+                for (int col = 0; col < 15; col++) {
+                    if (tmpl[r][col]) {
+                        c.fill(bx + 1 + col, by + 1 + r, bx + 2 + col, by + 2 + r, 0xFFFFFFFF);
+                    }
+                }
+            }
+        }
+
+        // 3. Color, Clear on the left & Reset button on the bottom right (UNTEN RECHTS)
+        int actY = pY + 23; // y + 188
+        text(c, "Color:", x + 12, actY + 4, 0xFFD4D8E0);
+        int colBtnX = x + 44;
+        int colBtnY = actY;
+        int colBtnSize = 16;
+        boolean hoverCol = inside(mx, my, colBtnX, colBtnY, colBtnSize, colBtnSize);
+        c.fill(colBtnX, colBtnY, colBtnX + colBtnSize, colBtnY + colBtnSize, CustomCrosshairModule.color);
+        CustomGuiUtils.drawUltraRoundedOutline(c, colBtnX, colBtnY, colBtnSize, colBtnSize, hoverCol ? 0xFFFFFFFF : 0xFF353C4D, 2);
+
+        button(c, "Clear", x + 68, actY, 38, 16, mx, my);
+        button(c, "Reset", x + w - 58, actY, 46, 16, mx, my);
+    }
+
+    private void renderInvMoveModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getInvMoveHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "InvMove", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningInvMove ? "..." : formatKey(InvMoveModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, InvMoveModule.enabled, mx, my, delta);
+
+        if (!InvMoveModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+        text(c, "Jump", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, InvMoveModule.jump, mx, my, delta);
+        curY += 26;
+
+        text(c, "Sprint", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, InvMoveModule.sprint, mx, my, delta);
+        curY += 26;
+
+        text(c, "Sneak", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, InvMoveModule.sneak, mx, my, delta);
+        curY += 26;
+
+        text(c, "Arrow Key Rotation", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, InvMoveModule.rotateWithArrows, mx, my, delta);
+        curY += 26;
+
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void syncCrosshairHsv() {
+        int col = CustomCrosshairModule.color;
+        float[] hsb = java.awt.Color.RGBtoHSB((col >> 16) & 0xFF, (col >> 8) & 0xFF, col & 0xFF, null);
+        cpHue = hsb[0];
+        cpSat = hsb[1];
+        cpVal = hsb[2];
+    }
+
+    private void updateCrosshairColor(double mx, double my) {
+        int CP_W = 150;
+        int CP_H = 100;
+        int myCpX = (width - CP_W) / 2;
+        int myCpY = (height - CP_H) / 2;
+        int svX = myCpX + 46;
+        int svY = myCpY + 22;
+        int svW = 92;
+        int svH = 30;
+        int barX = myCpX + 10;
+        int barW = 128;
+        int hueY = myCpY + 58;
+
+        if (cpDrag == 0) { // SV
+            cpSat = (float) Math.clamp((mx - svX) / (double) (svW - 1), 0.0, 1.0);
+            cpVal = (float) Math.clamp(1.0 - (my - svY) / (double) (svH - 1), 0.0, 1.0);
+        } else if (cpDrag == 1) { // Hue
+            cpHue = (float) Math.clamp((mx - barX) / (double) (barW - 1), 0.0, 1.0);
+        }
+        int rgb = java.awt.Color.HSBtoRGB(cpHue, cpSat, cpVal);
+        CustomCrosshairModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
+        BameClientConfig.save();
+    }
+
+    private void renderCrosshairColorPicker(DrawContext context, int mouseX, int mouseY) {
+        int CP_W = 150;
+        int CP_H = 100;
+        cpX = (width - CP_W) / 2;
+        cpY = (height - CP_H) / 2;
+
+        // Dark dim backdrop
+        context.fill(0, 0, width, height, 0x66000000);
+
+        CustomGuiUtils.fillUltraRounded(context, cpX, cpY, CP_W, CP_H, 0xFA151820, 6);
+        CustomGuiUtils.drawUltraRoundedOutline(context, cpX, cpY, CP_W, CP_H, 0xFF353C4D, 6);
+
+        // Title
+        context.drawText(textRenderer, CustomGuiUtils.getFontText("COLOR PICKER"), cpX + 10, cpY + 8, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, Text.literal("×"), cpX + CP_W - 14, cpY + 6, 0xFF8E95A4, false);
+
+        int curCol = CustomCrosshairModule.color;
+
+        // 1. Preview box (Top Left, Bild 3)
+        int prevX = cpX + 10;
+        int prevY = cpY + 22;
+        int prevSize = 30;
+        context.fill(prevX, prevY, prevX + prevSize, prevY + prevSize, curCol);
+        CustomGuiUtils.drawRoundedOutline(context, prevX - 1, prevY - 1, prevSize + 2, prevSize + 2, 0xFFFFFFFF);
+
+        // 2. SV Box (Top Right, Bild 3)
+        int svX = cpX + 46;
+        int svY = cpY + 22;
+        int svW = 92;
+        int svH = 30;
+        for (int i = 0; i < svW; i++) {
+            float s = i / (float)(svW - 1);
+            int top = java.awt.Color.HSBtoRGB(cpHue, s, 1.0f);
+            context.fillGradient(svX + i, svY, svX + i + 1, svY + svH, top, 0xFF000000);
+        }
+        CustomGuiUtils.drawRoundedOutline(context, svX - 1, svY - 1, svW + 2, svH + 2, 0xFF353C4D);
+
+        // SV Handle cursor (small hollow white square, Bild 3)
+        int curSvX = svX + Math.round(cpSat * (svW - 1));
+        int curSvY = svY + Math.round((1.0f - cpVal) * (svH - 1));
+        context.fill(curSvX - 2, curSvY - 2, curSvX + 3, curSvY + 3, 0xAA000000);
+        context.fill(curSvX - 2, curSvY - 2, curSvX + 3, curSvY - 1, 0xFFFFFFFF);
+        context.fill(curSvX - 2, curSvY + 2, curSvX + 3, curSvY + 3, 0xFFFFFFFF);
+        context.fill(curSvX - 2, curSvY - 1, curSvX - 1, curSvY + 2, 0xFFFFFFFF);
+        context.fill(curSvX + 2, curSvY - 1, curSvX + 3, curSvY + 2, 0xFFFFFFFF);
+
+        // 3. Hue Rainbow Bar (Bild 3)
+        int barX = cpX + 10;
+        int barW = 128;
+        int hueY = cpY + 58;
+        int barH = 8;
+        for (int i = 0; i < barW; i++) {
+            int rgb = java.awt.Color.HSBtoRGB(i / (float)(barW - 1), 1.0f, 1.0f);
+            context.fill(barX + i, hueY, barX + i + 1, hueY + barH, rgb);
+        }
+        CustomGuiUtils.drawRoundedOutline(context, barX - 1, hueY - 1, barW + 2, barH + 2, 0xFF353C4D);
+
+        // Hue indicator knob
+        int curHueX = barX + Math.round(cpHue * (barW - 1));
+        context.fill(curHueX - 2, hueY - 1, curHueX + 3, hueY + barH + 1, 0xFFFFFFFF);
+        context.fill(curHueX - 1, hueY, curHueX + 2, hueY + barH, java.awt.Color.HSBtoRGB(cpHue, 1.0f, 1.0f));
+
+        // 4. Hex text box (Bild 3)
+        int hexY = cpY + 72;
+        int hexH = 18;
+        CustomGuiUtils.fillUltraRounded(context, barX, hexY, barW, hexH, 0xFF0D0F14, 3);
+        CustomGuiUtils.drawUltraRoundedOutline(context, barX, hexY, barW, hexH, 0xFF2A2E39, 3);
+        String hexStr = String.format("#%06X", curCol & 0xFFFFFF);
+        context.drawText(textRenderer, CustomGuiUtils.getFontText(hexStr), barX + 8, hexY + 5, 0xFFFFFFFF, false);
     }
 
     private void renderTheme(DrawContext c,int mx,int my,float delta) {
@@ -740,6 +1052,43 @@ public class BameClientScreen extends Screen {
     @Override public boolean mouseClicked(Click click,boolean twice) {
         layout(); double mx=click.x(),my=click.y();
         if(click.button()!=0) return false;
+
+        if (crosshairColorPickerOpen) {
+            int CP_W = 150;
+            int CP_H = 100;
+            int myCpX = (width - CP_W) / 2;
+            int myCpY = (height - CP_H) / 2;
+            if (inside(mx, my, myCpX + CP_W - 16, myCpY + 4, 14, 14)) {
+                crosshairColorPickerOpen = false;
+                cpDrag = -1;
+                return true;
+            }
+            int svX = myCpX + 46;
+            int svY = myCpY + 22;
+            int svW = 92;
+            int svH = 30;
+            if (inside(mx, my, svX, svY, svW, svH)) {
+                cpDrag = 0;
+                updateCrosshairColor(mx, my);
+                return true;
+            }
+            int barX = myCpX + 10;
+            int barW = 128;
+            int hueY = myCpY + 58;
+            int barH = 8;
+            if (inside(mx, my, barX, hueY, barW, barH)) {
+                cpDrag = 1;
+                updateCrosshairColor(mx, my);
+                return true;
+            }
+            if (inside(mx, my, myCpX, myCpY, CP_W, CP_H)) {
+                return true;
+            }
+            crosshairColorPickerOpen = false;
+            cpDrag = -1;
+            return true;
+        }
+
         picker.release();
         int step=Math.min(26,Math.max(17,(ph-165)/6));
         for(int i=0;i<CATEGORIES.length;i++) if(inside(mx,my,px+6,py+70+i*step,sidebar-12,22)) { select(CATEGORIES[i]); return true; }
@@ -806,17 +1155,13 @@ public class BameClientScreen extends Screen {
             
             if (showHudVisible()) {
                 int myY = baseY() + leftY;
-                if (inside(mx, my, cx + halfW - 52, myY + 5, 30, 18)) {
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
                     ShowHudModule.enabled = !ShowHudModule.enabled;
                     BameClientConfig.save();
                     return true;
                 }
-                if (inside(mx, my, cx + 58, myY + 24, 44, 18)) {
+                if (inside(mx, my, cx + 58, myY + 25, 42, 16)) {
                     listeningShowHud = true;
-                    return true;
-                }
-                if (inside(mx, my, cx + halfW - 64, myY + 24, 54, 18)) {
-                    client.setScreen(new HudEditorScreen(this));
                     return true;
                 }
                 if (inside(mx, my, cx, myY, halfW, 46)) {
@@ -971,8 +1316,12 @@ public class BameClientScreen extends Screen {
                         curY += 26;
                     }
 
-                    // Reset button
+                    // Bottom buttons in dropdown
                     curY += 4;
+                    if (inside(mx, my, cx + 14, curY, 50, 16)) {
+                        client.setScreen(new HudEditorScreen(this));
+                        return true;
+                    }
                     if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
                         resetShowHud();
                         return true;
@@ -1018,8 +1367,106 @@ public class BameClientScreen extends Screen {
                         setFocused(fakeTimeField);
                         return true;
                     }
+                    int editHudY = myY + 54 + 5 * 24 + 2;
+                    if (inside(mx, my, cx + 14, editHudY, 50, 16)) {
+                        client.setScreen(new HudEditorScreen(this));
+                        return true;
+                    }
+                    if (inside(mx, my, cx + halfW - 58, editHudY, 46, 16)) {
+                        resetFakeScoreboard();
+                        return true;
+                    }
                 }
                 leftY += getFakeScoreboardHeight() + 12;
+            }
+
+            if (scoreboardVisible()) {
+                int myY = baseY() + leftY;
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    ScoreboardModule.enabled = !ScoreboardModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
+                    listeningScoreboard = true;
+                    return true;
+                }
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    ScoreboardModule.expanded = !ScoreboardModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (ScoreboardModule.expanded) {
+                    int editHudY = myY + 54;
+                    if (inside(mx, my, cx + 14, editHudY, 50, 16)) {
+                        client.setScreen(new HudEditorScreen(this));
+                        return true;
+                    }
+                    if (inside(mx, my, cx + halfW - 58, editHudY, 46, 16)) {
+                        resetScoreboard();
+                        return true;
+                    }
+                }
+                leftY += getScoreboardHeight() + 12;
+            }
+
+            if (invMoveVisible()) {
+                int myY = baseY() + leftY;
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    InvMoveModule.enabled = !InvMoveModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
+                    listeningInvMove = true;
+                    return true;
+                }
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    InvMoveModule.expanded = !InvMoveModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (InvMoveModule.expanded) {
+                    int curY = myY + 54;
+                    // Jump
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        InvMoveModule.jump = !InvMoveModule.jump;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Sprint
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        InvMoveModule.sprint = !InvMoveModule.sprint;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Sneak
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        InvMoveModule.sneak = !InvMoveModule.sneak;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Arrow Key Rotation
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        InvMoveModule.rotateWithArrows = !InvMoveModule.rotateWithArrows;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Reset button
+                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                        resetInvMove();
+                        return true;
+                    }
+                }
+                leftY += getInvMoveHeight() + 12;
             }
 
             if (fullbrightVisible()) {
@@ -1091,10 +1538,6 @@ public class BameClientScreen extends Screen {
                     BameClientConfig.save();
                     return true;
                 }
-                if (inside(mx, my, sX + halfW - 62, myY + 25, 50, 16)) {
-                    if (client != null) client.setScreen(new HudEditorScreen(this));
-                    return true;
-                }
                 if (inside(mx, my, sX + 60, myY + 25, 48, 16)) {
                     listeningSpotify = true;
                     return true;
@@ -1110,18 +1553,170 @@ public class BameClientScreen extends Screen {
                         BameClientConfig.save();
                         return true;
                     }
+                    int editHudY = myY + 54 + 24;
+                    if (inside(mx, my, sX + 14, editHudY, 50, 16)) {
+                        client.setScreen(new HudEditorScreen(this));
+                        return true;
+                    }
+                    if (inside(mx, my, sX + halfW - 58, editHudY, 46, 16)) {
+                        resetSpotifyHud();
+                        return true;
+                    }
                 }
-                rightY += (SpotifyHudModule.expanded ? 84 : 46) + 12;
+                rightY += getSpotifyHudHeight() + 12;
+            }
+
+            if (customCrosshairVisible()) {
+                int myY = baseY() + rightY;
+                int cX = cx + halfW + gap;
+                if (inside(mx, my, cX + halfW - 38, myY + 12, 26, 14)) {
+                    CustomCrosshairModule.enabled = !CustomCrosshairModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, cX + 60, myY + 25, 48, 16)) {
+                    listeningCrosshair = true;
+                    return true;
+                }
+                if (inside(mx, my, cX, myY, halfW, 46)) {
+                    CustomCrosshairModule.expanded = !CustomCrosshairModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (CustomCrosshairModule.expanded) {
+                    // 1. 15x15 Editor Grid click (at top: gridY = myY + 52)
+                    int gridY = myY + 52;
+                    int gridX = cX + 12;
+                    if (inside(mx, my, gridX, gridY, 105, 105)) {
+                        int col = (int)((mx - gridX) / 7);
+                        int row = (int)((my - gridY) / 7);
+                        if (col >= 0 && col < 15 && row >= 0 && row < 15) {
+                            boolean newState = !CustomCrosshairModule.grid[row][col];
+                            CustomCrosshairModule.grid[row][col] = newState;
+                            gridDragMode = newState ? 1 : 0;
+                            lastEditedCol = col;
+                            lastEditedRow = row;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                    }
+
+                    // 2. Presets click (under crosshair: pY = myY + 165)
+                    int pY = myY + 165;
+                    int pStartX = cX + 58;
+                    for (int i = 0; i < 9; i++) {
+                        int bx = pStartX + i * 19;
+                        if (inside(mx, my, bx, pY, 17, 17)) {
+                            CustomCrosshairModule.applyPreset(i);
+                            BameClientConfig.save();
+                            return true;
+                        }
+                    }
+
+                    // 3. Actions row: Color, Clear on the left, Reset on bottom right (actY = myY + 188)
+                    int actY = myY + 188;
+                    if (inside(mx, my, cX + 44, actY, 16, 16)) {
+                        crosshairColorPickerOpen = true;
+                        syncCrosshairHsv();
+                        return true;
+                    }
+
+                    if (inside(mx, my, cX + 68, actY, 38, 16)) {
+                        CustomCrosshairModule.clearGrid();
+                        BameClientConfig.save();
+                        return true;
+                    }
+
+                    if (inside(mx, my, cX + halfW - 58, actY, 46, 16)) {
+                        resetCustomCrosshair();
+                        return true;
+                    }
+                }
+                rightY += getCustomCrosshairHeight() + 12;
             }
         }
         return false;
+    }
+
+    private void resetFakeScoreboard() {
+        FakeScoreboardModule.hudX = -1;
+        FakeScoreboardModule.hudY = -1;
+        FakeScoreboardModule.scale = 1.0f;
+        FakeScoreboardModule.customWidth = -1;
+        FakeScoreboardModule.customHeight = -1;
+        FakeScoreboardModule.bgMode = 0;
+        FakeScoreboardModule.outlineColor = 0xFFFFFFFF;
+        FakeScoreboardModule.money = "$12,450";
+        FakeScoreboardModule.stars = "★ 5";
+        FakeScoreboardModule.kills = "128";
+        FakeScoreboardModule.deaths = "12";
+        FakeScoreboardModule.playtime = "42h";
+        if (fakeMoneyField != null) fakeMoneyField.setText(FakeScoreboardModule.money);
+        if (fakeStarsField != null) fakeStarsField.setText(FakeScoreboardModule.stars);
+        if (fakeKillsField != null) fakeKillsField.setText(FakeScoreboardModule.kills);
+        if (fakeDeathsField != null) fakeDeathsField.setText(FakeScoreboardModule.deaths);
+        if (fakeTimeField != null) fakeTimeField.setText(FakeScoreboardModule.playtime);
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Fake Scoreboard] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetScoreboard() {
+        ScoreboardModule.hudX = -1;
+        ScoreboardModule.hudY = -1;
+        ScoreboardModule.scale = 1.0f;
+        ScoreboardModule.customWidth = -1;
+        ScoreboardModule.customHeight = -1;
+        ScoreboardModule.bgMode = 0;
+        ScoreboardModule.outlineColor = 0xFFFFFFFF;
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Scoreboard] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetSpotifyHud() {
+        SpotifyHudModule.hudX = 20;
+        SpotifyHudModule.hudY = 20;
+        SpotifyHudModule.scale = 1.0f;
+        SpotifyHudModule.customWidth = -1;
+        SpotifyHudModule.customHeight = -1;
+        SpotifyHudModule.autoHide = false;
+        SpotifyHudModule.bgMode = 0;
+        SpotifyHudModule.outlineColor = 0xFFFFFFFF;
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Spotify HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetCustomCrosshair() {
+        CustomCrosshairModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Custom Crosshair] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
+    private void resetInvMove() {
+        InvMoveModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[InvMove] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
     }
 
     private void resetShowHud() {
         ClockModule.enabled = false;
         CoordinatesModule.enabled = false;
         PotionsModule.enabled = false;
-        TargetHudModule.enabled = true;
+        TargetHudModule.enabled = false;
         TargetHudModule.expanded = false;
         TargetHudModule.showHearts = true;
         TargetHudModule.showArmor = false;
@@ -1143,16 +1738,25 @@ public class BameClientScreen extends Screen {
         if (nameProtectAliasField != null) nameProtectAliasField.setText("");
         ArmorHudModule.enabled = false;
 
-        FpsModule.hudX = 10; FpsModule.hudY = 10; FpsModule.scale = 1.0f; FpsModule.bgMode = 0;
-        PingModule.hudX = 10; PingModule.hudY = 34; PingModule.scale = 1.0f; PingModule.bgMode = 0;
-        CpsModule.hudX = 10; CpsModule.hudY = 58; CpsModule.scale = 1.0f; CpsModule.bgMode = 0;
-        ClockModule.hudX = 10; ClockModule.hudY = 82; ClockModule.scale = 1.0f; ClockModule.bgMode = 0;
-        CoordinatesModule.hudX = 10; CoordinatesModule.hudY = 106; CoordinatesModule.scale = 1.0f; CoordinatesModule.bgMode = 0;
-        PotionsModule.hudX = 10; PotionsModule.hudY = 130; PotionsModule.scale = 1.0f; PotionsModule.bgMode = 0;
-        ServerInfoModule.hudX = -1; ServerInfoModule.hudY = 10; ServerInfoModule.scale = 1.0f; ServerInfoModule.bgMode = 0;
-        KeyStrokesModule.hudX = 10; KeyStrokesModule.hudY = 160; KeyStrokesModule.scale = 1.0f; KeyStrokesModule.bgMode = 0;
-        TargetHudModule.hudX = -1; TargetHudModule.hudY = -1; TargetHudModule.scale = 1.0f; TargetHudModule.bgMode = 0;
-        ArmorHudModule.hudX = -1; ArmorHudModule.hudY = -1; ArmorHudModule.scale = 1.0f; ArmorHudModule.bgMode = 0;
+        FpsModule.hudX = 10; FpsModule.hudY = 10; FpsModule.scale = 1.0f; FpsModule.bgMode = 0; FpsModule.outlineColor = 0xFFFFFFFF;
+        FpsModule.customWidth = -1; FpsModule.customHeight = -1;
+        PingModule.hudX = 10; PingModule.hudY = 34; PingModule.scale = 1.0f; PingModule.bgMode = 0; PingModule.outlineColor = 0xFFFFFFFF;
+        PingModule.customWidth = -1; PingModule.customHeight = -1;
+        CpsModule.hudX = 10; CpsModule.hudY = 58; CpsModule.scale = 1.0f; CpsModule.bgMode = 0; CpsModule.outlineColor = 0xFFFFFFFF;
+        CpsModule.customWidth = -1; CpsModule.customHeight = -1;
+        ClockModule.hudX = 10; ClockModule.hudY = 82; ClockModule.scale = 1.0f; ClockModule.bgMode = 0; ClockModule.outlineColor = 0xFFFFFFFF;
+        ClockModule.customWidth = -1; ClockModule.customHeight = -1;
+        CoordinatesModule.hudX = 10; CoordinatesModule.hudY = 106; CoordinatesModule.scale = 1.0f; CoordinatesModule.bgMode = 0; CoordinatesModule.outlineColor = 0xFFFFFFFF;
+        CoordinatesModule.customWidth = -1; CoordinatesModule.customHeight = -1;
+        PotionsModule.hudX = 10; PotionsModule.hudY = 130; PotionsModule.scale = 1.0f; PotionsModule.bgMode = 0; PotionsModule.outlineColor = 0xFFFFFFFF;
+        PotionsModule.customWidth = -1; PotionsModule.customHeight = -1;
+        ServerInfoModule.hudX = -1; ServerInfoModule.hudY = 10; ServerInfoModule.scale = 1.0f; ServerInfoModule.bgMode = 0; ServerInfoModule.outlineColor = 0xFFFFFFFF;
+        ServerInfoModule.customWidth = -1; ServerInfoModule.customHeight = -1;
+        KeyStrokesModule.hudX = 10; KeyStrokesModule.hudY = 160; KeyStrokesModule.scale = 1.0f; KeyStrokesModule.bgMode = 0; KeyStrokesModule.outlineColor = 0xFFFFFFFF;
+        TargetHudModule.hudX = -1; TargetHudModule.hudY = -1; TargetHudModule.scale = 1.0f; TargetHudModule.bgMode = 0; TargetHudModule.outlineColor = 0xFFFFFFFF;
+        TargetHudModule.customWidth = -1; TargetHudModule.customHeight = -1;
+        ArmorHudModule.hudX = -1; ArmorHudModule.hudY = -1; ArmorHudModule.scale = 1.0f; ArmorHudModule.bgMode = 0; ArmorHudModule.outlineColor = 0xFFFFFFFF;
+        ArmorHudModule.customWidth = -1; ArmorHudModule.customHeight = -1;
 
         BameClientConfig.save();
         layout();
@@ -1160,7 +1764,7 @@ public class BameClientScreen extends Screen {
             client.player.sendMessage(Text.literal("§a[Show HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
         }
     }
-    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; unfocus(); layout(); }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -1190,6 +1794,32 @@ public class BameClientScreen extends Screen {
     }
     private void dragScroll(double my) { scroll=Math.clamp((my-cy-scrollGrab)/Math.max(1,ch-thumbHeight())*maxScroll(),0,maxScroll()); layout(); }
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
+        if (crosshairColorPickerOpen && cpDrag >= 0) {
+            updateCrosshairColor(click.x(), click.y());
+            return true;
+        }
+        if (gridDragMode >= 0) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int cX = cx + halfW + gap;
+            int rightY = 0;
+            if (fullbrightVisible()) rightY += (fullbrightExpanded ? 92 : 46) + 12;
+            if (zoomVisible()) rightY += (ZoomModule.expanded ? 92 : 46) + 12;
+            if (spotifyHudVisible()) rightY += getSpotifyHudHeight() + 12;
+            int myY = baseY() + rightY;
+            int gridX = cX + 12;
+            int gridY = myY + 52;
+            int col = (int)((click.x() - gridX) / 7.0);
+            int row = (int)((click.y() - gridY) / 7.0);
+            if (col >= 0 && col < 15 && row >= 0 && row < 15) {
+                if (col != lastEditedCol || row != lastEditedRow) {
+                    CustomCrosshairModule.grid[row][col] = (gridDragMode == 1);
+                    lastEditedCol = col;
+                    lastEditedRow = row;
+                }
+            }
+            return true;
+        }
         if(themeSettings.dragging()) { themeSettings.drag(click.x(),click.y()); return true; }
         if(scrollDragging) { dragScroll(click.y()); return true; }
         if(draggingFullbright) {
@@ -1209,6 +1839,13 @@ public class BameClientScreen extends Screen {
         return super.mouseDragged(click,dx,dy);
     }
     @Override public boolean mouseReleased(Click click) {
+        if (gridDragMode >= 0) {
+            gridDragMode = -1;
+            lastEditedCol = -1;
+            lastEditedRow = -1;
+            BameClientConfig.save();
+        }
+        cpDrag = -1;
         boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright;
         scrollDragging=false; draggingWidth=false; draggingFullbright=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
@@ -1218,7 +1855,12 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify) themeSettings.close();
+        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && crosshairColorPickerOpen) {
+            crosshairColorPickerOpen = false;
+            cpDrag = -1;
+            return true;
+        }
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
@@ -1226,6 +1868,9 @@ public class BameClientScreen extends Screen {
         if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; BameClientConfig.save(); return true; }
         if(listeningFakeScoreboard) { com.bame.client.module.FakeScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFakeScoreboard=false; BameClientConfig.save(); return true; }
         if(listeningSpotify) { com.bame.client.module.SpotifyHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningSpotify=false; BameClientConfig.save(); return true; }
+        if(listeningScoreboard) { com.bame.client.module.ScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningScoreboard=false; BameClientConfig.save(); return true; }
+        if(listeningCrosshair) { com.bame.client.module.CustomCrosshairModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningCrosshair=false; BameClientConfig.save(); return true; }
+        if(listeningInvMove) { com.bame.client.module.InvMoveModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningInvMove=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }

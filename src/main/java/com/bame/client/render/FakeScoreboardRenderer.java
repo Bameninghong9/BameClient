@@ -49,12 +49,13 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         maxW = Math.max(maxW, swordW + client.textRenderer.getWidth(" " + FakeScoreboardModule.kills));
         int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
         maxW = Math.max(maxW, skullW + client.textRenderer.getWidth(" " + FakeScoreboardModule.deaths));
-        maxW = Math.max(maxW, 9 + client.textRenderer.getWidth(" " + FakeScoreboardModule.playtime));
-        return maxW + 6;
+        int naturalW = maxW + 14;
+        return FakeScoreboardModule.customWidth > 0 ? Math.max(naturalW, FakeScoreboardModule.customWidth) : naturalW;
     }
 
     public static int getHeight() {
-        return 62;
+        int naturalH = 70;
+        return FakeScoreboardModule.customHeight > 0 ? Math.max(naturalH, FakeScoreboardModule.customHeight) : naturalH;
     }
 
     public static void render(DrawContext c, int x, int y, float scale) {
@@ -66,55 +67,43 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        int bgMode = FakeScoreboardModule.bgMode;
-        if (bgMode == 0) { // Dark (Classic Vanilla Scoreboard)
-            c.fill(0, 0, w, 11, 0x60000000);
-            c.fill(0, 11, w, h, 0x40000000);
-        } else if (bgMode == 1) { // Transparent
-            // No background fill
-        } else if (bgMode == 2) { // Rainbow
-            long time = System.currentTimeMillis();
-            float hue = (time % 3000L) / 3000.0f;
-            int rgb = java.awt.Color.HSBtoRGB(hue, 0.75f, 0.9f);
-            c.fill(0, 0, w, 11, 0x80000000 | (rgb & 0xFFFFFF));
-            c.fill(0, 11, w, h, 0x50000000 | (rgb & 0xFFFFFF));
-        } else if (bgMode == 3) { // Theme
-            int accent = com.bame.client.gui.GuiTheme.accent();
-            c.fill(0, 0, w, 11, 0x80000000 | (accent & 0xFFFFFF));
-            c.fill(0, 11, w, h, 0x50000000 | (accent & 0xFFFFFF));
+        StatusHudRenderer.drawBoxBg(c, 0, 0, w, h, FakeScoreboardModule.bgMode, FakeScoreboardModule.outlineColor);
+        if (FakeScoreboardModule.bgMode == 1 || FakeScoreboardModule.bgMode == 2) {
+            c.fill(3, 14, w - 3, 15, 0x44FFFFFF);
         }
 
-        int startX = 3;
-        int curY = 1;
+        int startX = 6;
+        int curY = 4;
+        int spacing = (h > 70) ? (h - 70) / 5 : 0;
 
         // Line 1: Player Name / Title (Centered with drop shadow)
         String name = FakeScoreboardModule.getDisplayName();
         int nameW = client.textRenderer.getWidth(name);
         int nameX = (w - nameW) / 2;
-        c.drawText(client.textRenderer, name, Math.max(3, nameX), curY, 0xFFFFFFFF, true);
-        curY += 11;
+        c.drawText(client.textRenderer, name, Math.max(startX, nameX), curY, 0xFFFFFFFF, true);
+        curY += 12 + spacing;
 
         // Line 2: Money ($ in Green, value in White, with drop shadow)
         c.drawText(client.textRenderer, "$", startX, curY, 0xFF55FF55, true);
         c.drawText(client.textRenderer, " " + FakeScoreboardModule.money, startX + client.textRenderer.getWidth("$"), curY, 0xFFFFFFFF, true);
-        curY += 10;
+        curY += 10 + spacing;
 
         // Line 3: Stars (★ in Purple, value in White, with drop shadow)
         c.drawText(client.textRenderer, "★", startX, curY, 0xFFFF55FF, true);
         c.drawText(client.textRenderer, " " + FakeScoreboardModule.stars, startX + client.textRenderer.getWidth("★"), curY, 0xFFFFFFFF, true);
-        curY += 10;
+        curY += 10 + spacing;
 
         // Line 4: Kills (🗡 in Red, value in White, with drop shadow)
         c.drawText(client.textRenderer, "🗡", startX, curY, 0xFFFF2222, true);
         int swordW = Math.max(9, client.textRenderer.getWidth("🗡"));
         c.drawText(client.textRenderer, " " + FakeScoreboardModule.kills, startX + swordW, curY, 0xFFFFFFFF, true);
-        curY += 10;
+        curY += 10 + spacing;
 
         // Line 5: Deaths (☠ in Orange, value in White, with drop shadow)
         c.drawText(client.textRenderer, "☠", startX, curY, 0xFFFF7700, true);
         int skullW = Math.max(9, client.textRenderer.getWidth("☠"));
         c.drawText(client.textRenderer, " " + FakeScoreboardModule.deaths, startX + skullW, curY, 0xFFFFFFFF, true);
-        curY += 10;
+        curY += 10 + spacing;
 
         // Line 6: Playtime (Clock in Yellow, value in White, with drop shadow)
         drawPixelIcon(c, CLOCK_PIXELS, startX + 1, curY + 1, 0x80000000); // shadow

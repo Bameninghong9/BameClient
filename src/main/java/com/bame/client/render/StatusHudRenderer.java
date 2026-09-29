@@ -172,25 +172,41 @@ public class StatusHudRenderer implements HudRenderCallback {
 
     public static int getFpsWidth(MinecraftClient client) {
         String text = client.getCurrentFps() + " FPS";
-        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return FpsModule.customWidth > 0 ? Math.max(nw, FpsModule.customWidth) : nw;
+    }
+    public static int getFpsHeight() {
+        return FpsModule.customHeight > 0 ? Math.max(18, FpsModule.customHeight) : 18;
     }
 
     public static int getPingWidth(MinecraftClient client) {
         int ping = getPingValue(client);
         String text = ping + " ms";
-        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return PingModule.customWidth > 0 ? Math.max(nw, PingModule.customWidth) : nw;
+    }
+    public static int getPingHeight() {
+        return PingModule.customHeight > 0 ? Math.max(18, PingModule.customHeight) : 18;
     }
 
     public static int getCpsWidth(MinecraftClient client) {
         int l = CpsModule.getLeftCps();
         int r = CpsModule.getRightCps();
         String text = l + " | " + r + " CPS";
-        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return CpsModule.customWidth > 0 ? Math.max(nw, CpsModule.customWidth) : nw;
+    }
+    public static int getCpsHeight() {
+        return CpsModule.customHeight > 0 ? Math.max(18, CpsModule.customHeight) : 18;
     }
 
     public static int getClockWidth(MinecraftClient client) {
         String text = LocalTime.now().format(TIME_FORMATTER);
-        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return ClockModule.customWidth > 0 ? Math.max(nw, ClockModule.customWidth) : nw;
+    }
+    public static int getClockHeight() {
+        return ClockModule.customHeight > 0 ? Math.max(18, ClockModule.customHeight) : 18;
     }
 
     public static String getCoordinatesString(MinecraftClient client) {
@@ -200,7 +216,11 @@ public class StatusHudRenderer implements HudRenderCallback {
 
     public static int getCoordinatesWidth(MinecraftClient client) {
         String text = getCoordinatesString(client);
-        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
+        return CoordinatesModule.customWidth > 0 ? Math.max(nw, CoordinatesModule.customWidth) : nw;
+    }
+    public static int getCoordinatesHeight() {
+        return CoordinatesModule.customHeight > 0 ? Math.max(18, CoordinatesModule.customHeight) : 18;
     }
 
     private static String getAmplifierString(int amplifier) {
@@ -243,7 +263,7 @@ public class StatusHudRenderer implements HudRenderCallback {
             int dw = client.textRenderer.getWidth(CustomGuiUtils.getFontText("1:18"));
             maxW = Math.max(maxW, 26 + nw + 14 + dw + 8);
         }
-        return maxW;
+        return PotionsModule.customWidth > 0 ? Math.max(maxW, PotionsModule.customWidth) : maxW;
     }
 
     public static int getPotionsHeight(MinecraftClient client, boolean isPreview) {
@@ -255,20 +275,23 @@ public class StatusHudRenderer implements HudRenderCallback {
             count = 1;
         }
         if (count == 0) return 0;
-        return 19 + count * 20 + 3;
+        int naturalH = 19 + count * 20 + 3;
+        return PotionsModule.customHeight > 0 ? Math.max(naturalH, PotionsModule.customHeight) : naturalH;
     }
 
     public static int getTargetHudWidth() {
-        return 144;
+        return TargetHudModule.customWidth > 0 ? Math.max(144, TargetHudModule.customWidth) : 144;
     }
 
     public static int getTargetHudHeight() {
         int h = 40;
         if (TargetHudModule.showArmor) h += 24;
-        return h;
+        return TargetHudModule.customHeight > 0 ? Math.max(h, TargetHudModule.customHeight) : h;
     }
 
-    public static int getArmorHudWidth(MinecraftClient client) { return 56; }
+    public static int getArmorHudWidth(MinecraftClient client) {
+        return ArmorHudModule.customWidth > 0 ? Math.max(56, ArmorHudModule.customWidth) : 56;
+    }
     public static int getArmorHudHeight() {
         return getArmorHudHeight(MinecraftClient.getInstance(), true);
     }
@@ -282,7 +305,8 @@ public class StatusHudRenderer implements HudRenderCallback {
             if (!client.player.getEquippedStack(EquipmentSlot.FEET).isEmpty()) count++;
         }
         if (count == 0 && isPreview) count = 4;
-        return Math.max(22, count * 22 + 4);
+        int naturalH = Math.max(22, count * 22 + 4);
+        return ArmorHudModule.customHeight > 0 ? Math.max(naturalH, ArmorHudModule.customHeight) : naturalH;
     }
 
     private static int getPingValue(MinecraftClient client) {
@@ -298,32 +322,32 @@ public class StatusHudRenderer implements HudRenderCallback {
     public static void renderFps(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
         String text = client.getCurrentFps() + " FPS";
-        renderPill(c, x, y, scale, text, FpsModule.bgMode, FpsModule.bgColor);
+        renderPill(c, x, y, scale, text, FpsModule.bgMode, FpsModule.outlineColor, FpsModule.customWidth, FpsModule.customHeight);
     }
 
     public static void renderPing(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
         int ping = getPingValue(client);
         String text = ping + " ms";
-        renderPill(c, x, y, scale, text, PingModule.bgMode, PingModule.bgColor);
+        renderPill(c, x, y, scale, text, PingModule.bgMode, PingModule.outlineColor, PingModule.customWidth, PingModule.customHeight);
     }
 
     public static void renderCps(DrawContext c, int x, int y, float scale) {
         int l = CpsModule.getLeftCps();
         int r = CpsModule.getRightCps();
         String text = l + " | " + r + " CPS";
-        renderPill(c, x, y, scale, text, CpsModule.bgMode, CpsModule.bgColor);
+        renderPill(c, x, y, scale, text, CpsModule.bgMode, CpsModule.outlineColor, CpsModule.customWidth, CpsModule.customHeight);
     }
 
     public static void renderClock(DrawContext c, int x, int y, float scale) {
         String text = LocalTime.now().format(TIME_FORMATTER);
-        renderPill(c, x, y, scale, text, ClockModule.bgMode, ClockModule.bgColor);
+        renderPill(c, x, y, scale, text, ClockModule.bgMode, ClockModule.outlineColor, ClockModule.customWidth, ClockModule.customHeight);
     }
 
     public static void renderCoordinates(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
         String text = getCoordinatesString(client);
-        renderPill(c, x, y, scale, text, CoordinatesModule.bgMode, CoordinatesModule.bgColor);
+        renderPill(c, x, y, scale, text, CoordinatesModule.bgMode, CoordinatesModule.outlineColor, CoordinatesModule.customWidth, CoordinatesModule.customHeight);
     }
 
     public static void drawSparkle(DrawContext c, int x, int y, int color) {
@@ -351,7 +375,7 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        drawBoxBg(c, 0, 0, w, h, PotionsModule.bgMode);
+        drawBoxBg(c, 0, 0, w, h, PotionsModule.bgMode, PotionsModule.outlineColor);
 
         drawSparkle(c, 6, 5, 0xFFFFFFFF);
         c.drawText(client.textRenderer, CustomGuiUtils.getFontText("Potions"), 20, 5, 0xFFFFFFFF, PotionsModule.bgMode == 1);
@@ -407,7 +431,7 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        drawBoxBg(c, 0, 0, w, h, TargetHudModule.bgMode);
+        drawBoxBg(c, 0, 0, w, h, TargetHudModule.bgMode, TargetHudModule.outlineColor);
 
         int headX = 5, headY = 5, headSize = 28;
         if (target instanceof AbstractClientPlayerEntity acpe) {
@@ -526,7 +550,7 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        drawBoxBg(c, 0, 0, w, h, ArmorHudModule.bgMode);
+        drawBoxBg(c, 0, 0, w, h, ArmorHudModule.bgMode, ArmorHudModule.outlineColor);
 
         for (int i = 0; i < pieces.size(); i++) {
             ItemStack stack = pieces.get(i);
@@ -552,63 +576,45 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.getMatrices().popMatrix();
     }
 
+    private static final Identifier TOOLTIP_BG = Identifier.ofVanilla("tooltip/background");
+    private static final Identifier TOOLTIP_FRAME = Identifier.ofVanilla("tooltip/frame");
+
     public static void drawBoxBg(DrawContext c, int x, int y, int w, int h, int bgMode) {
-        int fill = 0xD012161E;
-        int outline = 0xFF292D36;
-
-        if (bgMode == 1) { // Transparent
-            return;
-        } else if (bgMode == 2) { // Rainbow
-            long time = System.currentTimeMillis();
-            float hue = (time % 3000L) / 3000.0f;
-            int rgb = java.awt.Color.HSBtoRGB(hue, 0.75f, 0.9f);
-            fill = 0xD0000000 | (rgb & 0xFFFFFF);
-            outline = 0xFF000000 | (rgb & 0xFFFFFF);
-        } else if (bgMode == 3) { // Theme
-            int accent = com.bame.client.gui.GuiTheme.accent();
-            fill = 0xB0000000 | (accent & 0xFFFFFF);
-            outline = accent;
-        }
-
-        CustomGuiUtils.fillUltraRounded(c, x, y, w, h, fill, 4);
-        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, outline, 4);
+        drawBoxBg(c, x, y, w, h, bgMode, 0xFFFFFFFF);
     }
 
-    private static void renderPill(DrawContext c, int x, int y, float scale, String text, int bgMode, int bgColor) {
+    public static void drawBoxBg(DrawContext c, int x, int y, int w, int h, int bgMode, int outlineColor) {
+        if (bgMode == 0) { // Transparent
+            return;
+        } else if (bgMode == 1) { // Tooltip (expand by 9px so visible frame exactly matches x, y, w, h)
+            c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, TOOLTIP_BG, x - 9, y - 9, w + 18, h + 18);
+            c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, TOOLTIP_FRAME, x - 9, y - 9, w + 18, h + 18);
+        } else if (bgMode == 2) { // Dark (Solid dark modern box with outline)
+            CustomGuiUtils.fillUltraRounded(c, x, y, w, h, 0x880D1117, 4);
+            CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, 0x28FFFFFF, 4);
+        } else if (bgMode == 3) { // Outline (background is always transparent)
+            CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, outlineColor, 4);
+        }
+    }
+
+    private static void renderPill(DrawContext c, int x, int y, float scale, String text, int bgMode, int outlineColor, int customW, int customH) {
         MinecraftClient client = MinecraftClient.getInstance();
         int textWidth = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text));
-        int w = textWidth + 16;
-        int h = 18;
+        int naturalW = textWidth + 16;
+        int naturalH = 18;
+        int w = customW > 0 ? Math.max(naturalW, customW) : naturalW;
+        int h = customH > 0 ? Math.max(naturalH, customH) : naturalH;
 
         c.getMatrices().pushMatrix();
         c.getMatrices().translate((float) x, (float) y);
         c.getMatrices().scale(scale, scale);
 
-        int fill = 0xD012161E;
-        int outline = 0xFF292D36;
+        drawBoxBg(c, 0, 0, w, h, bgMode, outlineColor);
 
-        if (bgMode == 1) { // Transparent
-            fill = 0;
-            outline = 0;
-        } else if (bgMode == 2) { // Rainbow
-            long time = System.currentTimeMillis();
-            float hue = (time % 3000L) / 3000.0f;
-            int rgb = java.awt.Color.HSBtoRGB(hue, 0.75f, 0.9f);
-            fill = 0xD0000000 | (rgb & 0xFFFFFF);
-            outline = 0xFF000000 | (rgb & 0xFFFFFF);
-        } else if (bgMode == 3) { // Theme
-            int accent = com.bame.client.gui.GuiTheme.accent();
-            fill = 0xB0000000 | (accent & 0xFFFFFF);
-            outline = accent;
-        }
-
-        if (fill != 0) {
-            CustomGuiUtils.fillUltraRounded(c, 0, 0, w, h, fill, 4);
-        }
-        if (outline != 0) {
-            CustomGuiUtils.drawUltraRoundedOutline(c, 0, 0, w, h, outline, 4);
-        }
-        c.drawText(client.textRenderer, CustomGuiUtils.getFontText(text), 8, (h - 8) / 2, 0xFFFFFFFF, bgMode == 1);
+        boolean shadow = (bgMode == 0 || bgMode == 3);
+        int textX = (w - textWidth) / 2;
+        int textY = (h - 8) / 2;
+        c.drawText(client.textRenderer, CustomGuiUtils.getFontText(text), textX, textY, 0xFFFFFFFF, shadow);
 
         c.getMatrices().popMatrix();
     }
@@ -616,7 +622,7 @@ public class StatusHudRenderer implements HudRenderCallback {
     public static int getServerInfoWidth(MinecraftClient client) {
         java.util.List<String> active = ServerInfoModule.getActiveDockedElements();
         if (active.isEmpty()) {
-            return 40;
+            return ServerInfoModule.customWidth > 0 ? Math.max(40, ServerInfoModule.customWidth) : 40;
         }
         int curX = 8;
         for (int i = 0; i < active.size(); i++) {
@@ -626,7 +632,12 @@ public class StatusHudRenderer implements HudRenderCallback {
                 curX += 16;
             }
         }
-        return curX + 8;
+        int nw = curX + 8;
+        return ServerInfoModule.customWidth > 0 ? Math.max(nw, ServerInfoModule.customWidth) : nw;
+    }
+
+    public static int getServerInfoHeight() {
+        return ServerInfoModule.customHeight > 0 ? Math.max(18, ServerInfoModule.customHeight) : 18;
     }
 
     public static int getElementWidth(MinecraftClient client, String elem) {

@@ -82,6 +82,19 @@ public class BameClientConfig {
                 if (props.containsKey("outlineWidth")) outlineWidth = Float.parseFloat(props.getProperty("outlineWidth"));
             }
 
+            // Movement - InvMove
+            Path invMoveFile = BASE_CONFIG_DIR.resolve("Movement").resolve("inv_move.properties");
+            if (Files.exists(invMoveFile)) {
+                Properties props = loadProps(invMoveFile);
+                if (props.containsKey("enabled")) InvMoveModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) InvMoveModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) InvMoveModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("jump")) InvMoveModule.jump = Boolean.parseBoolean(props.getProperty("jump"));
+                if (props.containsKey("sprint")) InvMoveModule.sprint = Boolean.parseBoolean(props.getProperty("sprint"));
+                if (props.containsKey("sneak")) InvMoveModule.sneak = Boolean.parseBoolean(props.getProperty("sneak"));
+                if (props.containsKey("rotateWithArrows")) InvMoveModule.rotateWithArrows = Boolean.parseBoolean(props.getProperty("rotateWithArrows"));
+            }
+
             // 2. Visuals - Show HUD
             Path showHudFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("show_hud.properties");
             if (Files.exists(showHudFile)) {
@@ -96,6 +109,9 @@ public class BameClientConfig {
                 if (props.containsKey("clockHudY")) ClockModule.hudY = Integer.parseInt(props.getProperty("clockHudY"));
                 if (props.containsKey("clockScale")) ClockModule.scale = Float.parseFloat(props.getProperty("clockScale"));
                 if (props.containsKey("clockBgMode")) ClockModule.bgMode = Integer.parseInt(props.getProperty("clockBgMode"));
+                if (props.containsKey("clockOutlineColor")) ClockModule.outlineColor = (int) Long.parseLong(props.getProperty("clockOutlineColor"), 16);
+                if (props.containsKey("clockCustomWidth")) ClockModule.customWidth = Integer.parseInt(props.getProperty("clockCustomWidth"));
+                if (props.containsKey("clockCustomHeight")) ClockModule.customHeight = Integer.parseInt(props.getProperty("clockCustomHeight"));
 
                 // Coordinates
                 if (props.containsKey("coordinatesEnabled")) CoordinatesModule.enabled = Boolean.parseBoolean(props.getProperty("coordinatesEnabled"));
@@ -103,6 +119,9 @@ public class BameClientConfig {
                 if (props.containsKey("coordinatesHudY")) CoordinatesModule.hudY = Integer.parseInt(props.getProperty("coordinatesHudY"));
                 if (props.containsKey("coordinatesScale")) CoordinatesModule.scale = Float.parseFloat(props.getProperty("coordinatesScale"));
                 if (props.containsKey("coordinatesBgMode")) CoordinatesModule.bgMode = Integer.parseInt(props.getProperty("coordinatesBgMode"));
+                if (props.containsKey("coordinatesOutlineColor")) CoordinatesModule.outlineColor = (int) Long.parseLong(props.getProperty("coordinatesOutlineColor"), 16);
+                if (props.containsKey("coordinatesCustomWidth")) CoordinatesModule.customWidth = Integer.parseInt(props.getProperty("coordinatesCustomWidth"));
+                if (props.containsKey("coordinatesCustomHeight")) CoordinatesModule.customHeight = Integer.parseInt(props.getProperty("coordinatesCustomHeight"));
 
                 // Potions
                 if (props.containsKey("potionsEnabled")) PotionsModule.enabled = Boolean.parseBoolean(props.getProperty("potionsEnabled"));
@@ -110,6 +129,9 @@ public class BameClientConfig {
                 if (props.containsKey("potionsHudY")) PotionsModule.hudY = Integer.parseInt(props.getProperty("potionsHudY"));
                 if (props.containsKey("potionsScale")) PotionsModule.scale = Float.parseFloat(props.getProperty("potionsScale"));
                 if (props.containsKey("potionsBgMode")) PotionsModule.bgMode = Integer.parseInt(props.getProperty("potionsBgMode"));
+                if (props.containsKey("potionsOutlineColor")) PotionsModule.outlineColor = (int) Long.parseLong(props.getProperty("potionsOutlineColor"), 16);
+                if (props.containsKey("potionsCustomWidth")) PotionsModule.customWidth = Integer.parseInt(props.getProperty("potionsCustomWidth"));
+                if (props.containsKey("potionsCustomHeight")) PotionsModule.customHeight = Integer.parseInt(props.getProperty("potionsCustomHeight"));
 
                 // Target HUD
                 if (props.containsKey("targetHudEnabled")) TargetHudModule.enabled = Boolean.parseBoolean(props.getProperty("targetHudEnabled"));
@@ -121,6 +143,9 @@ public class BameClientConfig {
                 if (props.containsKey("targetHudHudY")) TargetHudModule.hudY = Integer.parseInt(props.getProperty("targetHudHudY"));
                 if (props.containsKey("targetHudScale")) TargetHudModule.scale = Float.parseFloat(props.getProperty("targetHudScale"));
                 if (props.containsKey("targetHudBgMode")) TargetHudModule.bgMode = Integer.parseInt(props.getProperty("targetHudBgMode"));
+                if (props.containsKey("targetHudOutlineColor")) TargetHudModule.outlineColor = (int) Long.parseLong(props.getProperty("targetHudOutlineColor"), 16);
+                if (props.containsKey("targetHudCustomWidth")) TargetHudModule.customWidth = Integer.parseInt(props.getProperty("targetHudCustomWidth"));
+                if (props.containsKey("targetHudCustomHeight")) TargetHudModule.customHeight = Integer.parseInt(props.getProperty("targetHudCustomHeight"));
 
                 // Armor HUD
                 if (props.containsKey("armorHudEnabled")) ArmorHudModule.enabled = Boolean.parseBoolean(props.getProperty("armorHudEnabled"));
@@ -128,6 +153,9 @@ public class BameClientConfig {
                 if (props.containsKey("armorHudHudY")) ArmorHudModule.hudY = Integer.parseInt(props.getProperty("armorHudHudY"));
                 if (props.containsKey("armorHudScale")) ArmorHudModule.scale = Float.parseFloat(props.getProperty("armorHudScale"));
                 if (props.containsKey("armorHudBgMode")) ArmorHudModule.bgMode = Integer.parseInt(props.getProperty("armorHudBgMode"));
+                if (props.containsKey("armorHudOutlineColor")) ArmorHudModule.outlineColor = (int) Long.parseLong(props.getProperty("armorHudOutlineColor"), 16);
+                if (props.containsKey("armorHudCustomWidth")) ArmorHudModule.customWidth = Integer.parseInt(props.getProperty("armorHudCustomWidth"));
+                if (props.containsKey("armorHudCustomHeight")) ArmorHudModule.customHeight = Integer.parseInt(props.getProperty("armorHudCustomHeight"));
 
                 // KeyStrokes
                 if (props.containsKey("keyStrokesEnabled")) KeyStrokesModule.enabled = Boolean.parseBoolean(props.getProperty("keyStrokesEnabled"));
@@ -135,6 +163,8 @@ public class BameClientConfig {
                 if (props.containsKey("keyStrokesHudX")) KeyStrokesModule.hudX = Integer.parseInt(props.getProperty("keyStrokesHudX"));
                 if (props.containsKey("keyStrokesHudY")) KeyStrokesModule.hudY = Integer.parseInt(props.getProperty("keyStrokesHudY"));
                 if (props.containsKey("keyStrokesScale")) KeyStrokesModule.scale = Float.parseFloat(props.getProperty("keyStrokesScale"));
+                if (props.containsKey("keyStrokesBgMode")) KeyStrokesModule.bgMode = Integer.parseInt(props.getProperty("keyStrokesBgMode"));
+                if (props.containsKey("keyStrokesOutlineColor")) KeyStrokesModule.outlineColor = (int) Long.parseLong(props.getProperty("keyStrokesOutlineColor"), 16);
                 for (KeyStrokesModule.KeyStroke key : KeyStrokesModule.keys) {
                     if (props.containsKey("ks_" + key.name + "_x")) key.relX = Integer.parseInt(props.getProperty("ks_" + key.name + "_x"));
                     if (props.containsKey("ks_" + key.name + "_y")) key.relY = Integer.parseInt(props.getProperty("ks_" + key.name + "_y"));
@@ -149,6 +179,9 @@ public class BameClientConfig {
                 if (props.containsKey("cpsHudY")) CpsModule.hudY = Integer.parseInt(props.getProperty("cpsHudY"));
                 if (props.containsKey("cpsScale")) CpsModule.scale = Float.parseFloat(props.getProperty("cpsScale"));
                 if (props.containsKey("cpsBgMode")) CpsModule.bgMode = Integer.parseInt(props.getProperty("cpsBgMode"));
+                if (props.containsKey("cpsOutlineColor")) CpsModule.outlineColor = (int) Long.parseLong(props.getProperty("cpsOutlineColor"), 16);
+                if (props.containsKey("cpsCustomWidth")) CpsModule.customWidth = Integer.parseInt(props.getProperty("cpsCustomWidth"));
+                if (props.containsKey("cpsCustomHeight")) CpsModule.customHeight = Integer.parseInt(props.getProperty("cpsCustomHeight"));
 
                 // FPS
                 if (props.containsKey("fpsEnabled")) FpsModule.enabled = Boolean.parseBoolean(props.getProperty("fpsEnabled"));
@@ -157,6 +190,9 @@ public class BameClientConfig {
                 if (props.containsKey("fpsHudY")) FpsModule.hudY = Integer.parseInt(props.getProperty("fpsHudY"));
                 if (props.containsKey("fpsScale")) FpsModule.scale = Float.parseFloat(props.getProperty("fpsScale"));
                 if (props.containsKey("fpsBgMode")) FpsModule.bgMode = Integer.parseInt(props.getProperty("fpsBgMode"));
+                if (props.containsKey("fpsOutlineColor")) FpsModule.outlineColor = (int) Long.parseLong(props.getProperty("fpsOutlineColor"), 16);
+                if (props.containsKey("fpsCustomWidth")) FpsModule.customWidth = Integer.parseInt(props.getProperty("fpsCustomWidth"));
+                if (props.containsKey("fpsCustomHeight")) FpsModule.customHeight = Integer.parseInt(props.getProperty("fpsCustomHeight"));
 
                 // Ping
                 if (props.containsKey("pingEnabled")) PingModule.enabled = Boolean.parseBoolean(props.getProperty("pingEnabled"));
@@ -165,6 +201,9 @@ public class BameClientConfig {
                 if (props.containsKey("pingHudY")) PingModule.hudY = Integer.parseInt(props.getProperty("pingHudY"));
                 if (props.containsKey("pingScale")) PingModule.scale = Float.parseFloat(props.getProperty("pingScale"));
                 if (props.containsKey("pingBgMode")) PingModule.bgMode = Integer.parseInt(props.getProperty("pingBgMode"));
+                if (props.containsKey("pingOutlineColor")) PingModule.outlineColor = (int) Long.parseLong(props.getProperty("pingOutlineColor"), 16);
+                if (props.containsKey("pingCustomWidth")) PingModule.customWidth = Integer.parseInt(props.getProperty("pingCustomWidth"));
+                if (props.containsKey("pingCustomHeight")) PingModule.customHeight = Integer.parseInt(props.getProperty("pingCustomHeight"));
 
                 // Server Info
                 if (props.containsKey("serverInfoEnabled")) ServerInfoModule.enabled = Boolean.parseBoolean(props.getProperty("serverInfoEnabled"));
@@ -173,6 +212,9 @@ public class BameClientConfig {
                 if (props.containsKey("serverInfoHudY")) ServerInfoModule.hudY = Integer.parseInt(props.getProperty("serverInfoHudY"));
                 if (props.containsKey("serverInfoScale")) ServerInfoModule.scale = Float.parseFloat(props.getProperty("serverInfoScale"));
                 if (props.containsKey("serverInfoBgMode")) ServerInfoModule.bgMode = Integer.parseInt(props.getProperty("serverInfoBgMode"));
+                if (props.containsKey("serverInfoOutlineColor")) ServerInfoModule.outlineColor = (int) Long.parseLong(props.getProperty("serverInfoOutlineColor"), 16);
+                if (props.containsKey("serverInfoCustomWidth")) ServerInfoModule.customWidth = Integer.parseInt(props.getProperty("serverInfoCustomWidth"));
+                if (props.containsKey("serverInfoCustomHeight")) ServerInfoModule.customHeight = Integer.parseInt(props.getProperty("serverInfoCustomHeight"));
                 if (props.containsKey("serverInfoShowName")) ServerInfoModule.showName = Boolean.parseBoolean(props.getProperty("serverInfoShowName"));
                 if (props.containsKey("serverInfoShowServer")) ServerInfoModule.showServer = Boolean.parseBoolean(props.getProperty("serverInfoShowServer"));
                 if (props.containsKey("serverInfoShowTime")) ServerInfoModule.showTime = Boolean.parseBoolean(props.getProperty("serverInfoShowTime"));
@@ -228,6 +270,9 @@ public class BameClientConfig {
                 if (props.containsKey("hudY")) FakeScoreboardModule.hudY = Integer.parseInt(props.getProperty("hudY"));
                 if (props.containsKey("scale")) FakeScoreboardModule.scale = Float.parseFloat(props.getProperty("scale"));
                 if (props.containsKey("bgMode")) FakeScoreboardModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
+                if (props.containsKey("outlineColor")) FakeScoreboardModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
+                if (props.containsKey("customWidth")) FakeScoreboardModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
+                if (props.containsKey("customHeight")) FakeScoreboardModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
                 if (props.containsKey("money")) FakeScoreboardModule.money = props.getProperty("money");
                 if (props.containsKey("stars")) FakeScoreboardModule.stars = props.getProperty("stars");
                 if (props.containsKey("kills")) FakeScoreboardModule.kills = props.getProperty("kills");
@@ -246,7 +291,37 @@ public class BameClientConfig {
                 if (props.containsKey("hudY")) SpotifyHudModule.hudY = Integer.parseInt(props.getProperty("hudY"));
                 if (props.containsKey("scale")) SpotifyHudModule.scale = Float.parseFloat(props.getProperty("scale"));
                 if (props.containsKey("bgMode")) SpotifyHudModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
+                if (props.containsKey("outlineColor")) SpotifyHudModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
+                if (props.containsKey("customWidth")) SpotifyHudModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
+                if (props.containsKey("customHeight")) SpotifyHudModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
                 if (props.containsKey("autoHide")) SpotifyHudModule.autoHide = Boolean.parseBoolean(props.getProperty("autoHide"));
+            }
+
+            // Visuals - Scoreboard
+            Path scoreboardFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("scoreboard.properties");
+            if (Files.exists(scoreboardFile)) {
+                Properties props = loadProps(scoreboardFile);
+                if (props.containsKey("enabled")) ScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) ScoreboardModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) ScoreboardModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("hudX")) ScoreboardModule.hudX = Integer.parseInt(props.getProperty("hudX"));
+                if (props.containsKey("hudY")) ScoreboardModule.hudY = Integer.parseInt(props.getProperty("hudY"));
+                if (props.containsKey("scale")) ScoreboardModule.scale = Float.parseFloat(props.getProperty("scale"));
+                if (props.containsKey("bgMode")) ScoreboardModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
+                if (props.containsKey("outlineColor")) ScoreboardModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
+                if (props.containsKey("customWidth")) ScoreboardModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
+                if (props.containsKey("customHeight")) ScoreboardModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
+            }
+
+            // Visuals - Custom Crosshair
+            Path crosshairFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_crosshair.properties");
+            if (Files.exists(crosshairFile)) {
+                Properties props = loadProps(crosshairFile);
+                if (props.containsKey("enabled")) CustomCrosshairModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) CustomCrosshairModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) CustomCrosshairModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("color")) CustomCrosshairModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
+                if (props.containsKey("grid")) CustomCrosshairModule.setEncodedGrid(props.getProperty("grid"));
             }
 
             // 6. Theme
@@ -320,6 +395,17 @@ public class BameClientConfig {
             worldProps.setProperty("outlineWidth", String.valueOf(outlineWidth));
             saveProps(worldDir.resolve("auto_area_miner.properties"), worldProps, "Caeser Client - Auto Area Miner");
 
+            // Movement - InvMove
+            Properties invMoveProps = new Properties();
+            invMoveProps.setProperty("enabled", String.valueOf(InvMoveModule.enabled));
+            invMoveProps.setProperty("keyBind", String.valueOf(InvMoveModule.keyBind));
+            invMoveProps.setProperty("expanded", String.valueOf(InvMoveModule.expanded));
+            invMoveProps.setProperty("jump", String.valueOf(InvMoveModule.jump));
+            invMoveProps.setProperty("sprint", String.valueOf(InvMoveModule.sprint));
+            invMoveProps.setProperty("sneak", String.valueOf(InvMoveModule.sneak));
+            invMoveProps.setProperty("rotateWithArrows", String.valueOf(InvMoveModule.rotateWithArrows));
+            saveProps(movementDir.resolve("inv_move.properties"), invMoveProps, "Caeser Client - InvMove");
+
             // 2. Visuals - Show HUD
             Properties showHudProps = new Properties();
             showHudProps.setProperty("showHudEnabled", String.valueOf(ShowHudModule.enabled));
@@ -332,6 +418,9 @@ public class BameClientConfig {
             showHudProps.setProperty("clockHudY", String.valueOf(ClockModule.hudY));
             showHudProps.setProperty("clockScale", String.valueOf(ClockModule.scale));
             showHudProps.setProperty("clockBgMode", String.valueOf(ClockModule.bgMode));
+            showHudProps.setProperty("clockOutlineColor", Integer.toHexString(ClockModule.outlineColor));
+            showHudProps.setProperty("clockCustomWidth", String.valueOf(ClockModule.customWidth));
+            showHudProps.setProperty("clockCustomHeight", String.valueOf(ClockModule.customHeight));
 
             // Coordinates
             showHudProps.setProperty("coordinatesEnabled", String.valueOf(CoordinatesModule.enabled));
@@ -339,6 +428,9 @@ public class BameClientConfig {
             showHudProps.setProperty("coordinatesHudY", String.valueOf(CoordinatesModule.hudY));
             showHudProps.setProperty("coordinatesScale", String.valueOf(CoordinatesModule.scale));
             showHudProps.setProperty("coordinatesBgMode", String.valueOf(CoordinatesModule.bgMode));
+            showHudProps.setProperty("coordinatesOutlineColor", Integer.toHexString(CoordinatesModule.outlineColor));
+            showHudProps.setProperty("coordinatesCustomWidth", String.valueOf(CoordinatesModule.customWidth));
+            showHudProps.setProperty("coordinatesCustomHeight", String.valueOf(CoordinatesModule.customHeight));
 
             // Potions
             showHudProps.setProperty("potionsEnabled", String.valueOf(PotionsModule.enabled));
@@ -346,6 +438,9 @@ public class BameClientConfig {
             showHudProps.setProperty("potionsHudY", String.valueOf(PotionsModule.hudY));
             showHudProps.setProperty("potionsScale", String.valueOf(PotionsModule.scale));
             showHudProps.setProperty("potionsBgMode", String.valueOf(PotionsModule.bgMode));
+            showHudProps.setProperty("potionsOutlineColor", Integer.toHexString(PotionsModule.outlineColor));
+            showHudProps.setProperty("potionsCustomWidth", String.valueOf(PotionsModule.customWidth));
+            showHudProps.setProperty("potionsCustomHeight", String.valueOf(PotionsModule.customHeight));
 
             // Target HUD
             showHudProps.setProperty("targetHudEnabled", String.valueOf(TargetHudModule.enabled));
@@ -357,6 +452,9 @@ public class BameClientConfig {
             showHudProps.setProperty("targetHudHudY", String.valueOf(TargetHudModule.hudY));
             showHudProps.setProperty("targetHudScale", String.valueOf(TargetHudModule.scale));
             showHudProps.setProperty("targetHudBgMode", String.valueOf(TargetHudModule.bgMode));
+            showHudProps.setProperty("targetHudOutlineColor", Integer.toHexString(TargetHudModule.outlineColor));
+            showHudProps.setProperty("targetHudCustomWidth", String.valueOf(TargetHudModule.customWidth));
+            showHudProps.setProperty("targetHudCustomHeight", String.valueOf(TargetHudModule.customHeight));
 
             // Armor HUD
             showHudProps.setProperty("armorHudEnabled", String.valueOf(ArmorHudModule.enabled));
@@ -364,6 +462,9 @@ public class BameClientConfig {
             showHudProps.setProperty("armorHudHudY", String.valueOf(ArmorHudModule.hudY));
             showHudProps.setProperty("armorHudScale", String.valueOf(ArmorHudModule.scale));
             showHudProps.setProperty("armorHudBgMode", String.valueOf(ArmorHudModule.bgMode));
+            showHudProps.setProperty("armorHudOutlineColor", Integer.toHexString(ArmorHudModule.outlineColor));
+            showHudProps.setProperty("armorHudCustomWidth", String.valueOf(ArmorHudModule.customWidth));
+            showHudProps.setProperty("armorHudCustomHeight", String.valueOf(ArmorHudModule.customHeight));
 
             // KeyStrokes
             showHudProps.setProperty("keyStrokesEnabled", String.valueOf(KeyStrokesModule.enabled));
@@ -371,6 +472,8 @@ public class BameClientConfig {
             showHudProps.setProperty("keyStrokesHudX", String.valueOf(KeyStrokesModule.hudX));
             showHudProps.setProperty("keyStrokesHudY", String.valueOf(KeyStrokesModule.hudY));
             showHudProps.setProperty("keyStrokesScale", String.valueOf(KeyStrokesModule.scale));
+            showHudProps.setProperty("keyStrokesBgMode", String.valueOf(KeyStrokesModule.bgMode));
+            showHudProps.setProperty("keyStrokesOutlineColor", Integer.toHexString(KeyStrokesModule.outlineColor));
             for (KeyStrokesModule.KeyStroke key : KeyStrokesModule.keys) {
                 showHudProps.setProperty("ks_" + key.name + "_x", String.valueOf(key.relX));
                 showHudProps.setProperty("ks_" + key.name + "_y", String.valueOf(key.relY));
@@ -385,6 +488,9 @@ public class BameClientConfig {
             showHudProps.setProperty("cpsHudY", String.valueOf(CpsModule.hudY));
             showHudProps.setProperty("cpsScale", String.valueOf(CpsModule.scale));
             showHudProps.setProperty("cpsBgMode", String.valueOf(CpsModule.bgMode));
+            showHudProps.setProperty("cpsOutlineColor", Integer.toHexString(CpsModule.outlineColor));
+            showHudProps.setProperty("cpsCustomWidth", String.valueOf(CpsModule.customWidth));
+            showHudProps.setProperty("cpsCustomHeight", String.valueOf(CpsModule.customHeight));
 
             // FPS
             showHudProps.setProperty("fpsEnabled", String.valueOf(FpsModule.enabled));
@@ -393,6 +499,9 @@ public class BameClientConfig {
             showHudProps.setProperty("fpsHudY", String.valueOf(FpsModule.hudY));
             showHudProps.setProperty("fpsScale", String.valueOf(FpsModule.scale));
             showHudProps.setProperty("fpsBgMode", String.valueOf(FpsModule.bgMode));
+            showHudProps.setProperty("fpsOutlineColor", Integer.toHexString(FpsModule.outlineColor));
+            showHudProps.setProperty("fpsCustomWidth", String.valueOf(FpsModule.customWidth));
+            showHudProps.setProperty("fpsCustomHeight", String.valueOf(FpsModule.customHeight));
 
             // Ping
             showHudProps.setProperty("pingEnabled", String.valueOf(PingModule.enabled));
@@ -401,6 +510,9 @@ public class BameClientConfig {
             showHudProps.setProperty("pingHudY", String.valueOf(PingModule.hudY));
             showHudProps.setProperty("pingScale", String.valueOf(PingModule.scale));
             showHudProps.setProperty("pingBgMode", String.valueOf(PingModule.bgMode));
+            showHudProps.setProperty("pingOutlineColor", Integer.toHexString(PingModule.outlineColor));
+            showHudProps.setProperty("pingCustomWidth", String.valueOf(PingModule.customWidth));
+            showHudProps.setProperty("pingCustomHeight", String.valueOf(PingModule.customHeight));
 
             // Server Info
             showHudProps.setProperty("serverInfoEnabled", String.valueOf(ServerInfoModule.enabled));
@@ -409,6 +521,9 @@ public class BameClientConfig {
             showHudProps.setProperty("serverInfoHudY", String.valueOf(ServerInfoModule.hudY));
             showHudProps.setProperty("serverInfoScale", String.valueOf(ServerInfoModule.scale));
             showHudProps.setProperty("serverInfoBgMode", String.valueOf(ServerInfoModule.bgMode));
+            showHudProps.setProperty("serverInfoOutlineColor", Integer.toHexString(ServerInfoModule.outlineColor));
+            showHudProps.setProperty("serverInfoCustomWidth", String.valueOf(ServerInfoModule.customWidth));
+            showHudProps.setProperty("serverInfoCustomHeight", String.valueOf(ServerInfoModule.customHeight));
             showHudProps.setProperty("serverInfoShowName", String.valueOf(ServerInfoModule.showName));
             showHudProps.setProperty("serverInfoShowServer", String.valueOf(ServerInfoModule.showServer));
             showHudProps.setProperty("serverInfoShowTime", String.valueOf(ServerInfoModule.showTime));
@@ -451,6 +566,9 @@ public class BameClientConfig {
             sbProps.setProperty("hudY", String.valueOf(FakeScoreboardModule.hudY));
             sbProps.setProperty("scale", String.valueOf(FakeScoreboardModule.scale));
             sbProps.setProperty("bgMode", String.valueOf(FakeScoreboardModule.bgMode));
+            sbProps.setProperty("outlineColor", Integer.toHexString(FakeScoreboardModule.outlineColor));
+            sbProps.setProperty("customWidth", String.valueOf(FakeScoreboardModule.customWidth));
+            sbProps.setProperty("customHeight", String.valueOf(FakeScoreboardModule.customHeight));
             if (FakeScoreboardModule.money != null) sbProps.setProperty("money", FakeScoreboardModule.money);
             if (FakeScoreboardModule.stars != null) sbProps.setProperty("stars", FakeScoreboardModule.stars);
             if (FakeScoreboardModule.kills != null) sbProps.setProperty("kills", FakeScoreboardModule.kills);
@@ -467,8 +585,34 @@ public class BameClientConfig {
             spotifyProps.setProperty("hudY", String.valueOf(SpotifyHudModule.hudY));
             spotifyProps.setProperty("scale", String.valueOf(SpotifyHudModule.scale));
             spotifyProps.setProperty("bgMode", String.valueOf(SpotifyHudModule.bgMode));
+            spotifyProps.setProperty("outlineColor", Integer.toHexString(SpotifyHudModule.outlineColor));
+            spotifyProps.setProperty("customWidth", String.valueOf(SpotifyHudModule.customWidth));
+            spotifyProps.setProperty("customHeight", String.valueOf(SpotifyHudModule.customHeight));
             spotifyProps.setProperty("autoHide", String.valueOf(SpotifyHudModule.autoHide));
             saveProps(visualsDir.resolve("spotify_hud.properties"), spotifyProps, "Caeser Client - Spotify HUD");
+
+            // Visuals - Scoreboard
+            Properties realScoreboardProps = new Properties();
+            realScoreboardProps.setProperty("enabled", String.valueOf(ScoreboardModule.enabled));
+            realScoreboardProps.setProperty("keyBind", String.valueOf(ScoreboardModule.keyBind));
+            realScoreboardProps.setProperty("expanded", String.valueOf(ScoreboardModule.expanded));
+            realScoreboardProps.setProperty("hudX", String.valueOf(ScoreboardModule.hudX));
+            realScoreboardProps.setProperty("hudY", String.valueOf(ScoreboardModule.hudY));
+            realScoreboardProps.setProperty("scale", String.valueOf(ScoreboardModule.scale));
+            realScoreboardProps.setProperty("bgMode", String.valueOf(ScoreboardModule.bgMode));
+            realScoreboardProps.setProperty("outlineColor", Integer.toHexString(ScoreboardModule.outlineColor));
+            realScoreboardProps.setProperty("customWidth", String.valueOf(ScoreboardModule.customWidth));
+            realScoreboardProps.setProperty("customHeight", String.valueOf(ScoreboardModule.customHeight));
+            saveProps(visualsDir.resolve("scoreboard.properties"), realScoreboardProps, "Caeser Client - Scoreboard");
+
+            // Visuals - Custom Crosshair
+            Properties crosshairProps = new Properties();
+            crosshairProps.setProperty("enabled", String.valueOf(CustomCrosshairModule.enabled));
+            crosshairProps.setProperty("keyBind", String.valueOf(CustomCrosshairModule.keyBind));
+            crosshairProps.setProperty("expanded", String.valueOf(CustomCrosshairModule.expanded));
+            crosshairProps.setProperty("color", Integer.toHexString(CustomCrosshairModule.color));
+            crosshairProps.setProperty("grid", CustomCrosshairModule.getEncodedGrid());
+            saveProps(visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
 
             // 6. Theme
             Properties themeProps = new Properties();

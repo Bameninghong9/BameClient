@@ -14,7 +14,8 @@
     "PlayerEntityMixin",
     "EntityRendererMixin",
     "InGameHudMixin",
-    "ScoreboardMixin"
+    "ScoreboardMixin",
+    "ClientPlayNetworkHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
