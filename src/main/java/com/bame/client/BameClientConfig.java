@@ -379,6 +379,21 @@ public class BameClientConfig {
                 if (props.containsKey("heightPercent")) LowShieldModule.heightPercent = Integer.parseInt(props.getProperty("heightPercent"));
             }
 
+            // Combat - CustomHitboxes
+            Path hbFile = BASE_CONFIG_DIR.resolve("Combat").resolve("custom_hitboxes.properties");
+            if (Files.exists(hbFile)) {
+                Properties props = loadProps(hbFile);
+                if (props.containsKey("enabled")) CustomHitboxesModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) CustomHitboxesModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) CustomHitboxesModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("color")) CustomHitboxesModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
+                if (props.containsKey("fillOpacity")) CustomHitboxesModule.fillOpacity = Float.parseFloat(props.getProperty("fillOpacity"));
+                if (props.containsKey("lineWidth")) CustomHitboxesModule.lineWidth = Float.parseFloat(props.getProperty("lineWidth"));
+                if (props.containsKey("targetMode")) CustomHitboxesModule.targetMode = Integer.parseInt(props.getProperty("targetMode"));
+                if (props.containsKey("showEyeHeight")) CustomHitboxesModule.showEyeHeight = Boolean.parseBoolean(props.getProperty("showEyeHeight"));
+                if (props.containsKey("showViewVector")) CustomHitboxesModule.showViewVector = Boolean.parseBoolean(props.getProperty("showViewVector"));
+            }
+
             // 6. Theme
             Path themeFile = BASE_CONFIG_DIR.resolve("Theme").resolve("theme.properties");
             if (Files.exists(themeFile)) {
@@ -715,6 +730,19 @@ public class BameClientConfig {
             lsProps.setProperty("expanded", String.valueOf(LowShieldModule.expanded));
             lsProps.setProperty("heightPercent", String.valueOf(LowShieldModule.heightPercent));
             saveProps(combatDir.resolve("low_shield.properties"), lsProps, "Caeser Client - LowShield");
+
+            // Combat - CustomHitboxes
+            Properties hbProps = new Properties();
+            hbProps.setProperty("enabled", String.valueOf(CustomHitboxesModule.enabled));
+            hbProps.setProperty("keyBind", String.valueOf(CustomHitboxesModule.keyBind));
+            hbProps.setProperty("expanded", String.valueOf(CustomHitboxesModule.expanded));
+            hbProps.setProperty("color", Integer.toHexString(CustomHitboxesModule.color));
+            hbProps.setProperty("fillOpacity", String.valueOf(CustomHitboxesModule.fillOpacity));
+            hbProps.setProperty("lineWidth", String.valueOf(CustomHitboxesModule.lineWidth));
+            hbProps.setProperty("targetMode", String.valueOf(CustomHitboxesModule.targetMode));
+            hbProps.setProperty("showEyeHeight", String.valueOf(CustomHitboxesModule.showEyeHeight));
+            hbProps.setProperty("showViewVector", String.valueOf(CustomHitboxesModule.showViewVector));
+            saveProps(combatDir.resolve("custom_hitboxes.properties"), hbProps, "Caeser Client - Custom Hitboxes");
 
             // 6. Theme
             Properties themeProps = new Properties();

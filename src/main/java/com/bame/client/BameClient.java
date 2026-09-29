@@ -69,6 +69,7 @@ public class BameClient implements ClientModInitializer {
             HitColorModule.onTick(client);
             ReachDisplayModule.onTick(client);
             LowShieldModule.onTick(client);
+            CustomHitboxesModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind

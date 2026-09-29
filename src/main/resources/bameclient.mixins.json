@@ -20,7 +20,9 @@
     "OverlayTextureAccessor",
     "OverlayTextureMixin",
     "HeldItemRendererMixin",
-    "ClientPlayerInteractionManagerMixin"
+    "ClientPlayerInteractionManagerMixin",
+    "DebugRendererMixin",
+    "EntityHitboxDebugRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

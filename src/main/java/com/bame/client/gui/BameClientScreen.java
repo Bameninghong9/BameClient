@@ -25,6 +25,7 @@ import com.bame.client.module.AutoClickerModule;
 import com.bame.client.module.HitColorModule;
 import com.bame.client.module.ReachDisplayModule;
 import com.bame.client.module.LowShieldModule;
+import com.bame.client.module.CustomHitboxesModule;
 import com.bame.client.render.CustomCrosshairRenderer;
 
 import net.minecraft.client.gui.DrawContext;
@@ -43,9 +44,9 @@ public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
-    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield;
-    private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight;
-    private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false;
+    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes;
+    private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingHitboxAlpha,draggingHitboxWidth;
+    private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false, hitboxColorPickerOpen = false;
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
     private int cpX, cpY;
@@ -204,6 +205,11 @@ public class BameClientScreen extends Screen {
         if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q);
         return selected.equals("Combat");
     }
+    private boolean customHitboxesVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "customhitboxes".contains(q) || "custom hitboxes".contains(q) || "hitbox".contains(q) || "hitboxes".contains(q) || "f3+b".contains(q) || "esp".contains(q);
+        return selected.equals("Combat");
+    }
 
     private int columns() { return 4; }
     private int effectsY() { return 44+((GuiTheme.PRESETS.length+columns()-1)/columns())*58+18; }
@@ -242,6 +248,9 @@ public class BameClientScreen extends Screen {
     private int getLowShieldHeight() {
         return LowShieldModule.expanded ? 104 : 46;
     }
+    private int getCustomHitboxesHeight() {
+        return CustomHitboxesModule.expanded ? 234 : 46;
+    }
 
     private int contentHeight() { 
         if (selected.equals("Theme")) return settingsY()+themeSettings.height()+8;
@@ -263,6 +272,7 @@ public class BameClientScreen extends Screen {
         if (customCrosshairVisible()) rightY += getCustomCrosshairHeight() + 12;
         if (hitColorVisible()) rightY += getHitColorHeight() + 12;
         if (lowShieldVisible()) rightY += getLowShieldHeight() + 12;
+        if (customHitboxesVisible()) rightY += getCustomHitboxesHeight() + 12;
 
         return Math.max(leftY, rightY);
     }
@@ -548,6 +558,10 @@ public class BameClientScreen extends Screen {
                 renderLowShieldModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += getLowShieldHeight() + 12;
             }
+            if (customHitboxesVisible()) {
+                renderCustomHitboxesModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
+                rightY += getCustomHitboxesHeight() + 12;
+            }
         }
         c.disableScissor();
         if(maxScroll()>0) {
@@ -559,7 +573,7 @@ public class BameClientScreen extends Screen {
             c.getMatrices().popMatrix();
         }
 
-        if (crosshairColorPickerOpen || hitColorColorPickerOpen) {
+        if (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen) {
             renderModalColorPicker(c, mx, my);
         }
     }
@@ -1069,7 +1083,6 @@ public class BameClientScreen extends Screen {
         boolean hoverCol = inside(mx, my, colBtnX, curY + 2, colBtnSize, colBtnSize);
         c.fill(colBtnX, curY + 2, colBtnX + colBtnSize, curY + 2 + colBtnSize, 0xFF000000 | (HitColorModule.color & 0xFFFFFF));
         CustomGuiUtils.drawUltraRoundedOutline(c, colBtnX, curY + 2, colBtnSize, colBtnSize, hoverCol ? 0xFFFFFFFF : 0xFF353C4D, 2);
-        button(c, "Pick Color", colBtnX + 22, curY + 2, 64, 16, mx, my);
         curY += 26;
 
         // Opacity / Intensity Slider (10% to 100%)
@@ -1146,6 +1159,83 @@ public class BameClientScreen extends Screen {
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
+    private void renderCustomHitboxesModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getCustomHitboxesHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+        text(c, "Custom Hitboxes", x + 12, y + 12, 0xFFE2E5ED);
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+
+        String kb = listeningHitboxes ? "..." : formatKey(CustomHitboxesModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, CustomHitboxesModule.enabled, mx, my, delta);
+
+        if (!CustomHitboxesModule.expanded) return;
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+
+        // Row 1: Color
+        text(c, "Color:", x + 14, curY + 4, 0xFFD4D8E0);
+        int colBtnX = x + 56;
+        int colBtnSize = 16;
+        boolean hoverCol = inside(mx, my, colBtnX, curY + 2, colBtnSize, colBtnSize);
+        c.fill(colBtnX, curY + 2, colBtnX + colBtnSize, curY + 2 + colBtnSize, 0xFF000000 | (CustomHitboxesModule.color & 0xFFFFFF));
+        CustomGuiUtils.drawUltraRoundedOutline(c, colBtnX, curY + 2, colBtnSize, colBtnSize, hoverCol ? 0xFFFFFFFF : 0xFF353C4D, 2);
+        curY += 26;
+
+        // Row 2: Fill Opacity / Transparency (0% to 100%)
+        int pct = Math.round(CustomHitboxesModule.fillOpacity * 100);
+        text(c, "Fill: " + pct + "%", x + 14, curY + 4, 0xFFD4D8E0);
+        int sx = x + 72;
+        int sw = w - 86;
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        int fill = Math.round(sw * Math.clamp(CustomHitboxesModule.fillOpacity, 0f, 1f));
+        if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Row 3: Line Width (1.0 to 5.0)
+        String widthText = String.format(java.util.Locale.US, "%.1f", CustomHitboxesModule.lineWidth);
+        text(c, "Width: " + widthText, x + 14, curY + 4, 0xFFD4D8E0);
+        int wx = x + 82;
+        int ww = w - 96;
+        CustomGuiUtils.fillUltraRounded(c, wx, curY + 6, ww, 4, 0xFF303442, 2);
+        float widthNorm = (CustomHitboxesModule.lineWidth - 1.0f) / 4.0f;
+        int wfill = Math.round(ww * Math.clamp(widthNorm, 0f, 1f));
+        if (wfill > 0) CustomGuiUtils.fillUltraRounded(c, wx, curY + 6, wfill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, wx + wfill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Row 4: Target Filter [All] [Players] [Mobs]
+        text(c, "Target:", x + 14, curY + 4, 0xFFD4D8E0);
+        modeButton(c, "All", x + 60, curY + 2, 34, 18, mx, my, CustomHitboxesModule.targetMode == 0);
+        modeButton(c, "Players", x + 98, curY + 2, 50, 18, mx, my, CustomHitboxesModule.targetMode == 1);
+        modeButton(c, "Mobs", x + 152, curY + 2, 44, 18, mx, my, CustomHitboxesModule.targetMode == 2);
+        curY += 26;
+
+        // Row 5: Eye Height Line
+        text(c, "Eye Height Line", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, CustomHitboxesModule.showEyeHeight, mx, my, delta);
+        curY += 26;
+
+        // Row 6: View Direction
+        text(c, "View Direction", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, CustomHitboxesModule.showViewVector, mx, my, delta);
+        curY += 26;
+
+        // Row 7: Reset button
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void syncHitboxHsv() {
+        int col = CustomHitboxesModule.color;
+        float[] hsb = java.awt.Color.RGBtoHSB((col >> 16) & 0xFF, (col >> 8) & 0xFF, col & 0xFF, null);
+        cpHue = hsb[0];
+        cpSat = hsb[1];
+        cpVal = hsb[2];
+    }
+
     private void syncCrosshairHsv() {
         int col = CustomCrosshairModule.color;
         float[] hsb = java.awt.Color.RGBtoHSB((col >> 16) & 0xFF, (col >> 8) & 0xFF, col & 0xFF, null);
@@ -1184,6 +1274,8 @@ public class BameClientScreen extends Screen {
         if (hitColorColorPickerOpen) {
             HitColorModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
             HitColorModule.apply();
+        } else if (hitboxColorPickerOpen) {
+            CustomHitboxesModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
         } else {
             CustomCrosshairModule.color = 0xFF000000 | (rgb & 0xFFFFFF);
         }
@@ -1203,11 +1295,11 @@ public class BameClientScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(context, cpX, cpY, CP_W, CP_H, 0xFF353C4D, 6);
 
         // Title
-        String title = hitColorColorPickerOpen ? "HIT COLOR" : "COLOR PICKER";
+        String title = hitColorColorPickerOpen ? "HIT COLOR" : (hitboxColorPickerOpen ? "HITBOX COLOR" : "COLOR PICKER");
         context.drawText(textRenderer, CustomGuiUtils.getFontText(title), cpX + 10, cpY + 8, 0xFFFFFFFF, false);
         context.drawText(textRenderer, Text.literal("×"), cpX + CP_W - 14, cpY + 6, 0xFF8E95A4, false);
 
-        int curCol = hitColorColorPickerOpen ? HitColorModule.color : CustomCrosshairModule.color;
+        int curCol = hitColorColorPickerOpen ? HitColorModule.color : (hitboxColorPickerOpen ? CustomHitboxesModule.color : CustomCrosshairModule.color);
 
         // 1. Preview box (Top Left, Bild 3)
         int prevX = cpX + 10;
@@ -1303,7 +1395,7 @@ public class BameClientScreen extends Screen {
         layout(); double mx=click.x(),my=click.y();
         if(click.button()!=0) return false;
 
-        if (crosshairColorPickerOpen || hitColorColorPickerOpen) {
+        if (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen) {
             int CP_W = 150;
             int CP_H = 100;
             int myCpX = (width - CP_W) / 2;
@@ -1311,6 +1403,7 @@ public class BameClientScreen extends Screen {
             if (inside(mx, my, myCpX + CP_W - 16, myCpY + 4, 14, 14)) {
                 crosshairColorPickerOpen = false;
                 hitColorColorPickerOpen = false;
+                hitboxColorPickerOpen = false;
                 cpDrag = -1;
                 return true;
             }
@@ -1337,6 +1430,7 @@ public class BameClientScreen extends Screen {
             }
             crosshairColorPickerOpen = false;
             hitColorColorPickerOpen = false;
+            hitboxColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
@@ -2063,10 +2157,11 @@ public class BameClientScreen extends Screen {
                 }
                 if (HitColorModule.expanded) {
                     int curY = myY + 54;
-                    // Color button / square or Pick Color button
-                    if (inside(mx, my, hX + 56, curY + 2, 16, 16) || inside(mx, my, hX + 78, curY + 2, 64, 16)) {
+                    // Color square
+                    if (inside(mx, my, hX + 56, curY + 2, 16, 16)) {
                         hitColorColorPickerOpen = true;
                         crosshairColorPickerOpen = false;
+                        hitboxColorPickerOpen = false;
                         syncHitColorHsv();
                         return true;
                     }
@@ -2132,6 +2227,102 @@ public class BameClientScreen extends Screen {
                     }
                 }
                 rightY += getLowShieldHeight() + 12;
+            }
+
+            if (customHitboxesVisible()) {
+                int myY = baseY() + rightY;
+                int hbX = cx + halfW + gap;
+                if (inside(mx, my, hbX + halfW - 38, myY + 12, 26, 14)) {
+                    CustomHitboxesModule.enabled = !CustomHitboxesModule.enabled;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, hbX + 60, myY + 25, 48, 16)) {
+                    listeningHitboxes = true;
+                    return true;
+                }
+                if (inside(mx, my, hbX, myY, halfW, 46)) {
+                    CustomHitboxesModule.expanded = !CustomHitboxesModule.expanded;
+                    layout();
+                    return true;
+                }
+                if (CustomHitboxesModule.expanded) {
+                    int curY = myY + 54;
+                    // Row 1: Color square
+                    if (inside(mx, my, hbX + 56, curY + 2, 16, 16)) {
+                        hitboxColorPickerOpen = true;
+                        hitColorColorPickerOpen = false;
+                        crosshairColorPickerOpen = false;
+                        syncHitboxHsv();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 2: Fill Opacity Slider (0.0 to 1.0)
+                    int sx = hbX + 72;
+                    int sw = halfW - 86;
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHitboxAlpha = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        CustomHitboxesModule.fillOpacity = Math.round(fval * 100f) / 100f;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 3: Line Width Slider (1.0 to 5.0)
+                    int wx = hbX + 82;
+                    int ww = halfW - 96;
+                    if (inside(mx, my, wx - 4, curY + 2, ww + 8, 14)) {
+                        draggingHitboxWidth = true;
+                        float fval = (float) Math.clamp((mx - wx) / (double) ww, 0.0, 1.0);
+                        CustomHitboxesModule.lineWidth = Math.max(1.0f, Math.round((1.0f + fval * 4.0f) * 10f) / 10f);
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 4: Target Mode [All] [Players] [Mobs]
+                    if (inside(mx, my, hbX + 60, curY + 2, 34, 18)) {
+                        CustomHitboxesModule.targetMode = 0;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, hbX + 98, curY + 2, 50, 18)) {
+                        CustomHitboxesModule.targetMode = 1;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, hbX + 152, curY + 2, 44, 18)) {
+                        CustomHitboxesModule.targetMode = 2;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 5: Eye Height Line
+                    if (inside(mx, my, hbX + halfW - 38, curY + 2, 26, 14)) {
+                        CustomHitboxesModule.showEyeHeight = !CustomHitboxesModule.showEyeHeight;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 6: View Direction
+                    if (inside(mx, my, hbX + halfW - 38, curY + 2, 26, 14)) {
+                        CustomHitboxesModule.showViewVector = !CustomHitboxesModule.showViewVector;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Row 7: Reset button
+                    if (inside(mx, my, hbX + halfW - 58, curY, 46, 16)) {
+                        resetCustomHitboxes();
+                        return true;
+                    }
+                }
+                rightY += getCustomHitboxesHeight() + 12;
             }
         }
         return false;
@@ -2247,6 +2438,15 @@ public class BameClientScreen extends Screen {
         }
     }
 
+    private void resetCustomHitboxes() {
+        CustomHitboxesModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+        if (client != null && client.player != null) {
+            client.player.sendMessage(Text.literal("§a[Custom Hitboxes] Einstellungen auf Standard zurückgesetzt!"), false);
+        }
+    }
+
     private void resetShowHud() {
         ClockModule.enabled = false;
         CoordinatesModule.enabled = false;
@@ -2299,7 +2499,7 @@ public class BameClientScreen extends Screen {
             client.player.sendMessage(Text.literal("§a[Show HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
         }
     }
-    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; unfocus(); layout(); }
+    private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -2329,7 +2529,7 @@ public class BameClientScreen extends Screen {
     }
     private void dragScroll(double my) { scroll=Math.clamp((my-cy-scrollGrab)/Math.max(1,ch-thumbHeight())*maxScroll(),0,maxScroll()); layout(); }
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
-        if ((crosshairColorPickerOpen || hitColorColorPickerOpen) && cpDrag >= 0) {
+        if ((crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen) && cpDrag >= 0) {
             updateModalColor(click.x(), click.y());
             return true;
         }
@@ -2402,6 +2602,24 @@ public class BameClientScreen extends Screen {
             LowShieldModule.heightPercent = Math.max(1, Math.round(1 + fval * 99));
             return true;
         }
+        if(draggingHitboxAlpha) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + halfW + gap + 72;
+            int sw = halfW - 86;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            CustomHitboxesModule.fillOpacity = Math.round(fval * 100f) / 100f;
+            return true;
+        }
+        if(draggingHitboxWidth) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int wx = cx + halfW + gap + 82;
+            int ww = halfW - 96;
+            float fval = (float) Math.clamp(((click.x() - wx) / (double) ww), 0.0, 1.0);
+            CustomHitboxesModule.lineWidth = Math.max(1.0f, Math.round((1.0f + fval * 4.0f) * 10f) / 10f);
+            return true;
+        }
         if(draggingWidth) {
             float val = (float)Math.clamp(((click.x() - (cx+14)) / 140.0), 0.0, 1.0);
             BameClientConfig.outlineWidth = 1.0f + val * 4.0f;
@@ -2418,8 +2636,8 @@ public class BameClientScreen extends Screen {
             BameClientConfig.save();
         }
         cpDrag = -1;
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight||draggingHitboxAlpha||draggingHitboxWidth;
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; draggingHitboxAlpha=false; draggingHitboxWidth=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {
@@ -2427,13 +2645,14 @@ public class BameClientScreen extends Screen {
         return super.mouseScrolled(mx,my,horizontal,vertical);
     }
     @Override public boolean keyPressed(KeyInput input) {
-        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen)) {
+        if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen)) {
             crosshairColorPickerOpen = false;
             hitColorColorPickerOpen = false;
+            hitboxColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
@@ -2448,6 +2667,7 @@ public class BameClientScreen extends Screen {
         if(listeningHitColor) { HitColorModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningHitColor=false; BameClientConfig.save(); return true; }
         if(listeningReachDisplay) { ReachDisplayModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningReachDisplay=false; BameClientConfig.save(); return true; }
         if(listeningLowShield) { LowShieldModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningLowShield=false; BameClientConfig.save(); return true; }
+        if(listeningHitboxes) { CustomHitboxesModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningHitboxes=false; BameClientConfig.save(); return true; }
         return super.keyPressed(input);
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }
