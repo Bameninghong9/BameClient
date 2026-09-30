@@ -22,7 +22,9 @@
     "HeldItemRendererMixin",
     "ClientPlayerInteractionManagerMixin",
     "DebugRendererMixin",
-    "EntityHitboxDebugRendererMixin"
+    "EntityHitboxDebugRendererMixin",
+    "NrcHitboxMixin",
+    "NrcHitboxRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

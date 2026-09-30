@@ -2,6 +2,7 @@ package com.bame.client.module;
 
 import com.bame.client.BameClientConfig;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.hud.debug.DebugHudEntries;
 import net.minecraft.client.render.DrawStyle;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.util.InputUtil;
@@ -14,8 +15,10 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.debug.gizmo.GizmoDrawing;
 
+import java.lang.reflect.Method;
+
 public class CustomHitboxesModule {
-    public static boolean enabled = false;
+    public static boolean enabled = true;
     public static int keyBind = -1;
     public static boolean expanded = false;
 
@@ -23,23 +26,64 @@ public class CustomHitboxesModule {
     public static float fillOpacity = 0.20f; // 0.0 to 1.0
     public static float lineWidth = 2.0f; // 1.0 to 5.0
     public static int targetMode = 0; // 0 = All, 1 = Players, 2 = Mobs
-    public static boolean showEyeHeight = true;
-    public static boolean showViewVector = true;
+    public static boolean showEyeHeight = false;
+    public static boolean showViewVector = false;
 
     private static boolean wasKeyBindPressed = false;
+
+    public static boolean isF3BActive() {
+        // 1. Check NoRiskClient if running
+        try {
+            Class<?> nrcHitBoxClass = Class.forName("gg.norisk.client.v2.modules.hitbox.HitBox");
+            Object instance = nrcHitBoxClass.getField("INSTANCE").get(null);
+            Method isEnabledMethod = nrcHitBoxClass.getMethod("isEnabled");
+            return (boolean) isEnabledMethod.invoke(instance);
+        } catch (Throwable ignored) {}
+
+        // 2. Vanilla fallback
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.debugHudEntryList == null) return false;
+        return client.debugHudEntryList.isEntryVisible(DebugHudEntries.ENTITY_HITBOXES);
+    }
+
+    public static void setEnabled(boolean value) {
+        enabled = value;
+    }
+
+    public static boolean shouldRender() {
+        return enabled && isF3BActive();
+    }
+
+    public static void toggleHitboxes() {
+        // 1. Try NoRiskClient toggle
+        try {
+            Class<?> nrcHitBoxClass = Class.forName("gg.norisk.client.v2.modules.hitbox.HitBox");
+            Object instance = nrcHitBoxClass.getField("INSTANCE").get(null);
+            Method isEnabledMethod = nrcHitBoxClass.getMethod("isEnabled");
+            Method setEnabledMethod = nrcHitBoxClass.getMethod("setEnabled", boolean.class);
+            boolean current = (boolean) isEnabledMethod.invoke(instance);
+            setEnabledMethod.invoke(instance, !current);
+            return;
+        } catch (Throwable ignored) {}
+
+        // 2. Vanilla toggle
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.debugHudEntryList != null) {
+            client.debugHudEntryList.toggleVisibility(DebugHudEntries.ENTITY_HITBOXES);
+        }
+    }
 
     public static void onTick(MinecraftClient client) {
         boolean pressed = keyBind != -1 && client.getWindow() != null && client.currentScreen == null
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
-            enabled = !enabled;
-            BameClientConfig.save();
+            toggleHitboxes();
         }
         wasKeyBindPressed = pressed;
     }
 
     public static void render(Frustum frustum, float tickDelta) {
-        if (!enabled) return;
+        if (!shouldRender()) return;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
 
@@ -63,7 +107,7 @@ public class CustomHitboxesModule {
 
             DrawStyle style;
             if (alphaInt > 0) {
-                style = DrawStyle.filledAndStroked(fillColor, lineWidth, strokeColor);
+                style = DrawStyle.filledAndStroked(strokeColor, lineWidth, fillColor);
             } else {
                 style = DrawStyle.stroked(strokeColor, lineWidth);
             }
@@ -102,7 +146,7 @@ public class CustomHitboxesModule {
         fillOpacity = 0.20f;
         lineWidth = 2.0f;
         targetMode = 0;
-        showEyeHeight = true;
-        showViewVector = true;
+        showEyeHeight = false;
+        showViewVector = false;
     }
 }

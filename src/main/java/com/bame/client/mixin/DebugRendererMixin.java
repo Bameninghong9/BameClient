@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class DebugRendererMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void onRender(Frustum frustum, double cameraX, double cameraY, double cameraZ, float tickDelta, CallbackInfo ci) {
-        if (CustomHitboxesModule.enabled) {
+        if (CustomHitboxesModule.shouldRender()) {
             CustomHitboxesModule.render(frustum, tickDelta);
         }
     }

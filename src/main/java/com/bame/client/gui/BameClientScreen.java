@@ -2233,7 +2233,7 @@ public class BameClientScreen extends Screen {
                 int myY = baseY() + rightY;
                 int hbX = cx + halfW + gap;
                 if (inside(mx, my, hbX + halfW - 38, myY + 12, 26, 14)) {
-                    CustomHitboxesModule.enabled = !CustomHitboxesModule.enabled;
+                    CustomHitboxesModule.setEnabled(!CustomHitboxesModule.enabled);
                     BameClientConfig.save();
                     return true;
                 }
@@ -2348,9 +2348,6 @@ public class BameClientScreen extends Screen {
         if (fakeTimeField != null) fakeTimeField.setText(FakeScoreboardModule.playtime);
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Fake Scoreboard] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetScoreboard() {
@@ -2363,9 +2360,6 @@ public class BameClientScreen extends Screen {
         ScoreboardModule.outlineColor = 0xFFFFFFFF;
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Scoreboard] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetSpotifyHud() {
@@ -2379,72 +2373,48 @@ public class BameClientScreen extends Screen {
         SpotifyHudModule.outlineColor = 0xFFFFFFFF;
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Spotify HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetCustomCrosshair() {
         CustomCrosshairModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Custom Crosshair] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetInvMove() {
         InvMoveModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[InvMove] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetAutoClicker() {
         AutoClickerModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[AutoClicker] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetHitColor() {
         HitColorModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[HitColor] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetReachDisplay() {
         ReachDisplayModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[ReachDisplay] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetLowShield() {
         LowShieldModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[LowShield] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetCustomHitboxes() {
         CustomHitboxesModule.resetToDefault();
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Custom Hitboxes] Einstellungen auf Standard zurückgesetzt!"), false);
-        }
     }
 
     private void resetShowHud() {
@@ -2495,9 +2465,6 @@ public class BameClientScreen extends Screen {
 
         BameClientConfig.save();
         layout();
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§a[Show HUD] Einstellungen und Positionen auf Standard zurückgesetzt!"), false);
-        }
     }
     private void select(String category) { picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
