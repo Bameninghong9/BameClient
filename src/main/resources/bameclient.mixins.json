@@ -21,6 +21,7 @@
     "OverlayTextureMixin",
     "HeldItemRendererMixin",
     "ClientPlayerInteractionManagerMixin",
+    "ClientPlayerInteractionManagerAccessor",
     "DebugRendererMixin",
     "EntityHitboxDebugRendererMixin",
     "NrcHitboxMixin",

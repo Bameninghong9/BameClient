@@ -1,11 +1,14 @@
 package com.bame.client.module;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.mixin.ClientPlayerInteractionManagerAccessor;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.enchantment.Enchantments;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BowItem;
@@ -13,13 +16,16 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 import java.util.function.Predicate;
@@ -86,47 +92,88 @@ public class AutoCartModule {
     public static boolean canPlaceRailAt(World world, BlockPos pos) {
         if (world == null || pos == null) return false;
         BlockState state = world.getBlockState(pos);
-        if (!state.isAir() && !state.isReplaceable()) return false;
-        BlockPos downPos = pos.down();
-        BlockState downState = world.getBlockState(downPos);
-        return downState.isSideSolidFullSquare(world, downPos, Direction.UP) || downState.isOpaqueFullCube();
+        if (state.isIn(BlockTags.RAILS)) {
+            return true;
+        }
+        if (!state.isAir() && !state.isReplaceable()) {
+            return false;
+        }
+        return Blocks.RAIL.getDefaultState().canPlaceAt(world, pos);
     }
 
     public static BlockPos findPlacementPos(MinecraftClient client, ClientPlayerEntity player) {
         World world = client.world;
         if (world == null || player == null) return null;
 
-        // 1. Crosshair block target if aiming at a block within reach
+        double maxReach = player.getBlockInteractionRange();
+        if (maxReach < 4.5) maxReach = 4.5;
+
+        // 1. Crosshair targeting a block within reach (as demonstrated in the video at 7:21)
         if (client.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
             BlockPos base = hit.getBlockPos();
             BlockPos candidate = (hit.getSide() == Direction.UP) ? base.up() : base.offset(hit.getSide());
-            if (player.getEyePos().distanceTo(Vec3d.ofCenter(candidate)) <= 5.0) {
+            if (player.getEyePos().distanceTo(Vec3d.ofCenter(candidate)) <= maxReach + 0.5) {
                 if (canPlaceRailAt(world, candidate)) {
                     return candidate;
+                }
+                if (hit.getSide() != Direction.UP && canPlaceRailAt(world, base.up())) {
+                    return base.up();
                 }
             }
         }
 
-        // 2. Check ground in front of player along horizontal look vector
-        Vec3d look = player.getRotationVector();
-        Vec3d horiz = new Vec3d(look.x, 0, look.z);
-        if (horiz.lengthSquared() > 0.001) {
-            horiz = horiz.normalize();
-            for (double d = 1.0; d <= 3.5; d += 0.8) {
-                Vec3d check = player.getEyePos().add(horiz.multiply(d));
-                BlockPos floorPos = BlockPos.ofFloored(check);
-                for (int dy = 0; dy >= -3; dy--) {
-                    BlockPos candidate = floorPos.up(dy);
-                    if (canPlaceRailAt(world, candidate)) {
-                        if (player.getEyePos().distanceTo(Vec3d.ofCenter(candidate)) <= 5.0) {
-                            return candidate;
-                        }
+        // 2. Crosshair targeting an entity (e.g. enemy player or mob in combat)
+        if (client.crosshairTarget instanceof EntityHitResult entityHit && entityHit.getType() == HitResult.Type.ENTITY) {
+            Entity target = entityHit.getEntity();
+            if (target != null) {
+                BlockPos feet = target.getBlockPos();
+                if (player.getEyePos().distanceTo(Vec3d.ofCenter(feet)) <= maxReach + 0.5) {
+                    if (canPlaceRailAt(world, feet)) {
+                        return feet;
+                    }
+                    if (canPlaceRailAt(world, feet.down())) {
+                        return feet.down();
                     }
                 }
             }
         }
 
-        // 3. Fallback: at player's feet
+        // 3. Raycast along player's look vector up to maxReach
+        Vec3d eyePos = player.getEyePos();
+        Vec3d lookVec = player.getRotationVec(1.0f);
+        Vec3d endPos = eyePos.add(lookVec.multiply(maxReach));
+        BlockHitResult rayHit = world.raycast(new RaycastContext(
+                eyePos,
+                endPos,
+                RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE,
+                player
+        ));
+        if (rayHit != null && rayHit.getType() == HitResult.Type.BLOCK) {
+            BlockPos base = rayHit.getBlockPos();
+            BlockPos candidate = (rayHit.getSide() == Direction.UP) ? base.up() : base.offset(rayHit.getSide());
+            if (canPlaceRailAt(world, candidate)) {
+                return candidate;
+            }
+        }
+
+        // 4. Horizontal floor check along look direction
+        Vec3d horiz = new Vec3d(lookVec.x, 0, lookVec.z);
+        if (horiz.lengthSquared() > 0.001) {
+            horiz = horiz.normalize();
+            for (double d = 3.5; d >= 1.0; d -= 0.5) {
+                Vec3d check = eyePos.add(horiz.multiply(d));
+                BlockPos floorPos = BlockPos.ofFloored(check);
+                for (int dy = 0; dy >= -3; dy--) {
+                    BlockPos candidate = floorPos.up(dy);
+                    if (canPlaceRailAt(world, candidate) && eyePos.distanceTo(Vec3d.ofCenter(candidate)) <= maxReach + 0.5) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        // 5. Fallback: at player's feet
         BlockPos feet = player.getBlockPos();
         if (canPlaceRailAt(world, feet)) {
             return feet;
@@ -135,27 +182,23 @@ public class AutoCartModule {
         return null;
     }
 
-    public static void onStopUsingItem(PlayerEntity player) {
-        if (!enabled) return;
-        if (!(player instanceof ClientPlayerEntity clientPlayer)) return;
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.player != player) return;
-
-        ItemStack active = player.getActiveItem();
-        if (!isFlameBow(active)) return;
-
-        int useTime = player.getItemUseTime();
-        if (useTime < 3) return;
-
-        long now = System.currentTimeMillis();
-        if (now - lastCartTime < 250) return;
-        lastCartTime = now;
-
-        placeAutoCart(client, clientPlayer);
+    private static void selectHotbarSlot(MinecraftClient client, ClientPlayerEntity player, int slot) {
+        player.getInventory().setSelectedSlot(slot);
+        if (client.interactionManager instanceof ClientPlayerInteractionManagerAccessor accessor) {
+            accessor.invokeSyncSelectedSlot();
+        } else if (player.networkHandler != null) {
+            player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(slot));
+        }
     }
 
-    public static void placeAutoCart(MinecraftClient client, ClientPlayerEntity player) {
-        if (client.interactionManager == null || client.world == null) return;
+    public static void onFlameBowShot(ClientPlayerEntity player) {
+        if (!enabled) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world == null || client.interactionManager == null) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastCartTime < 200) return;
+        lastCartTime = now;
 
         int railSlot = findItemSlot(player, AutoCartModule::isRailItem);
         int cartSlot = findItemSlot(player, AutoCartModule::isTntCartItem);
@@ -166,7 +209,7 @@ public class AutoCartModule {
         BlockPos basePos = railPos.down();
 
         int originalSlot = player.getInventory().getSelectedSlot();
-        int tempHotbarSlot = (originalSlot == 8) ? 7 : originalSlot + 1;
+        int tempHotbarSlot = (originalSlot == 8) ? 7 : (originalSlot + 1) % 9;
         for (int i = 0; i < 9; i++) {
             if (i != originalSlot && player.getInventory().getStack(i).isEmpty()) {
                 tempHotbarSlot = i;
@@ -175,49 +218,57 @@ public class AutoCartModule {
         }
 
         int syncId = player.playerScreenHandler.syncId;
-        boolean swappedRail = false;
-        int currentRailHotbar = railSlot;
-        if (railSlot >= 9) {
-            client.interactionManager.clickSlot(syncId, railSlot, tempHotbarSlot, SlotActionType.SWAP, player);
-            currentRailHotbar = tempHotbarSlot;
-            swappedRail = true;
+
+        // 1. PLACE RAIL (only if there isn't already a rail there)
+        boolean alreadyHasRail = client.world.getBlockState(railPos).isIn(BlockTags.RAILS);
+        if (!alreadyHasRail) {
+            boolean swappedRail = false;
+            int activeRailHotbar = railSlot;
+            if (railSlot >= 9) {
+                client.interactionManager.clickSlot(syncId, railSlot, tempHotbarSlot, SlotActionType.SWAP, player);
+                activeRailHotbar = tempHotbarSlot;
+                swappedRail = true;
+            }
+
+            selectHotbarSlot(client, player, activeRailHotbar);
+
+            BlockHitResult railHit = new BlockHitResult(
+                    Vec3d.ofBottomCenter(railPos),
+                    Direction.UP,
+                    basePos,
+                    false
+            );
+            client.interactionManager.interactBlock(player, Hand.MAIN_HAND, railHit);
+            player.swingHand(Hand.MAIN_HAND);
+
+            // Predict rail in client world so subsequent cart placement recognizes it instantly
+            if (client.world.getBlockState(railPos).isAir() || client.world.getBlockState(railPos).isReplaceable()) {
+                client.world.setBlockState(railPos, Blocks.RAIL.getDefaultState());
+            }
+
+            if (swappedRail) {
+                client.interactionManager.clickSlot(syncId, railSlot, tempHotbarSlot, SlotActionType.SWAP, player);
+            }
         }
 
-        player.getInventory().setSelectedSlot(currentRailHotbar);
-        if (player.networkHandler != null) {
-            player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(currentRailHotbar));
-        }
-
-        BlockHitResult railHit = new BlockHitResult(
-            Vec3d.ofCenter(basePos).add(0, 0.5, 0),
-            Direction.UP,
-            basePos,
-            false
-        );
-        client.interactionManager.interactBlock(player, Hand.MAIN_HAND, railHit);
-        player.swingHand(Hand.MAIN_HAND);
-
-        // Find TNT minecart again in case slot index shifted
+        // 2. PLACE TNT MINECART ON THE RAIL
         int actualCartSlot = findItemSlot(player, AutoCartModule::isTntCartItem);
-        boolean swappedCart = false;
         if (actualCartSlot != -1) {
-            int currentCartHotbar = actualCartSlot;
+            boolean swappedCart = false;
+            int activeCartHotbar = actualCartSlot;
             if (actualCartSlot >= 9) {
                 client.interactionManager.clickSlot(syncId, actualCartSlot, tempHotbarSlot, SlotActionType.SWAP, player);
-                currentCartHotbar = tempHotbarSlot;
+                activeCartHotbar = tempHotbarSlot;
                 swappedCart = true;
             }
 
-            player.getInventory().setSelectedSlot(currentCartHotbar);
-            if (player.networkHandler != null) {
-                player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(currentCartHotbar));
-            }
+            selectHotbarSlot(client, player, activeCartHotbar);
 
             BlockHitResult cartHit = new BlockHitResult(
-                Vec3d.ofCenter(railPos).add(0, 0.5, 0),
-                Direction.UP,
-                railPos,
-                false
+                    Vec3d.ofBottomCenter(railPos).add(0, 0.1, 0),
+                    Direction.UP,
+                    railPos,
+                    false
             );
             client.interactionManager.interactBlock(player, Hand.MAIN_HAND, cartHit);
             player.swingHand(Hand.MAIN_HAND);
@@ -227,15 +278,9 @@ public class AutoCartModule {
             }
         }
 
-        if (swappedRail && !swappedCart) {
-            client.interactionManager.clickSlot(syncId, railSlot, tempHotbarSlot, SlotActionType.SWAP, player);
-        }
-
+        // 3. SWITCH BACK TO ORIGINAL BOW SLOT
         if (switchBack) {
-            player.getInventory().setSelectedSlot(originalSlot);
-            if (player.networkHandler != null) {
-                player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
-            }
+            selectHotbarSlot(client, player, originalSlot);
         }
     }
 

@@ -65,10 +65,32 @@ public class ClientPlayerInteractionManagerMixin {
         }
     }
 
+    private static boolean bame$wasFlameBowActive = false;
+    private static int bame$activeBowUseTime = 0;
+
     @Inject(method = "stopUsingItem", at = @At("HEAD"))
-    private void onStopUsingItem(PlayerEntity player, CallbackInfo ci) {
-        if (player != null) {
-            com.bame.client.module.AutoCartModule.onStopUsingItem(player);
+    private void onStopUsingItemHead(PlayerEntity player, CallbackInfo ci) {
+        if (player instanceof net.minecraft.client.network.ClientPlayerEntity clientPlayer) {
+            ItemStack active = clientPlayer.getActiveItem();
+            if (com.bame.client.module.AutoCartModule.enabled && com.bame.client.module.AutoCartModule.isFlameBow(active)) {
+                bame$wasFlameBowActive = true;
+                bame$activeBowUseTime = clientPlayer.getItemUseTime();
+            } else {
+                bame$wasFlameBowActive = false;
+                bame$activeBowUseTime = 0;
+            }
+        }
+    }
+
+    @Inject(method = "stopUsingItem", at = @At("RETURN"))
+    private void onStopUsingItemReturn(PlayerEntity player, CallbackInfo ci) {
+        if (player instanceof net.minecraft.client.network.ClientPlayerEntity clientPlayer && bame$wasFlameBowActive) {
+            bame$wasFlameBowActive = false;
+            int useTime = bame$activeBowUseTime;
+            bame$activeBowUseTime = 0;
+            if (useTime >= 3) {
+                com.bame.client.module.AutoCartModule.onFlameBowShot(clientPlayer);
+            }
         }
     }
 }
