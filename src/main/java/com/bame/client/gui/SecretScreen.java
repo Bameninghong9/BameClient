@@ -123,7 +123,7 @@ public class SecretScreen extends Screen {
     private boolean autoCartVisible() {
         String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
         if (q.isEmpty()) return true;
-        return "autocart".contains(q) || "auto cart".contains(q) || "cart".contains(q) || "tnt".contains(q) || "minecart".contains(q) || "flame".contains(q) || "bow".contains(q) || "rail".contains(q) || "schiene".contains(q);
+        return "autocart".contains(q) || "auto cart".contains(q) || "cart".contains(q) || "tnt".contains(q) || "minecart".contains(q) || "flame".contains(q) || "bow".contains(q) || "rail".contains(q) || "schiene".contains(q) || "slot".contains(q) || "switch".contains(q) || "automatic".contains(q) || "automatisch".contains(q);
     }
 
     private boolean nameProtectVisible() {
@@ -149,7 +149,7 @@ public class SecretScreen extends Screen {
     }
 
     private int getAutoCartHeight() {
-        return AutoCartModule.expanded ? 104 : 46;
+        return AutoCartModule.expanded ? 140 : 46;
     }
 
     private int getNameProtectHeight() {
@@ -496,6 +496,11 @@ public class SecretScreen extends Screen {
             CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, acH, 0xFF292D36, 6);
 
             text(context, "AutoCart", card1X + 12, leftY + 12, 0xFFE2E5ED);
+
+            // Subtitle badge showing active mode
+            String modeBadge = AutoCartModule.mode.getDisplayName();
+            text(context, modeBadge, card1X + 68, leftY + 12, 0xFF8E95A4);
+
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
             String kbCart = listeningCartKey ? "..." : formatKey(AutoCartModule.keyBind);
@@ -506,10 +511,21 @@ public class SecretScreen extends Screen {
                 context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
 
                 int rowY = leftY + 54;
+                text(context, "Modus", card1X + 14, rowY + 5, 0xFFD4D8E0);
+
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card1X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                modeButton(context, "Slot Switch", btn1X, rowY, btnW, btnH, mouseX, mouseY, AutoCartModule.mode == AutoCartModule.CartMode.SLOT_SWITCH);
+                modeButton(context, "Automatisch", btn2X, rowY, btnW, btnH, mouseX, mouseY, AutoCartModule.mode == AutoCartModule.CartMode.AUTOMATIC);
+
+                rowY += 26;
                 text(context, "Switch Back", card1X + 14, rowY + 4, 0xFFD4D8E0);
                 toggle(context, card1X + cardW - 38, rowY + 2, AutoCartModule.switchBack, mouseX, mouseY, delta);
-                rowY += 26;
 
+                rowY += 26;
                 button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
             }
             leftY += acH + 12;
@@ -921,6 +937,28 @@ public class SecretScreen extends Screen {
 
             if (AutoCartModule.expanded) {
                 int rowY = leftY + 54;
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card1X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                // Mode: Slot Switch
+                if (inside(mx, my, btn1X, rowY, btnW, btnH)) {
+                    AutoCartModule.mode = AutoCartModule.CartMode.SLOT_SWITCH;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Mode: Automatisch
+                if (inside(mx, my, btn2X, rowY, btnW, btnH)) {
+                    AutoCartModule.mode = AutoCartModule.CartMode.AUTOMATIC;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
                 // Switch Back toggle
                 if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
                     AutoCartModule.switchBack = !AutoCartModule.switchBack;

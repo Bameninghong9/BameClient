@@ -31,15 +31,38 @@ import net.minecraft.world.World;
 import java.util.function.Predicate;
 
 public class AutoCartModule {
+    public enum CartMode {
+        SLOT_SWITCH("Slot Switch"),
+        AUTOMATIC("Automatisch");
+
+        private final String displayName;
+
+        CartMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
     public static boolean enabled = false;
     public static int keyBind = -1;
     public static boolean expanded = false;
     public static boolean switchBack = true;
+    public static CartMode mode = CartMode.SLOT_SWITCH;
 
     private static boolean wasKeyBindPressed = false;
     private static long lastCartTime = 0;
 
+    // Slot switch tick state machine
+    private static int switchStep = 0; // 0 = idle, 1 = cart placement tick, 2 = restore bow tick
+    private static int originalBowSlot = -1;
+    private static BlockPos targetRailPos = null;
+    private static int cachedTempHotbarSlot = -1;
+
     public static void onTick(MinecraftClient client) {
+        // Keybind toggle
         boolean pressed = keyBind != -1 && client.getWindow() != null && client.currentScreen == null
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
@@ -47,6 +70,62 @@ public class AutoCartModule {
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;
+
+        // Process Slot Switch tick progression
+        if (switchStep > 0) {
+            if (client.player == null || client.world == null || client.interactionManager == null) {
+                switchStep = 0;
+                originalBowSlot = -1;
+                targetRailPos = null;
+                return;
+            }
+
+            ClientPlayerEntity player = client.player;
+            int syncId = player.playerScreenHandler.syncId;
+
+            if (switchStep == 1) {
+                // TICK 1: Place TNT Minecart on top of the rail
+                if (targetRailPos != null) {
+                    int cartSlot = findItemSlot(player, AutoCartModule::isTntCartItem);
+                    if (cartSlot != -1) {
+                        boolean swappedCart = false;
+                        int activeCartHotbar = cartSlot;
+                        if (cartSlot >= 9) {
+                            client.interactionManager.clickSlot(syncId, cartSlot, cachedTempHotbarSlot, SlotActionType.SWAP, player);
+                            activeCartHotbar = cachedTempHotbarSlot;
+                            swappedCart = true;
+                        }
+
+                        selectHotbarSlot(client, player, activeCartHotbar);
+
+                        BlockHitResult cartHit = new BlockHitResult(
+                                Vec3d.ofBottomCenter(targetRailPos).add(0, 0.1, 0),
+                                Direction.UP,
+                                targetRailPos,
+                                false
+                        );
+                        client.interactionManager.interactBlock(player, Hand.MAIN_HAND, cartHit);
+                        player.swingHand(Hand.MAIN_HAND);
+
+                        if (swappedCart) {
+                            client.interactionManager.clickSlot(syncId, cartSlot, cachedTempHotbarSlot, SlotActionType.SWAP, player);
+                        }
+                    }
+                }
+                switchStep = 2; // Advance to restore bow step
+                return;
+            }
+
+            if (switchStep == 2) {
+                // TICK 2: Restore original bow slot
+                if (switchBack && originalBowSlot != -1) {
+                    selectHotbarSlot(client, player, originalBowSlot);
+                }
+                switchStep = 0;
+                originalBowSlot = -1;
+                targetRailPos = null;
+            }
+        }
     }
 
     public static boolean isFlameBow(ItemStack stack) {
@@ -108,7 +187,7 @@ public class AutoCartModule {
         double maxReach = player.getBlockInteractionRange();
         if (maxReach < 4.5) maxReach = 4.5;
 
-        // 1. Crosshair targeting a block within reach (as demonstrated in the video at 7:21)
+        // 1. Crosshair targeting a block within reach
         if (client.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
             BlockPos base = hit.getBlockPos();
             BlockPos candidate = (hit.getSide() == Direction.UP) ? base.up() : base.offset(hit.getSide());
@@ -122,7 +201,7 @@ public class AutoCartModule {
             }
         }
 
-        // 2. Crosshair targeting an entity (e.g. enemy player or mob in combat)
+        // 2. Crosshair targeting an entity
         if (client.crosshairTarget instanceof EntityHitResult entityHit && entityHit.getType() == HitResult.Type.ENTITY) {
             Entity target = entityHit.getEntity();
             if (target != null) {
@@ -138,7 +217,7 @@ public class AutoCartModule {
             }
         }
 
-        // 3. Raycast along player's look vector up to maxReach
+        // 3. Raycast along player look vector
         Vec3d eyePos = player.getEyePos();
         Vec3d lookVec = player.getRotationVec(1.0f);
         Vec3d endPos = eyePos.add(lookVec.multiply(maxReach));
@@ -157,7 +236,7 @@ public class AutoCartModule {
             }
         }
 
-        // 4. Horizontal floor check along look direction
+        // 4. Horizontal ground check along look vector
         Vec3d horiz = new Vec3d(lookVec.x, 0, lookVec.z);
         if (horiz.lengthSquared() > 0.001) {
             horiz = horiz.normalize();
@@ -173,7 +252,7 @@ public class AutoCartModule {
             }
         }
 
-        // 5. Fallback: at player's feet
+        // 5. Fallback: at player feet
         BlockPos feet = player.getBlockPos();
         if (canPlaceRailAt(world, feet)) {
             return feet;
@@ -193,11 +272,12 @@ public class AutoCartModule {
 
     public static void onFlameBowShot(ClientPlayerEntity player) {
         if (!enabled) return;
+        if (switchStep != 0) return; // Sequence already executing
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.world == null || client.interactionManager == null) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastCartTime < 200) return;
+        if (now - lastCartTime < 250) return;
         lastCartTime = now;
 
         int railSlot = findItemSlot(player, AutoCartModule::isRailItem);
@@ -206,8 +286,67 @@ public class AutoCartModule {
 
         BlockPos railPos = findPlacementPos(client, player);
         if (railPos == null) return;
-        BlockPos basePos = railPos.down();
 
+        if (mode == CartMode.SLOT_SWITCH) {
+            // ==================== MODE: SLOT SWITCH ====================
+            // Visibly and actively switches hotbar slots across game ticks!
+            originalBowSlot = player.getInventory().getSelectedSlot();
+            targetRailPos = railPos;
+
+            // Pick temporary hotbar slot
+            cachedTempHotbarSlot = (originalBowSlot == 8) ? 7 : (originalBowSlot + 1) % 9;
+            for (int i = 0; i < 9; i++) {
+                if (i != originalBowSlot && player.getInventory().getStack(i).isEmpty()) {
+                    cachedTempHotbarSlot = i;
+                    break;
+                }
+            }
+
+            int syncId = player.playerScreenHandler.syncId;
+            boolean alreadyHasRail = client.world.getBlockState(railPos).isIn(BlockTags.RAILS);
+
+            if (!alreadyHasRail) {
+                // Step 0: Switch to Rail slot & place rail
+                boolean swappedRail = false;
+                int activeRailHotbar = railSlot;
+                if (railSlot >= 9) {
+                    client.interactionManager.clickSlot(syncId, railSlot, cachedTempHotbarSlot, SlotActionType.SWAP, player);
+                    activeRailHotbar = cachedTempHotbarSlot;
+                    swappedRail = true;
+                }
+
+                selectHotbarSlot(client, player, activeRailHotbar);
+
+                BlockHitResult railHit = new BlockHitResult(
+                        Vec3d.ofBottomCenter(railPos),
+                        Direction.UP,
+                        railPos.down(),
+                        false
+                );
+                client.interactionManager.interactBlock(player, Hand.MAIN_HAND, railHit);
+                player.swingHand(Hand.MAIN_HAND);
+
+                if (client.world.getBlockState(railPos).isAir() || client.world.getBlockState(railPos).isReplaceable()) {
+                    client.world.setBlockState(railPos, Blocks.RAIL.getDefaultState());
+                }
+
+                if (swappedRail) {
+                    client.interactionManager.clickSlot(syncId, railSlot, cachedTempHotbarSlot, SlotActionType.SWAP, player);
+                }
+                switchStep = 1; // TNT cart will be placed on next tick
+            } else {
+                // Rail already present, place cart immediately on next tick
+                switchStep = 1;
+            }
+        } else {
+            // ==================== MODE: AUTOMATIC ====================
+            // Fully automatic instant placement in same tick without disturbing active slot visually
+            executeInstantAutomatic(client, player, railSlot, cartSlot, railPos);
+        }
+    }
+
+    private static void executeInstantAutomatic(MinecraftClient client, ClientPlayerEntity player, int railSlot, int cartSlot, BlockPos railPos) {
+        BlockPos basePos = railPos.down();
         int originalSlot = player.getInventory().getSelectedSlot();
         int tempHotbarSlot = (originalSlot == 8) ? 7 : (originalSlot + 1) % 9;
         for (int i = 0; i < 9; i++) {
@@ -219,7 +358,7 @@ public class AutoCartModule {
 
         int syncId = player.playerScreenHandler.syncId;
 
-        // 1. PLACE RAIL (only if there isn't already a rail there)
+        // 1. Place Rail
         boolean alreadyHasRail = client.world.getBlockState(railPos).isIn(BlockTags.RAILS);
         if (!alreadyHasRail) {
             boolean swappedRail = false;
@@ -241,7 +380,6 @@ public class AutoCartModule {
             client.interactionManager.interactBlock(player, Hand.MAIN_HAND, railHit);
             player.swingHand(Hand.MAIN_HAND);
 
-            // Predict rail in client world so subsequent cart placement recognizes it instantly
             if (client.world.getBlockState(railPos).isAir() || client.world.getBlockState(railPos).isReplaceable()) {
                 client.world.setBlockState(railPos, Blocks.RAIL.getDefaultState());
             }
@@ -251,7 +389,7 @@ public class AutoCartModule {
             }
         }
 
-        // 2. PLACE TNT MINECART ON THE RAIL
+        // 2. Place TNT Minecart
         int actualCartSlot = findItemSlot(player, AutoCartModule::isTntCartItem);
         if (actualCartSlot != -1) {
             boolean swappedCart = false;
@@ -278,7 +416,7 @@ public class AutoCartModule {
             }
         }
 
-        // 3. SWITCH BACK TO ORIGINAL BOW SLOT
+        // 3. Switch back to bow
         if (switchBack) {
             selectHotbarSlot(client, player, originalSlot);
         }
@@ -289,6 +427,10 @@ public class AutoCartModule {
         keyBind = -1;
         expanded = false;
         switchBack = true;
+        mode = CartMode.SLOT_SWITCH;
+        switchStep = 0;
+        originalBowSlot = -1;
+        targetRailPos = null;
         BameClientConfig.save();
     }
 }
