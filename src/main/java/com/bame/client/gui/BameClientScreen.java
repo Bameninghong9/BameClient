@@ -11,7 +11,6 @@ import com.bame.client.module.CpsModule;
 import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.ServerInfoModule;
 import com.bame.client.module.ShowHudModule;
-import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.ClockModule;
 import com.bame.client.module.CoordinatesModule;
 import com.bame.client.module.PotionsModule;
@@ -62,7 +61,7 @@ import java.util.Set;
 public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
-    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningFakeScoreboard,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
+    private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
     private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger,listeningSkinProtect;
     private PlayerSkinWidget skinPreviewWidget;
     private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingHitboxAlpha,draggingHitboxWidth,draggingBlockOutlineWidth,draggingBlockOutlineOpacity;
@@ -165,7 +164,7 @@ public class BameClientScreen extends Screen {
     }
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
-    private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField,fakeMoneyField,fakeStarsField,fakeKillsField,fakeDeathsField,fakeTimeField,skinSearchWidget;
+    private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField,skinSearchWidget;
     private long openTime=0;
     private final OutlineColorPicker picker=new OutlineColorPicker();
     private final ThemeSettingsPanel themeSettings=new ThemeSettingsPanel();
@@ -220,38 +219,6 @@ public class BameClientScreen extends Screen {
         });
         addSelectableChild(nameProtectAliasField);
 
-        int labelW = 44;
-        int fieldW = halfW - labelW - 24;
-        fakeMoneyField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Money"));
-        fakeMoneyField.setText(FakeScoreboardModule.money != null ? FakeScoreboardModule.money : "670T");
-        fakeMoneyField.setPlaceholder("e.g. 670T");
-        fakeMoneyField.setChangedListener(s -> { FakeScoreboardModule.money = s; BameClientConfig.save(); });
-        addSelectableChild(fakeMoneyField);
-
-        fakeStarsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Stars"));
-        fakeStarsField.setText(FakeScoreboardModule.stars != null ? FakeScoreboardModule.stars : "2.5K");
-        fakeStarsField.setPlaceholder("e.g. 2.5K");
-        fakeStarsField.setChangedListener(s -> { FakeScoreboardModule.stars = s; BameClientConfig.save(); });
-        addSelectableChild(fakeStarsField);
-
-        fakeKillsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Kills"));
-        fakeKillsField.setText(FakeScoreboardModule.kills != null ? FakeScoreboardModule.kills : "5283");
-        fakeKillsField.setPlaceholder("e.g. 5283");
-        fakeKillsField.setChangedListener(s -> { FakeScoreboardModule.kills = s; BameClientConfig.save(); });
-        addSelectableChild(fakeKillsField);
-
-        fakeDeathsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Deaths"));
-        fakeDeathsField.setText(FakeScoreboardModule.deaths != null ? FakeScoreboardModule.deaths : "2983");
-        fakeDeathsField.setPlaceholder("e.g. 2983");
-        fakeDeathsField.setChangedListener(s -> { FakeScoreboardModule.deaths = s; BameClientConfig.save(); });
-        addSelectableChild(fakeDeathsField);
-
-        fakeTimeField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Time"));
-        fakeTimeField.setText(FakeScoreboardModule.playtime != null ? FakeScoreboardModule.playtime : "10d 22h");
-        fakeTimeField.setPlaceholder("e.g. 10d 22h");
-        fakeTimeField.setChangedListener(s -> { FakeScoreboardModule.playtime = s; BameClientConfig.save(); });
-        addSelectableChild(fakeTimeField);
-
         itemSearchWidget = new CustomTextFieldWidget(0, 0, 318, 20, Text.literal("Search"));
         itemSearchWidget.setPlaceholder("Search...");
         itemSearchWidget.setDrawsBackground(true);
@@ -283,11 +250,6 @@ public class BameClientScreen extends Screen {
                    "cps".contains(q) || "keystrokes".contains(q) || "server info".contains(q) || "name protect".contains(q) ||
                    "clock".contains(q) || "coordinates".contains(q) || "potions".contains(q) || "target hud".contains(q) || "armor hud".contains(q);
         }
-        return selected.equals("Visuals");
-    }
-    private boolean fakeScoreboardVisible() {
-        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
-        if (!q.isEmpty()) return "fake scoreboard".contains(q) || "fake".contains(q);
         return selected.equals("Visuals");
     }
     private boolean scoreboardVisible() {
@@ -418,10 +380,6 @@ public class BameClientScreen extends Screen {
         int extra = (ServerInfoModule.enabled ? 24 : 0) + (NameProtectModule.enabled ? 26 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + 28 + 10;
         return 46 + 8 + 11 * 26 + extra;
     }
-    private int getFakeScoreboardHeight() {
-        if (!FakeScoreboardModule.expanded) return 46;
-        return 46 + 8 + 5 * 24 + 26 + 8;
-    }
     private int getScoreboardHeight() {
         return ScoreboardModule.expanded ? 78 : 46;
     }
@@ -470,7 +428,6 @@ public class BameClientScreen extends Screen {
         if (minerVisible()) leftY += getMinerHeight() + 12;
 
         if (showHudVisible()) leftY += getShowHudHeight() + 12;
-        if (fakeScoreboardVisible()) leftY += getFakeScoreboardHeight() + 12;
         if (scoreboardVisible()) leftY += getScoreboardHeight() + 12;
         if (invMoveVisible()) leftY += getInvMoveHeight() + 12;
         if (autoClickerVisible()) leftY += getAutoClickerHeight() + 12;
@@ -529,57 +486,6 @@ public class BameClientScreen extends Screen {
             }
         }
         if (showHudVisible()) leftY += getShowHudHeight() + 12;
-
-        if (fakeMoneyField != null) {
-            if (fakeScoreboardVisible() && FakeScoreboardModule.expanded) {
-                int startY = leftY + 54;
-                int lW = 44;
-                int fieldX = cx + 14 + lW;
-                int fW = halfW - lW - 24;
-
-                fakeMoneyField.setX(fieldX);
-                fakeMoneyField.setY(startY);
-                fakeMoneyField.setWidth(fW);
-                fakeMoneyField.visible = true;
-                fakeMoneyField.active = fakeMoneyField.getY() + 18 > cy && fakeMoneyField.getY() < cy + ch;
-                if (!fakeMoneyField.active) fakeMoneyField.setFocused(false);
-
-                fakeStarsField.setX(fieldX);
-                fakeStarsField.setY(startY + 24);
-                fakeStarsField.setWidth(fW);
-                fakeStarsField.visible = true;
-                fakeStarsField.active = fakeStarsField.getY() + 18 > cy && fakeStarsField.getY() < cy + ch;
-                if (!fakeStarsField.active) fakeStarsField.setFocused(false);
-
-                fakeKillsField.setX(fieldX);
-                fakeKillsField.setY(startY + 48);
-                fakeKillsField.setWidth(fW);
-                fakeKillsField.visible = true;
-                fakeKillsField.active = fakeKillsField.getY() + 18 > cy && fakeKillsField.getY() < cy + ch;
-                if (!fakeKillsField.active) fakeKillsField.setFocused(false);
-
-                fakeDeathsField.setX(fieldX);
-                fakeDeathsField.setY(startY + 72);
-                fakeDeathsField.setWidth(fW);
-                fakeDeathsField.visible = true;
-                fakeDeathsField.active = fakeDeathsField.getY() + 18 > cy && fakeDeathsField.getY() < cy + ch;
-                if (!fakeDeathsField.active) fakeDeathsField.setFocused(false);
-
-                fakeTimeField.setX(fieldX);
-                fakeTimeField.setY(startY + 96);
-                fakeTimeField.setWidth(fW);
-                fakeTimeField.visible = true;
-                fakeTimeField.active = fakeTimeField.getY() + 18 > cy && fakeTimeField.getY() < cy + ch;
-                if (!fakeTimeField.active) fakeTimeField.setFocused(false);
-            } else {
-                fakeMoneyField.visible = fakeMoneyField.active = false; fakeMoneyField.setFocused(false);
-                fakeStarsField.visible = fakeStarsField.active = false; fakeStarsField.setFocused(false);
-                fakeKillsField.visible = fakeKillsField.active = false; fakeKillsField.setFocused(false);
-                fakeDeathsField.visible = fakeDeathsField.active = false; fakeDeathsField.setFocused(false);
-                fakeTimeField.visible = fakeTimeField.active = false; fakeTimeField.setFocused(false);
-            }
-        }
-        if (fakeScoreboardVisible()) leftY += getFakeScoreboardHeight() + 12;
 
         themeSettings.layout(cx,baseY()+settingsY(),cw);
     }
@@ -794,10 +700,6 @@ public class BameClientScreen extends Screen {
             if (showHudVisible()) {
                 renderShowHudModule(c, mx, my, delta, cx, leftY, halfW);
                 leftY += getShowHudHeight() + 12;
-            }
-            if (fakeScoreboardVisible()) {
-                renderFakeScoreboardModule(c, mx, my, delta, cx, leftY, halfW);
-                leftY += getFakeScoreboardHeight() + 12;
             }
             if (scoreboardVisible()) {
                 renderScoreboardModule(c, mx, my, delta, cx, leftY, halfW);
@@ -1077,45 +979,6 @@ public class BameClientScreen extends Screen {
         // Bottom buttons in dropdown
         curY += 4;
         button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
-        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
-    }
-
-    private void renderFakeScoreboardModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = getFakeScoreboardHeight();
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        text(c, "Fake Scoreboard", x + 12, y + 12, 0xFFE2E5ED);
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningFakeScoreboard ? "..." : formatKey(FakeScoreboardModule.keyBind);
-        button(c, kb, x + 58, y + 25, 42, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, FakeScoreboardModule.enabled, mx, my, delta);
-
-        if (!FakeScoreboardModule.expanded) return;
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-
-        int curY = y + 54;
-        text(c, "Money:", x + 14, curY + 4, 0xFFD4D8E0);
-        if (fakeMoneyField != null) fakeMoneyField.render(c, mx, my, delta);
-        curY += 24;
-
-        text(c, "Stars:", x + 14, curY + 4, 0xFFD4D8E0);
-        if (fakeStarsField != null) fakeStarsField.render(c, mx, my, delta);
-        curY += 24;
-
-        text(c, "Kills:", x + 14, curY + 4, 0xFFD4D8E0);
-        if (fakeKillsField != null) fakeKillsField.render(c, mx, my, delta);
-        curY += 24;
-
-        text(c, "Deaths:", x + 14, curY + 4, 0xFFD4D8E0);
-        if (fakeDeathsField != null) fakeDeathsField.render(c, mx, my, delta);
-        curY += 24;
-
-        text(c, "Time:", x + 14, curY + 4, 0xFFD4D8E0);
-        if (fakeTimeField != null) fakeTimeField.render(c, mx, my, delta);
-        curY += 26;
-
-        button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
-        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
     private void renderZoom(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -2415,11 +2278,6 @@ public class BameClientScreen extends Screen {
     private void unfocus() {
         search.setFocused(false); corner1.setFocused(false); corner2.setFocused(false);
         if (nameProtectAliasField != null) nameProtectAliasField.setFocused(false);
-        if (fakeMoneyField != null) fakeMoneyField.setFocused(false);
-        if (fakeStarsField != null) fakeStarsField.setFocused(false);
-        if (fakeKillsField != null) fakeKillsField.setFocused(false);
-        if (fakeDeathsField != null) fakeDeathsField.setFocused(false);
-        if (fakeTimeField != null) fakeTimeField.setFocused(false);
         if (itemSearchWidget != null) itemSearchWidget.setFocused(false);
         if (skinSearchWidget != null) skinSearchWidget.setFocused(false);
         for (java.util.Map.Entry<String, CustomTextFieldWidget> fe : toolThresholdFields.entrySet()) {
@@ -2889,56 +2747,6 @@ public class BameClientScreen extends Screen {
                     }
                 }
                 leftY += getShowHudHeight() + 12;
-            }
-
-            if (fakeScoreboardVisible()) {
-                int myY = baseY() + leftY;
-                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
-                    FakeScoreboardModule.enabled = !FakeScoreboardModule.enabled;
-                    BameClientConfig.save();
-                    return true;
-                }
-                if (inside(mx, my, cx + 58, myY + 25, 42, 16)) {
-                    listeningFakeScoreboard = true;
-                    return true;
-                }
-                if (inside(mx, my, cx, myY, halfW, 46)) {
-                    FakeScoreboardModule.expanded = !FakeScoreboardModule.expanded;
-                    layout();
-                    return true;
-                }
-                if (FakeScoreboardModule.expanded) {
-                    if (fakeMoneyField != null && fakeMoneyField.mouseClicked(click, twice)) {
-                        setFocused(fakeMoneyField);
-                        return true;
-                    }
-                    if (fakeStarsField != null && fakeStarsField.mouseClicked(click, twice)) {
-                        setFocused(fakeStarsField);
-                        return true;
-                    }
-                    if (fakeKillsField != null && fakeKillsField.mouseClicked(click, twice)) {
-                        setFocused(fakeKillsField);
-                        return true;
-                    }
-                    if (fakeDeathsField != null && fakeDeathsField.mouseClicked(click, twice)) {
-                        setFocused(fakeDeathsField);
-                        return true;
-                    }
-                    if (fakeTimeField != null && fakeTimeField.mouseClicked(click, twice)) {
-                        setFocused(fakeTimeField);
-                        return true;
-                    }
-                    int editHudY = myY + 54 + 5 * 24 + 2;
-                    if (inside(mx, my, cx + 14, editHudY, 50, 16)) {
-                        client.setScreen(new HudEditorScreen(this));
-                        return true;
-                    }
-                    if (inside(mx, my, cx + halfW - 58, editHudY, 46, 16)) {
-                        resetFakeScoreboard();
-                        return true;
-                    }
-                }
-                leftY += getFakeScoreboardHeight() + 12;
             }
 
             if (scoreboardVisible()) {
@@ -4082,28 +3890,6 @@ public class BameClientScreen extends Screen {
         return false;
     }
 
-    private void resetFakeScoreboard() {
-        FakeScoreboardModule.hudX = -1;
-        FakeScoreboardModule.hudY = -1;
-        FakeScoreboardModule.scale = 1.0f;
-        FakeScoreboardModule.customWidth = -1;
-        FakeScoreboardModule.customHeight = -1;
-        FakeScoreboardModule.bgMode = 0;
-        FakeScoreboardModule.outlineColor = 0xFFFFFFFF;
-        FakeScoreboardModule.money = "$12,450";
-        FakeScoreboardModule.stars = "★ 5";
-        FakeScoreboardModule.kills = "128";
-        FakeScoreboardModule.deaths = "12";
-        FakeScoreboardModule.playtime = "42h";
-        if (fakeMoneyField != null) fakeMoneyField.setText(FakeScoreboardModule.money);
-        if (fakeStarsField != null) fakeStarsField.setText(FakeScoreboardModule.stars);
-        if (fakeKillsField != null) fakeKillsField.setText(FakeScoreboardModule.kills);
-        if (fakeDeathsField != null) fakeDeathsField.setText(FakeScoreboardModule.deaths);
-        if (fakeTimeField != null) fakeTimeField.setText(FakeScoreboardModule.playtime);
-        BameClientConfig.save();
-        layout();
-    }
-
     private void resetScoreboard() {
         ScoreboardModule.hudX = -1;
         ScoreboardModule.hudY = -1;
@@ -4257,7 +4043,7 @@ public class BameClientScreen extends Screen {
         BameClientConfig.save();
         layout();
     }
-    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningFakeScoreboard=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; listeningSkinProtect=false; unfocus(); layout(); }
+    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; listeningSkinProtect=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -4545,13 +4331,12 @@ public class BameClientScreen extends Screen {
             cpDrag = -1;
             return true;
         }
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningFakeScoreboard && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger && !listeningSkinProtect) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger && !listeningSkinProtect) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
         if(listeningShowHud) { com.bame.client.module.ShowHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningShowHud=false; BameClientConfig.save(); return true; }
         if(listeningZoom) { com.bame.client.module.ZoomModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningZoom=false; BameClientConfig.save(); return true; }
-        if(listeningFakeScoreboard) { com.bame.client.module.FakeScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFakeScoreboard=false; BameClientConfig.save(); return true; }
         if(listeningSpotify) { com.bame.client.module.SpotifyHudModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningSpotify=false; BameClientConfig.save(); return true; }
         if(listeningScoreboard) { com.bame.client.module.ScoreboardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningScoreboard=false; BameClientConfig.save(); return true; }
         if(listeningCrosshair) { com.bame.client.module.CustomCrosshairModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningCrosshair=false; BameClientConfig.save(); return true; }

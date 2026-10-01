@@ -1,6 +1,7 @@
 package com.bame.client.gui;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.PearlPredictionModule;
 import com.bame.client.render.BlurRenderer;
 import com.bame.client.sound.ClientSoundManager;
@@ -8,6 +9,7 @@ import com.bame.client.wallpaper.WallpaperManager;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
@@ -20,7 +22,14 @@ public class SecretScreen extends Screen {
     private final AmbientLighting ambient = new AmbientLighting();
     private boolean listeningCombo = false;
     private boolean listeningPearlKey = false;
+    private boolean listeningFakeKey = false;
     private long openTime = System.currentTimeMillis();
+
+    private CustomTextFieldWidget fakeMoneyField;
+    private CustomTextFieldWidget fakeStarsField;
+    private CustomTextFieldWidget fakeKillsField;
+    private CustomTextFieldWidget fakeDeathsField;
+    private CustomTextFieldWidget fakeTimeField;
 
     public SecretScreen(Screen parent) {
         super(Text.literal("Secret Menu"));
@@ -28,7 +37,69 @@ public class SecretScreen extends Screen {
     }
 
     @Override
+    protected void init() {
+        super.init();
+        int pw = Math.clamp(width - 40, 580, 640);
+        int gap = 14;
+        int cardW = (pw - 28 - gap) / 2;
+        int labelW = 44;
+        int fieldW = cardW - labelW - 28;
+
+        fakeMoneyField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Money"));
+        fakeMoneyField.setText(FakeScoreboardModule.money != null ? FakeScoreboardModule.money : "$12,450");
+        fakeMoneyField.setPlaceholder("e.g. $12,450");
+        fakeMoneyField.setChangedListener(s -> { FakeScoreboardModule.money = s; BameClientConfig.save(); });
+        addSelectableChild(fakeMoneyField);
+
+        fakeStarsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Stars"));
+        fakeStarsField.setText(FakeScoreboardModule.stars != null ? FakeScoreboardModule.stars : "★ 5");
+        fakeStarsField.setPlaceholder("e.g. ★ 5");
+        fakeStarsField.setChangedListener(s -> { FakeScoreboardModule.stars = s; BameClientConfig.save(); });
+        addSelectableChild(fakeStarsField);
+
+        fakeKillsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Kills"));
+        fakeKillsField.setText(FakeScoreboardModule.kills != null ? FakeScoreboardModule.kills : "128");
+        fakeKillsField.setPlaceholder("e.g. 128");
+        fakeKillsField.setChangedListener(s -> { FakeScoreboardModule.kills = s; BameClientConfig.save(); });
+        addSelectableChild(fakeKillsField);
+
+        fakeDeathsField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Deaths"));
+        fakeDeathsField.setText(FakeScoreboardModule.deaths != null ? FakeScoreboardModule.deaths : "12");
+        fakeDeathsField.setPlaceholder("e.g. 12");
+        fakeDeathsField.setChangedListener(s -> { FakeScoreboardModule.deaths = s; BameClientConfig.save(); });
+        addSelectableChild(fakeDeathsField);
+
+        fakeTimeField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Time"));
+        fakeTimeField.setText(FakeScoreboardModule.playtime != null ? FakeScoreboardModule.playtime : "42h");
+        fakeTimeField.setPlaceholder("e.g. 42h");
+        fakeTimeField.setChangedListener(s -> { FakeScoreboardModule.playtime = s; BameClientConfig.save(); });
+        addSelectableChild(fakeTimeField);
+    }
+
+    private void resetFakeScoreboard() {
+        FakeScoreboardModule.hudX = -1;
+        FakeScoreboardModule.hudY = -1;
+        FakeScoreboardModule.scale = 1.0f;
+        FakeScoreboardModule.customWidth = -1;
+        FakeScoreboardModule.customHeight = -1;
+        FakeScoreboardModule.bgMode = 0;
+        FakeScoreboardModule.outlineColor = 0xFFFFFFFF;
+        FakeScoreboardModule.money = "$12,450";
+        FakeScoreboardModule.stars = "★ 5";
+        FakeScoreboardModule.kills = "128";
+        FakeScoreboardModule.deaths = "12";
+        FakeScoreboardModule.playtime = "42h";
+        if (fakeMoneyField != null) fakeMoneyField.setText(FakeScoreboardModule.money);
+        if (fakeStarsField != null) fakeStarsField.setText(FakeScoreboardModule.stars);
+        if (fakeKillsField != null) fakeKillsField.setText(FakeScoreboardModule.kills);
+        if (fakeDeathsField != null) fakeDeathsField.setText(FakeScoreboardModule.deaths);
+        if (fakeTimeField != null) fakeTimeField.setText(FakeScoreboardModule.playtime);
+        BameClientConfig.save();
+    }
+
+    @Override
     public void close() {
+        BameClientConfig.save();
         if (this.client != null) {
             this.client.setScreen(parent);
         }
@@ -141,8 +212,8 @@ public class SecretScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.renderBackground(context, mouseX, mouseY, delta);
 
-        int pw = Math.clamp(width - 40, 560, 640);
-        int ph = Math.clamp(height - 40, 250, 280);
+        int pw = Math.clamp(width - 40, 580, 640);
+        int ph = Math.clamp(height - 40, 280, 295);
         int px = (width - pw) / 2;
         int py = (height - ph) / 2;
 
@@ -176,6 +247,15 @@ public class SecretScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(context, px + 142, py + 16, badgeW, 16, GuiTheme.accent(), 4);
         text(context, badge, px + 148, py + 20, GuiTheme.accent());
 
+        // Quick switch button for secret bind right next to [ SECRET MENU ]
+        int bindBtnX = px + 142 + badgeW + 8;
+        String comboStr = getComboString();
+        String bindLabel = listeningCombo ? "> Tasten drücken... <" : ("Bind: " + comboStr);
+        int bindBtnW = textRenderer.getWidth(CustomGuiUtils.getFontText(bindLabel)) + 14;
+        int bindBtnH = 16;
+        int bindBtnY = py + 16;
+        modeButton(context, bindLabel, bindBtnX, bindBtnY, bindBtnW, bindBtnH, mouseX, mouseY, listeningCombo);
+
         // Close / Zurück button
         button(context, "Zurück", px + pw - 64, py + 14, 50, 18, mouseX, mouseY);
 
@@ -197,8 +277,8 @@ public class SecretScreen extends Screen {
         text(context, "Pearl Prediction", card1X + 12, cardY + 12, 0xFFE2E5ED);
         text(context, "KeyBind:", card1X + 12, cardY + 29, 0xFF8E95A4);
 
-        String kb = listeningPearlKey ? "..." : formatKey(PearlPredictionModule.keyBind);
-        button(context, kb, card1X + 60, cardY + 25, 48, 16, mouseX, mouseY);
+        String kb1 = listeningPearlKey ? "..." : formatKey(PearlPredictionModule.keyBind);
+        button(context, kb1, card1X + 60, cardY + 25, 48, 16, mouseX, mouseY);
         toggle(context, card1X + cardW - 38, cardY + 12, PearlPredictionModule.enabled, mouseX, mouseY, delta);
 
         if (PearlPredictionModule.expanded) {
@@ -224,45 +304,135 @@ public class SecretScreen extends Screen {
             button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
         }
 
-        // ==================== CARD 2: Secret Unlock Keybind ====================
-        int card2H = 168;
+        // ==================== CARD 2: Fake Scoreboard ====================
+        int card2H = FakeScoreboardModule.expanded ? 208 : 46;
         box(context, card2X, cardY, cardW, card2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
         CustomGuiUtils.drawUltraRoundedOutline(context, card2X, cardY, cardW, card2H, 0xFF292D36, 6);
 
-        text(context, "Secret Unlock Bind", card2X + 12, cardY + 12, 0xFFE2E5ED);
-        text(context, "Tastenkombination", card2X + 12, cardY + 29, 0xFF8E95A4);
+        text(context, "Fake Scoreboard", card2X + 12, cardY + 12, 0xFFE2E5ED);
+        text(context, "KeyBind:", card2X + 12, cardY + 29, 0xFF8E95A4);
 
-        int actW = textRenderer.getWidth(CustomGuiUtils.getFontText("ACTIVE")) + 10;
-        CustomGuiUtils.fillUltraRounded(context, card2X + cardW - actW - 12, cardY + 12, actW, 16, GuiTheme.alpha(GuiTheme.accent(), 40), 4);
-        text(context, "ACTIVE", card2X + cardW - actW - 7, cardY + 16, GuiTheme.accent());
+        String kb2 = listeningFakeKey ? "..." : formatKey(FakeScoreboardModule.keyBind);
+        button(context, kb2, card2X + 60, cardY + 25, 48, 16, mouseX, mouseY);
+        toggle(context, card2X + cardW - 38, cardY + 12, FakeScoreboardModule.enabled, mouseX, mouseY, delta);
 
-        context.fill(card2X + 8, cardY + 46, card2X + cardW - 8, cardY + 47, 0xFF292D36);
+        int labelW = 44;
+        int fieldW = cardW - labelW - 28;
+        if (FakeScoreboardModule.expanded) {
+            context.fill(card2X + 8, cardY + 46, card2X + cardW - 8, cardY + 47, 0xFF292D36);
 
-        text(context, "Kombination zum Entsperren:", card2X + 14, cardY + 56, 0xFFD4D8E0);
+            int fieldX = card2X + 14 + labelW;
+            int curY = cardY + 54;
 
-        int btnW = cardW - 28;
-        int btnH = 26;
-        int btnX = card2X + 14;
-        int btnY = cardY + 74;
-        String comboLabel = listeningCombo ? "> Tasten drücken... <" : getComboString();
-        modeButton(context, comboLabel, btnX, btnY, btnW, btnH, mouseX, mouseY, listeningCombo);
+            text(context, "Money:", card2X + 14, curY + 4, 0xFFD4D8E0);
+            if (fakeMoneyField != null) {
+                fakeMoneyField.setX(fieldX);
+                fakeMoneyField.setY(curY);
+                fakeMoneyField.setWidth(fieldW);
+                fakeMoneyField.visible = true;
+                fakeMoneyField.active = true;
+                fakeMoneyField.render(context, mouseX, mouseY, delta);
+            }
+            curY += 24;
 
-        text(context, listeningCombo ? "Drücke z.B. Ctrl + C (ESC: Stop)" : "Klicken, um Bind zu ändern", card2X + 14, cardY + 106, 0xFF7F8694);
-        text(context, "Standard: Ctrl + C", card2X + 14, cardY + 122, 0xFF7F8694);
+            text(context, "Stars:", card2X + 14, curY + 4, 0xFFD4D8E0);
+            if (fakeStarsField != null) {
+                fakeStarsField.setX(fieldX);
+                fakeStarsField.setY(curY);
+                fakeStarsField.setWidth(fieldW);
+                fakeStarsField.visible = true;
+                fakeStarsField.active = true;
+                fakeStarsField.render(context, mouseX, mouseY, delta);
+            }
+            curY += 24;
 
-        button(context, "Default", card2X + cardW - 58, cardY + 140, 46, 16, mouseX, mouseY);
+            text(context, "Kills:", card2X + 14, curY + 4, 0xFFD4D8E0);
+            if (fakeKillsField != null) {
+                fakeKillsField.setX(fieldX);
+                fakeKillsField.setY(curY);
+                fakeKillsField.setWidth(fieldW);
+                fakeKillsField.visible = true;
+                fakeKillsField.active = true;
+                fakeKillsField.render(context, mouseX, mouseY, delta);
+            }
+            curY += 24;
+
+            text(context, "Deaths:", card2X + 14, curY + 4, 0xFFD4D8E0);
+            if (fakeDeathsField != null) {
+                fakeDeathsField.setX(fieldX);
+                fakeDeathsField.setY(curY);
+                fakeDeathsField.setWidth(fieldW);
+                fakeDeathsField.visible = true;
+                fakeDeathsField.active = true;
+                fakeDeathsField.render(context, mouseX, mouseY, delta);
+            }
+            curY += 24;
+
+            text(context, "Time:", card2X + 14, curY + 4, 0xFFD4D8E0);
+            if (fakeTimeField != null) {
+                fakeTimeField.setX(fieldX);
+                fakeTimeField.setY(curY);
+                fakeTimeField.setWidth(fieldW);
+                fakeTimeField.visible = true;
+                fakeTimeField.active = true;
+                fakeTimeField.render(context, mouseX, mouseY, delta);
+            }
+            curY += 26;
+
+            button(context, "Edit HUD", card2X + 14, curY, 52, 16, mouseX, mouseY);
+            button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+        } else {
+            if (fakeMoneyField != null) fakeMoneyField.visible = fakeMoneyField.active = false;
+            if (fakeStarsField != null) fakeStarsField.visible = fakeStarsField.active = false;
+            if (fakeKillsField != null) fakeKillsField.visible = fakeKillsField.active = false;
+            if (fakeDeathsField != null) fakeDeathsField.visible = fakeDeathsField.active = false;
+            if (fakeTimeField != null) fakeTimeField.visible = fakeTimeField.active = false;
+        }
     }
 
     @Override
     public boolean mouseClicked(Click click, boolean twice) {
-        if (click.button() != 0) return false;
         double mx = click.x();
         double my = click.y();
 
-        int pw = Math.clamp(width - 40, 560, 640);
-        int ph = Math.clamp(height - 40, 250, 280);
+        int pw = Math.clamp(width - 40, 580, 640);
+        int ph = Math.clamp(height - 40, 280, 295);
         int px = (width - pw) / 2;
         int py = (height - ph) / 2;
+
+        String badge = "SECRET MENU";
+        int badgeW = textRenderer.getWidth(CustomGuiUtils.getFontText(badge)) + 12;
+
+        // Secret bind quick switch button
+        String comboStr = getComboString();
+        String bindLabel = listeningCombo ? "> Tasten drücken... <" : ("Bind: " + comboStr);
+        int bindBtnW = textRenderer.getWidth(CustomGuiUtils.getFontText(bindLabel)) + 14;
+        int bindBtnX = px + 142 + badgeW + 8;
+        int bindBtnY = py + 16;
+        int bindBtnH = 16;
+
+        if (inside(mx, my, bindBtnX, bindBtnY, bindBtnW, bindBtnH)) {
+            if (click.button() == 1) { // Right click -> Reset to default Ctrl + C
+                BameClientConfig.secretRequireShift = false;
+                BameClientConfig.secretRequireCtrl = true;
+                BameClientConfig.secretRequireAlt = false;
+                BameClientConfig.secretKey = GLFW.GLFW_KEY_C;
+                listeningCombo = false;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            } else if (click.button() == 0) {
+                listeningCombo = !listeningCombo;
+                if (listeningCombo) {
+                    listeningPearlKey = false;
+                    listeningFakeKey = false;
+                }
+                ClientSoundManager.playClick();
+                return true;
+            }
+        }
+
+        if (click.button() != 0) return false;
 
         // Close button
         if (inside(mx, my, px + pw - 64, py + 14, 50, 18)) {
@@ -277,7 +447,7 @@ public class SecretScreen extends Screen {
         int card2X = card1X + cardW + gap;
         int cardY = py + 52;
 
-        // Card 1: Pearl Prediction
+        // ==================== Card 1: Pearl Prediction ====================
         // Main toggle
         if (inside(mx, my, card1X + cardW - 38, cardY + 12, 26, 14)) {
             PearlPredictionModule.enabled = !PearlPredictionModule.enabled;
@@ -290,6 +460,7 @@ public class SecretScreen extends Screen {
         if (inside(mx, my, card1X + 60, cardY + 25, 48, 16)) {
             listeningPearlKey = true;
             listeningCombo = false;
+            listeningFakeKey = false;
             ClientSoundManager.playClick();
             return true;
         }
@@ -339,28 +510,70 @@ public class SecretScreen extends Screen {
             }
         }
 
-        // Card 2: Secret Unlock Bind
-        int btnW = cardW - 28;
-        int btnH = 26;
-        int btnX = card2X + 14;
-        int btnY = cardY + 74;
+        // ==================== Card 2: Fake Scoreboard ====================
+        // Main toggle
+        if (inside(mx, my, card2X + cardW - 38, cardY + 12, 26, 14)) {
+            FakeScoreboardModule.enabled = !FakeScoreboardModule.enabled;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
 
-        if (inside(mx, my, btnX, btnY, btnW, btnH)) {
-            listeningCombo = true;
+        // Keybind button
+        if (inside(mx, my, card2X + 60, cardY + 25, 48, 16)) {
+            listeningFakeKey = true;
+            listeningCombo = false;
             listeningPearlKey = false;
             ClientSoundManager.playClick();
             return true;
         }
 
-        // Reset to default combo (Ctrl + C)
-        if (inside(mx, my, card2X + cardW - 58, cardY + 140, 46, 16)) {
-            BameClientConfig.secretRequireShift = false;
-            BameClientConfig.secretRequireCtrl = true;
-            BameClientConfig.secretRequireAlt = false;
-            BameClientConfig.secretKey = GLFW.GLFW_KEY_C;
-            BameClientConfig.save();
+        // Header expand click
+        if (inside(mx, my, card2X, cardY, cardW, 46)) {
+            FakeScoreboardModule.expanded = !FakeScoreboardModule.expanded;
             ClientSoundManager.playClick();
+            BameClientConfig.save();
             return true;
+        }
+
+        if (FakeScoreboardModule.expanded) {
+            if (fakeMoneyField != null && fakeMoneyField.mouseClicked(click, twice)) {
+                setFocused(fakeMoneyField);
+                return true;
+            }
+            if (fakeStarsField != null && fakeStarsField.mouseClicked(click, twice)) {
+                setFocused(fakeStarsField);
+                return true;
+            }
+            if (fakeKillsField != null && fakeKillsField.mouseClicked(click, twice)) {
+                setFocused(fakeKillsField);
+                return true;
+            }
+            if (fakeDeathsField != null && fakeDeathsField.mouseClicked(click, twice)) {
+                setFocused(fakeDeathsField);
+                return true;
+            }
+            if (fakeTimeField != null && fakeTimeField.mouseClicked(click, twice)) {
+                setFocused(fakeTimeField);
+                return true;
+            }
+
+            int actionY = cardY + 54 + 5 * 24 + 2;
+            // Edit HUD button
+            if (inside(mx, my, card2X + 14, actionY, 52, 16)) {
+                ClientSoundManager.playClick();
+                if (this.client != null) {
+                    this.client.setScreen(new HudEditorScreen(this));
+                }
+                return true;
+            }
+
+            // Reset button
+            if (inside(mx, my, card2X + cardW - 58, actionY, 46, 16)) {
+                resetFakeScoreboard();
+                ClientSoundManager.playClick();
+                return true;
+            }
         }
 
         return super.mouseClicked(click, twice);
@@ -373,6 +586,14 @@ public class SecretScreen extends Screen {
         if (listeningPearlKey) {
             PearlPredictionModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
             listeningPearlKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningFakeKey) {
+            FakeScoreboardModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningFakeKey = false;
             ClientSoundManager.playClick();
             BameClientConfig.save();
             return true;
@@ -413,11 +634,42 @@ public class SecretScreen extends Screen {
             return true;
         }
 
+        if (fakeMoneyField != null && fakeMoneyField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { fakeMoneyField.setFocused(false); setFocused(null); return true; }
+            if (fakeMoneyField.keyPressed(input)) return true;
+        }
+        if (fakeStarsField != null && fakeStarsField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { fakeStarsField.setFocused(false); setFocused(null); return true; }
+            if (fakeStarsField.keyPressed(input)) return true;
+        }
+        if (fakeKillsField != null && fakeKillsField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { fakeKillsField.setFocused(false); setFocused(null); return true; }
+            if (fakeKillsField.keyPressed(input)) return true;
+        }
+        if (fakeDeathsField != null && fakeDeathsField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { fakeDeathsField.setFocused(false); setFocused(null); return true; }
+            if (fakeDeathsField.keyPressed(input)) return true;
+        }
+        if (fakeTimeField != null && fakeTimeField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { fakeTimeField.setFocused(false); setFocused(null); return true; }
+            if (fakeTimeField.keyPressed(input)) return true;
+        }
+
         if (key == GLFW.GLFW_KEY_ESCAPE) {
             close();
             return true;
         }
 
         return super.keyPressed(input);
+    }
+
+    @Override
+    public boolean charTyped(CharInput input) {
+        if (fakeMoneyField != null && fakeMoneyField.isFocused()) return fakeMoneyField.charTyped(input);
+        if (fakeStarsField != null && fakeStarsField.isFocused()) return fakeStarsField.charTyped(input);
+        if (fakeKillsField != null && fakeKillsField.isFocused()) return fakeKillsField.charTyped(input);
+        if (fakeDeathsField != null && fakeDeathsField.isFocused()) return fakeDeathsField.charTyped(input);
+        if (fakeTimeField != null && fakeTimeField.isFocused()) return fakeTimeField.charTyped(input);
+        return super.charTyped(input);
     }
 }
