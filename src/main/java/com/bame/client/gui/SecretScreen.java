@@ -149,7 +149,7 @@ public class SecretScreen extends Screen {
     }
 
     private int getAutoCartHeight() {
-        return AutoCartModule.expanded ? 140 : 46;
+        return AutoCartModule.expanded ? 158 : 46;
     }
 
     private int getNameProtectHeight() {
@@ -524,6 +524,11 @@ public class SecretScreen extends Screen {
                 rowY += 26;
                 text(context, "Switch Back", card1X + 14, rowY + 4, 0xFFD4D8E0);
                 toggle(context, card1X + cardW - 38, rowY + 2, AutoCartModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Switch Delay", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                String delayLabel = AutoCartModule.switchDelay + (AutoCartModule.switchDelay == 1 ? " Tick" : " Ticks");
+                button(context, delayLabel, card1X + cardW - 64, rowY, 52, 16, mouseX, mouseY);
 
                 rowY += 26;
                 button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
@@ -962,6 +967,15 @@ public class SecretScreen extends Screen {
                 // Switch Back toggle
                 if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
                     AutoCartModule.switchBack = !AutoCartModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                rowY += 26;
+
+                // Switch Delay button (cycles 1 -> 2 -> 1 tick)
+                if (inside(mx, my, card1X + cardW - 64, rowY, 52, 16)) {
+                    AutoCartModule.switchDelay = (AutoCartModule.switchDelay == 1) ? 2 : 1;
                     ClientSoundManager.playClick();
                     BameClientConfig.save();
                     return true;

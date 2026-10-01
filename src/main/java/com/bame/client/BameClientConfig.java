@@ -440,6 +440,7 @@ public class BameClientConfig {
                 if (props.containsKey("keyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
                 if (props.containsKey("expanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
                 if (props.containsKey("switchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+                if (props.containsKey("switchDelay")) AutoCartModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
                 if (props.containsKey("mode")) {
                     try {
                         AutoCartModule.mode = AutoCartModule.CartMode.valueOf(props.getProperty("mode"));
@@ -969,6 +970,7 @@ public class BameClientConfig {
             autoCartProps.setProperty("keyBind", String.valueOf(AutoCartModule.keyBind));
             autoCartProps.setProperty("expanded", String.valueOf(AutoCartModule.expanded));
             autoCartProps.setProperty("switchBack", String.valueOf(AutoCartModule.switchBack));
+            autoCartProps.setProperty("switchDelay", String.valueOf(AutoCartModule.switchDelay));
             autoCartProps.setProperty("mode", AutoCartModule.mode.name());
             saveProps(combatDir.resolve("auto_cart.properties"), autoCartProps, "Caeser Client - AutoCart");
 
@@ -1268,6 +1270,7 @@ public class BameClientConfig {
             if (props.containsKey("autoCartKeyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("autoCartKeyBind"));
             if (props.containsKey("autoCartExpanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("autoCartExpanded"));
             if (props.containsKey("autoCartSwitchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("autoCartSwitchBack"));
+            if (props.containsKey("autoCartSwitchDelay")) AutoCartModule.switchDelay = Integer.parseInt(props.getProperty("autoCartSwitchDelay"));
             if (props.containsKey("autoCartMode")) {
                 try {
                     AutoCartModule.mode = AutoCartModule.CartMode.valueOf(props.getProperty("autoCartMode"));
