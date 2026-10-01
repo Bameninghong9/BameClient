@@ -258,6 +258,7 @@ public class BameClientConfig {
                 if (props.containsKey("nameProtectEnabled")) NameProtectModule.enabled = Boolean.parseBoolean(props.getProperty("nameProtectEnabled"));
                 if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
                 if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
+                if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
             }
 
             // 3. Visuals - Fullbright
@@ -796,6 +797,7 @@ public class BameClientConfig {
             // Name Protect
             showHudProps.setProperty("nameProtectEnabled", String.valueOf(NameProtectModule.enabled));
             showHudProps.setProperty("nameProtectKeyBind", String.valueOf(NameProtectModule.keyBind));
+            showHudProps.setProperty("nameProtectExpanded", String.valueOf(NameProtectModule.expanded));
             if (NameProtectModule.alias != null) {
                 showHudProps.setProperty("nameProtectAlias", NameProtectModule.alias);
             }
@@ -1236,6 +1238,7 @@ public class BameClientConfig {
             if (props.containsKey("nameProtectEnabled")) NameProtectModule.enabled = Boolean.parseBoolean(props.getProperty("nameProtectEnabled"));
             if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
             if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
+            if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
 
             if (props.containsKey("theme")) theme = props.getProperty("theme");
             if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));

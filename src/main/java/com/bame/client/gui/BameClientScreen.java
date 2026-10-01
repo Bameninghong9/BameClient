@@ -62,8 +62,7 @@ public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
-    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger,listeningSkinProtect;
-    private PlayerSkinWidget skinPreviewWidget;
+    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger;
     private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingHitboxAlpha,draggingHitboxWidth,draggingBlockOutlineWidth,draggingBlockOutlineOpacity;
     private boolean draggingFreelookSensitivity,draggingItemScale,draggingItemYOffset,itemScrollDragging,draggingSoundVolume,draggingHoverVolume;
     private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false, hitboxColorPickerOpen = false, blockOutlineColorPickerOpen = false;
@@ -164,7 +163,7 @@ public class BameClientScreen extends Screen {
     }
     private double scroll,scrollGrab;
     private int px,py,pw,ph,sidebar,cx,cy,cw,ch;
-    private CustomTextFieldWidget search,corner1,corner2,nameProtectAliasField,skinSearchWidget;
+    private CustomTextFieldWidget search,corner1,corner2;
     private long openTime=0;
     private final OutlineColorPicker picker=new OutlineColorPicker();
     private final ThemeSettingsPanel themeSettings=new ThemeSettingsPanel();
@@ -208,17 +207,6 @@ public class BameClientScreen extends Screen {
         corner2.setChangedListener(s->{ AutoAreaMinerModule.corner2=parse(s); BameClientConfig.save(); });
         addSelectableChild(corner1); addSelectableChild(corner2);
 
-        int gap = 16;
-        int halfW = (cw - gap) / 2;
-        nameProtectAliasField = new CustomTextFieldWidget(0, 0, halfW - 65, 20, Text.literal("Alias"));
-        nameProtectAliasField.setText(NameProtectModule.alias != null ? NameProtectModule.alias : "You");
-        nameProtectAliasField.setPlaceholder("Alias (e.g. You)");
-        nameProtectAliasField.setChangedListener(s -> {
-            NameProtectModule.alias = s;
-            BameClientConfig.save();
-        });
-        addSelectableChild(nameProtectAliasField);
-
         itemSearchWidget = new CustomTextFieldWidget(0, 0, 318, 20, Text.literal("Search"));
         itemSearchWidget.setPlaceholder("Search...");
         itemSearchWidget.setDrawsBackground(true);
@@ -227,11 +215,6 @@ public class BameClientScreen extends Screen {
             updateItemFilter();
         });
         addSelectableChild(itemSearchWidget);
-
-        skinSearchWidget = new CustomTextFieldWidget(0, 0, 100, 18, Text.literal("Player Name"));
-        skinSearchWidget.setPlaceholder("Name suchen...");
-        skinSearchWidget.setDrawsBackground(true);
-        addSelectableChild(skinSearchWidget);
 
         layout();
     }
@@ -332,17 +315,8 @@ public class BameClientScreen extends Screen {
         if (!q.isEmpty()) return "timechanger".contains(q) || "time changer".contains(q) || "time".contains(q) || "zeit".contains(q) || "day".contains(q) || "night".contains(q);
         return selected.equals("World") || selected.equals("Visuals");
     }
-    private boolean skinProtectVisible() {
-        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
-        if (!q.isEmpty()) return "skinprotect".contains(q) || "skin protect".contains(q) || "skin".contains(q) || "shuffle".contains(q);
-        return selected.equals("Visuals") || selected.equals("Misc");
-    }
-
     private int getTimeChangerHeight() {
         return TimeChangerModule.expanded ? 104 : 46;
-    }
-    private int getSkinProtectHeight() {
-        return SkinProtectModule.expanded ? 275 : 46;
     }
 
     private int getFreelookHeight() {
@@ -377,8 +351,8 @@ public class BameClientScreen extends Screen {
 
     private int getShowHudHeight() {
         if (!ShowHudModule.expanded) return 46;
-        int extra = (ServerInfoModule.enabled ? 24 : 0) + (NameProtectModule.enabled ? 26 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + 28 + 10;
-        return 46 + 8 + 11 * 26 + extra;
+        int extra = (ServerInfoModule.enabled ? 24 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + 28 + 10;
+        return 46 + 8 + 10 * 26 + extra;
     }
     private int getScoreboardHeight() {
         return ScoreboardModule.expanded ? 78 : 46;
@@ -435,7 +409,6 @@ public class BameClientScreen extends Screen {
         if (autoToolVisible()) leftY += getAutoToolHeight() + 12;
         if (blockOutlineVisible()) leftY += getBlockOutlineHeight() + 12;
         if (timeChangerVisible()) leftY += getTimeChangerHeight() + 12;
-        if (skinProtectVisible()) leftY += getSkinProtectHeight() + 12;
 
         if (noFogVisible()) rightY += getNoFogHeight() + 12;
         if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
@@ -476,15 +449,6 @@ public class BameClientScreen extends Screen {
             corner1.setFocused(false); corner2.setFocused(false);
         }
 
-        if (nameProtectAliasField != null) {
-            if (showHudVisible() && ShowHudModule.expanded && NameProtectModule.enabled) {
-                nameProtectAliasField.visible = true;
-            } else {
-                nameProtectAliasField.visible = false;
-                nameProtectAliasField.active = false;
-                nameProtectAliasField.setFocused(false);
-            }
-        }
         if (showHudVisible()) leftY += getShowHudHeight() + 12;
 
         themeSettings.layout(cx,baseY()+settingsY(),cw);
@@ -729,10 +693,6 @@ public class BameClientScreen extends Screen {
                 renderTimeChangerModule(c, mx, my, delta, cx, leftY, halfW);
                 leftY += getTimeChangerHeight() + 12;
             }
-            if (skinProtectVisible()) {
-                renderSkinProtectModule(c, mx, my, delta, cx, leftY, halfW);
-                leftY += getSkinProtectHeight() + 12;
-            }
             if (noFogVisible()) {
                 renderNoFogModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += getNoFogHeight() + 12;
@@ -954,26 +914,6 @@ public class BameClientScreen extends Screen {
             modeButton(c, "Server", x + 62, curY + 2, 48, 18, mx, my, ServerInfoModule.showServer);
             modeButton(c, "Time", x + 114, curY + 2, 42, 18, mx, my, ServerInfoModule.showTime);
             curY += 24;
-        }
-
-        // 12. Name Protect
-        text(c, "Name Protect", x + 14, curY + 5, 0xFFD4D8E0);
-        toggle(c, x + w - 38, curY + 3, NameProtectModule.enabled, mx, my, delta);
-        curY += 26;
-        if (NameProtectModule.enabled) {
-            text(c, "Alias:", x + 14, curY + 5, 0xFF8E95A4);
-            if (nameProtectAliasField != null) {
-                nameProtectAliasField.setX(x + 56);
-                nameProtectAliasField.setY(curY + 2);
-                nameProtectAliasField.setWidth(w - 68);
-                nameProtectAliasField.visible = true;
-                nameProtectAliasField.active = curY + 20 > cy && curY < cy + ch;
-                nameProtectAliasField.render(c, mx, my, delta);
-            }
-            curY += 26;
-        } else if (nameProtectAliasField != null) {
-            nameProtectAliasField.visible = false;
-            nameProtectAliasField.active = false;
         }
 
         // Bottom buttons in dropdown
@@ -1594,78 +1534,6 @@ public class BameClientScreen extends Screen {
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
-    private void renderSkinProtectModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
-        int y = baseY() + yOffset;
-        int h = getSkinProtectHeight();
-        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-
-        text(c, "SkinProtect", x + 12, y + 12, 0xFFE2E5ED);
-
-        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
-        String kb = listeningSkinProtect ? "..." : formatKey(SkinProtectModule.keyBind);
-        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
-        toggle(c, x + w - 38, y + 12, SkinProtectModule.enabled, mx, my, delta);
-
-        if (!SkinProtectModule.expanded) {
-            if (skinSearchWidget != null) {
-                skinSearchWidget.visible = skinSearchWidget.active = false;
-            }
-            return;
-        }
-
-        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
-
-        // Preview box
-        int prevPad = 12;
-        int prevX = x + prevPad;
-        int prevY = y + 52;
-        int prevW = w - prevPad * 2;
-        int prevH = 135;
-        box(c, prevX, prevY, prevW, prevH, 0xFF0E1117);
-        CustomGuiUtils.drawUltraRoundedOutline(c, prevX, prevY, prevW, prevH, 0xFF232733);
-
-        if (skinPreviewWidget == null && client != null && client.getLoadedEntityModels() != null) {
-            skinPreviewWidget = new PlayerSkinWidget(prevW, prevH, client.getLoadedEntityModels(), () -> SkinProtectModule.getCurrentSkin());
-        }
-        if (skinPreviewWidget != null) {
-            skinPreviewWidget.setDimensionsAndPosition(prevW, prevH, prevX, prevY);
-            c.enableScissor(prevX, prevY, prevX + prevW, prevY + prevH);
-            skinPreviewWidget.render(c, mx, my, delta);
-            c.disableScissor();
-        }
-
-        int curY = prevY + prevH + 9;
-
-        // Row 1: Search player name field + Set button
-        int pad = 12;
-        int searchX = x + pad;
-        int btnW = 38;
-        int fieldW = (w - pad * 2) - btnW - 6;
-        if (skinSearchWidget != null) {
-            skinSearchWidget.setX(searchX);
-            skinSearchWidget.setY(curY);
-            skinSearchWidget.setWidth(fieldW);
-            skinSearchWidget.setHeight(18);
-            skinSearchWidget.visible = true;
-            skinSearchWidget.active = curY + 18 > cy && curY < cy + ch;
-            skinSearchWidget.render(c, mx, my, delta);
-        }
-        button(c, "Set", searchX + fieldW + 6, curY, btnW, 18, mx, my);
-        curY += 24;
-
-        // Row 2: Skin name label + Shuffle button
-        int maxTextW = w - 28 - 62;
-        c.enableScissor(x + 14, curY, x + 14 + maxTextW, curY + 20);
-        text(c, "Skin: " + SkinProtectModule.getCurrentSkinName(), x + 14, curY + 4, 0xFFD4D8E0);
-        c.disableScissor();
-
-        button(c, "Shuffle", x + w - 70, curY, 56, 16, mx, my);
-        curY += 26;
-
-        // Row 3: Reset button
-        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
-    }
-
     private void renderFreelookModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
         int y = baseY() + yOffset;
         int h = getFreelookHeight();
@@ -2277,9 +2145,7 @@ public class BameClientScreen extends Screen {
     private int thumbY() { return cy+(int)((ch-thumbHeight())*(scroll/Math.max(1,maxScroll()))); }
     private void unfocus() {
         search.setFocused(false); corner1.setFocused(false); corner2.setFocused(false);
-        if (nameProtectAliasField != null) nameProtectAliasField.setFocused(false);
         if (itemSearchWidget != null) itemSearchWidget.setFocused(false);
-        if (skinSearchWidget != null) skinSearchWidget.setFocused(false);
         for (java.util.Map.Entry<String, CustomTextFieldWidget> fe : toolThresholdFields.entrySet()) {
             CustomTextFieldWidget f = fe.getValue();
             f.setFocused(false);
@@ -2718,23 +2584,6 @@ public class BameClientScreen extends Screen {
                         curY += 24;
                     }
 
-                    // 12. Name Protect
-                    if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
-                        NameProtectModule.enabled = !NameProtectModule.enabled;
-                        BameClientConfig.save();
-                        layout();
-                        return true;
-                    }
-                    curY += 26;
-
-                    if (NameProtectModule.enabled) {
-                        if (nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
-                            setFocused(nameProtectAliasField);
-                            return true;
-                        }
-                        curY += 26;
-                    }
-
                     // Bottom buttons in dropdown
                     curY += 4;
                     if (inside(mx, my, cx + 14, curY, 50, 16)) {
@@ -3142,72 +2991,6 @@ public class BameClientScreen extends Screen {
                     }
                 }
                 leftY += getTimeChangerHeight() + 12;
-            }
-
-            if (skinProtectVisible()) {
-                int myY = baseY() + leftY;
-                int h = getSkinProtectHeight();
-                // Toggle
-                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
-                    SkinProtectModule.enabled = !SkinProtectModule.enabled;
-                    com.bame.client.sound.ClientSoundManager.playClick();
-                    BameClientConfig.save();
-                    return true;
-                }
-                // Keybind
-                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
-                    listeningSkinProtect = true;
-                    return true;
-                }
-                // Card header expand / collapse
-                if (inside(mx, my, cx, myY, halfW, 46)) {
-                    SkinProtectModule.expanded = !SkinProtectModule.expanded;
-                    com.bame.client.sound.ClientSoundManager.playClick();
-                    BameClientConfig.save();
-                    layout();
-                    return true;
-                }
-                if (SkinProtectModule.expanded) {
-                    int prevH = 135;
-                    int curY = myY + 52 + prevH + 9;
-                    int pad = 12;
-                    int searchX = cx + pad;
-                    int btnW = 38;
-                    int fieldW = (halfW - pad * 2) - btnW - 6;
-
-                    // Click on Search Text Field
-                    if (skinSearchWidget != null && skinSearchWidget.mouseClicked(click, twice)) {
-                        unfocus();
-                        skinSearchWidget.setFocused(true);
-                        setFocused(skinSearchWidget);
-                        return true;
-                    }
-
-                    // Click on Set button
-                    if (inside(mx, my, searchX + fieldW + 6, curY, btnW, 18)) {
-                        applySkinSearch();
-                        return true;
-                    }
-                    curY += 24;
-
-                    // Row 2: Shuffle Button
-                    if (inside(mx, my, cx + halfW - 70, curY, 56, 16)) {
-                        SkinProtectModule.shuffle();
-                        com.bame.client.sound.ClientSoundManager.playClick();
-                        BameClientConfig.save();
-                        return true;
-                    }
-                    curY += 26;
-
-                    // Row 3: Reset Button
-                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
-                        SkinProtectModule.reset();
-                        com.bame.client.sound.ClientSoundManager.playClick();
-                        BameClientConfig.save();
-                        return true;
-                    }
-                }
-                leftY += getSkinProtectHeight() + 12;
             }
 
             if (noFogVisible()) {
@@ -4015,9 +3798,6 @@ public class BameClientScreen extends Screen {
         ServerInfoModule.nameX = 10; ServerInfoModule.nameY = 10;
         ServerInfoModule.serverX = 10; ServerInfoModule.serverY = 32;
         ServerInfoModule.timeX = 10; ServerInfoModule.timeY = 54;
-        NameProtectModule.enabled = false;
-        NameProtectModule.alias = "";
-        if (nameProtectAliasField != null) nameProtectAliasField.setText("");
         ArmorHudModule.enabled = false;
 
         FpsModule.hudX = 10; FpsModule.hudY = 10; FpsModule.scale = 1.0f; FpsModule.bgMode = 0; FpsModule.outlineColor = 0xFFFFFFFF;
@@ -4043,7 +3823,7 @@ public class BameClientScreen extends Screen {
         BameClientConfig.save();
         layout();
     }
-    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; listeningSkinProtect=false; unfocus(); layout(); }
+    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -4075,10 +3855,6 @@ public class BameClientScreen extends Screen {
     @Override public boolean mouseDragged(Click click,double dx,double dy) {
         if ((crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) && cpDrag >= 0) {
             updateModalColor(click.x(), click.y());
-            return true;
-        }
-        if (skinPreviewWidget != null && inside(click.x(), click.y(), skinPreviewWidget.getX(), skinPreviewWidget.getY(), skinPreviewWidget.getWidth(), skinPreviewWidget.getHeight())) {
-            skinPreviewWidget.mouseDragged(click, dx, dy);
             return true;
         }
         if (gridDragMode >= 0) {
@@ -4311,18 +4087,6 @@ public class BameClientScreen extends Screen {
             }
             return true;
         }
-        if (skinSearchWidget != null && skinSearchWidget.isFocused()) {
-            if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER) {
-                applySkinSearch();
-                return true;
-            }
-            if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
-                skinSearchWidget.setFocused(false);
-                setFocused(null);
-                return true;
-            }
-            if (skinSearchWidget.keyPressed(input)) return true;
-        }
         if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen)) {
             crosshairColorPickerOpen = false;
             hitColorColorPickerOpen = false;
@@ -4331,7 +4095,7 @@ public class BameClientScreen extends Screen {
             cpDrag = -1;
             return true;
         }
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger && !listeningSkinProtect) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
@@ -4353,7 +4117,6 @@ public class BameClientScreen extends Screen {
         if(listeningItemSize) { ItemSizeModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningItemSize=false; BameClientConfig.save(); return true; }
         if(listeningDurabilityGuard) { DurabilityGuardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningDurabilityGuard=false; BameClientConfig.save(); return true; }
         if(listeningTimeChanger) { TimeChangerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningTimeChanger=false; BameClientConfig.save(); return true; }
-        if(listeningSkinProtect) { SkinProtectModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningSkinProtect=false; BameClientConfig.save(); return true; }
         if (isSecretComboPressed(input)) {
             com.bame.client.BameClientConfig.secretUnlocked = !com.bame.client.BameClientConfig.secretUnlocked;
             com.bame.client.sound.ClientSoundManager.playClick();
@@ -4365,9 +4128,6 @@ public class BameClientScreen extends Screen {
         if (itemModalOpen && itemSearchWidget != null && itemSearchWidget.isFocused()) {
             return itemSearchWidget.charTyped(input);
         }
-        if (skinSearchWidget != null && skinSearchWidget.isFocused()) {
-            return skinSearchWidget.charTyped(input);
-        }
         for (CustomTextFieldWidget f : toolThresholdFields.values()) {
             if (f.isFocused()) {
                 char ch = (char) input.codepoint();
@@ -4378,17 +4138,6 @@ public class BameClientScreen extends Screen {
             }
         }
         return super.charTyped(input);
-    }
-    private void applySkinSearch() {
-        if (skinSearchWidget == null) return;
-        String name = skinSearchWidget.getText().trim();
-        if (name.isEmpty()) return;
-        SkinProtectModule.setSkinByName(name, success -> {
-            if (success) {
-                com.bame.client.sound.ClientSoundManager.playClick();
-                BameClientConfig.save();
-            }
-        });
     }
     @Override public void removed() { picker.release(); themeSettings.close(); BameClientConfig.save(); super.removed(); }
     @Override public boolean shouldPause() { return false; }
