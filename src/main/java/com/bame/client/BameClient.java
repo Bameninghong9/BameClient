@@ -85,6 +85,7 @@ public class BameClient implements ClientModInitializer {
             DurabilityGuardModule.onTick(client);
             ZoomModule.onTick(client);
             com.bame.client.module.PearlPredictionModule.onTick(client);
+            com.bame.client.module.AutoCartModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind

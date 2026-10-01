@@ -1,6 +1,7 @@
 package com.bame.client.gui;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.module.AutoCartModule;
 import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.PearlPredictionModule;
@@ -25,6 +26,7 @@ public class SecretScreen extends Screen {
     private final AmbientLighting ambient = new AmbientLighting();
     private boolean listeningCombo = false;
     private boolean listeningPearlKey = false;
+    private boolean listeningCartKey = false;
     private boolean listeningNameKey = false;
     private boolean listeningFakeKey = false;
     private boolean listeningSkinKey = false;
@@ -34,6 +36,7 @@ public class SecretScreen extends Screen {
     private boolean scrollDragging = false;
     private double scrollGrab = 0;
 
+    private CustomTextFieldWidget searchField;
     private CustomTextFieldWidget fakeMoneyField;
     private CustomTextFieldWidget fakeStarsField;
     private CustomTextFieldWidget fakeKillsField;
@@ -57,6 +60,11 @@ public class SecretScreen extends Screen {
         int cardW = (pw - 28 - gap) / 2;
         int labelW = 44;
         int fieldW = cardW - labelW - 28;
+
+        // Search bar replacing "Zurück" button
+        searchField = new CustomTextFieldWidget(0, 0, 120, 18, Text.literal("Search"));
+        searchField.setPlaceholder("Suchen...");
+        addSelectableChild(searchField);
 
         fakeMoneyField = new CustomTextFieldWidget(0, 0, fieldW, 18, Text.literal("Money"));
         fakeMoneyField.setText(FakeScoreboardModule.money != null ? FakeScoreboardModule.money : "$12,450");
@@ -104,6 +112,56 @@ public class SecretScreen extends Screen {
             int prevH = 135;
             skinPreviewWidget = new PlayerSkinWidget(prevW, prevH, client.getLoadedEntityModels(), SkinProtectModule::getCurrentSkin);
         }
+    }
+
+    private boolean pearlVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "pearl prediction".contains(q) || "pearl".contains(q) || "prediction".contains(q) || "landing".contains(q) || "throw".contains(q);
+    }
+
+    private boolean autoCartVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "autocart".contains(q) || "auto cart".contains(q) || "cart".contains(q) || "tnt".contains(q) || "minecart".contains(q) || "flame".contains(q) || "bow".contains(q) || "rail".contains(q) || "schiene".contains(q);
+    }
+
+    private boolean nameProtectVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "name protect".contains(q) || "name".contains(q) || "protect".contains(q) || "alias".contains(q);
+    }
+
+    private boolean fakeScoreboardVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "fake scoreboard".contains(q) || "fake".contains(q) || "scoreboard".contains(q) || "stats".contains(q) || "money".contains(q) || "kills".contains(q) || "deaths".contains(q);
+    }
+
+    private boolean skinProtectVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "skinprotect".contains(q) || "skin protect".contains(q) || "skin".contains(q) || "protect".contains(q);
+    }
+
+    private int getPearlHeight() {
+        return PearlPredictionModule.expanded ? 168 : 46;
+    }
+
+    private int getAutoCartHeight() {
+        return AutoCartModule.expanded ? 104 : 46;
+    }
+
+    private int getNameProtectHeight() {
+        return NameProtectModule.expanded ? 104 : 46;
+    }
+
+    private int getFakeScoreboardHeight() {
+        return FakeScoreboardModule.expanded ? 208 : 46;
+    }
+
+    private int getSkinProtectHeight() {
+        return SkinProtectModule.expanded ? 275 : 46;
     }
 
     private void resetFakeScoreboard() {
@@ -154,6 +212,7 @@ public class SecretScreen extends Screen {
     }
 
     private void unfocus() {
+        if (searchField != null) searchField.setFocused(false);
         if (fakeMoneyField != null) fakeMoneyField.setFocused(false);
         if (fakeStarsField != null) fakeStarsField.setFocused(false);
         if (fakeKillsField != null) fakeKillsField.setFocused(false);
@@ -165,8 +224,15 @@ public class SecretScreen extends Screen {
     }
 
     private int contentHeight() {
-        int leftH = (PearlPredictionModule.expanded ? 168 : 46) + 12 + (NameProtectModule.expanded ? 104 : 46);
-        int rightH = (FakeScoreboardModule.expanded ? 208 : 46) + 12 + (SkinProtectModule.expanded ? 275 : 46);
+        int leftH = 0;
+        if (pearlVisible()) leftH += getPearlHeight() + 12;
+        if (autoCartVisible()) leftH += getAutoCartHeight() + 12;
+        if (nameProtectVisible()) leftH += getNameProtectHeight() + 12;
+
+        int rightH = 0;
+        if (fakeScoreboardVisible()) rightH += getFakeScoreboardHeight() + 12;
+        if (skinProtectVisible()) rightH += getSkinProtectHeight() + 12;
+
         return Math.max(leftH, rightH);
     }
 
@@ -348,8 +414,19 @@ public class SecretScreen extends Screen {
         int bindBtnY = py + 16;
         modeButton(context, bindLabel, bindBtnX, bindBtnY, bindBtnW, bindBtnH, mouseX, mouseY, listeningCombo);
 
-        // Close / Zurück button
-        button(context, "Zurück", px + pw - 64, py + 14, 50, 18, mouseX, mouseY);
+        // Search bar replacing "Zurück" button
+        int searchW = 120;
+        int searchX = px + pw - searchW - 14;
+        int searchY = py + 15;
+        if (searchField != null) {
+            searchField.setX(searchX);
+            searchField.setY(searchY);
+            searchField.setWidth(searchW);
+            searchField.setHeight(18);
+            searchField.visible = true;
+            searchField.active = true;
+            searchField.render(context, mouseX, mouseY, delta);
+        }
 
         // Header separator
         context.fill(px + 10, py + 42, px + pw - 10, py + 43, 0xFF292D36);
@@ -372,162 +449,200 @@ public class SecretScreen extends Screen {
         // Content clipping
         context.enableScissor(cx, cy, cx + cw, cy + ch);
 
-        int c1Y = baseY;
-        int c1H = PearlPredictionModule.expanded ? 168 : 46;
-        int c2Y = c1Y + c1H + 12;
-        int c2H = NameProtectModule.expanded ? 104 : 46;
-
-        int c3Y = baseY;
-        int c3H = FakeScoreboardModule.expanded ? 208 : 46;
-        int c4Y = c3Y + c3H + 12;
-        int c4H = SkinProtectModule.expanded ? 275 : 46;
+        int leftY = baseY;
 
         // ==================== CARD 1: Pearl Prediction ====================
-        box(context, card1X, c1Y, cardW, c1H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        CustomGuiUtils.drawUltraRoundedOutline(context, card1X, c1Y, cardW, c1H, 0xFF292D36, 6);
+        if (pearlVisible()) {
+            int c1H = getPearlHeight();
+            box(context, card1X, leftY, cardW, c1H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, c1H, 0xFF292D36, 6);
 
-        text(context, "Pearl Prediction", card1X + 12, c1Y + 12, 0xFFE2E5ED);
-        text(context, "KeyBind:", card1X + 12, c1Y + 29, 0xFF8E95A4);
+            text(context, "Pearl Prediction", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-        String kb1 = listeningPearlKey ? "..." : formatKey(PearlPredictionModule.keyBind);
-        button(context, kb1, card1X + 60, c1Y + 25, 48, 16, mouseX, mouseY);
-        toggle(context, card1X + cardW - 38, c1Y + 12, PearlPredictionModule.enabled, mouseX, mouseY, delta);
+            String kb1 = listeningPearlKey ? "..." : formatKey(PearlPredictionModule.keyBind);
+            button(context, kb1, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, PearlPredictionModule.enabled, mouseX, mouseY, delta);
 
-        if (PearlPredictionModule.expanded) {
-            context.fill(card1X + 8, c1Y + 46, card1X + cardW - 8, c1Y + 47, 0xFF292D36);
+            if (PearlPredictionModule.expanded) {
+                context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
 
-            int curY = c1Y + 54;
-            // Row 1: Enemy Only
-            text(context, "Enemy Only", card1X + 14, curY + 4, 0xFFD4D8E0);
-            toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.enemyOnly, mouseX, mouseY, delta);
-            curY += 26;
+                int curY = leftY + 54;
+                // Row 1: Enemy Only
+                text(context, "Enemy Only", card1X + 14, curY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.enemyOnly, mouseX, mouseY, delta);
+                curY += 26;
 
-            // Row 2: Landing Box
-            text(context, "Landing Box", card1X + 14, curY + 4, 0xFFD4D8E0);
-            toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.landingBox, mouseX, mouseY, delta);
-            curY += 26;
+                // Row 2: Landing Box
+                text(context, "Landing Box", card1X + 14, curY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.landingBox, mouseX, mouseY, delta);
+                curY += 26;
 
-            // Row 3: Throw Preview
-            text(context, "Throw Preview", card1X + 14, curY + 4, 0xFFD4D8E0);
-            toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.throwPreview, mouseX, mouseY, delta);
-            curY += 26;
+                // Row 3: Throw Preview
+                text(context, "Throw Preview", card1X + 14, curY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, curY + 2, PearlPredictionModule.throwPreview, mouseX, mouseY, delta);
+                curY += 26;
 
-            // Row 4: Reset Button
-            button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+                // Row 4: Reset Button
+                button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            }
+            leftY += c1H + 12;
         }
 
-        // ==================== CARD 2: Name Protect ====================
-        box(context, card1X, c2Y, cardW, c2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        CustomGuiUtils.drawUltraRoundedOutline(context, card1X, c2Y, cardW, c2H, 0xFF292D36, 6);
+        // ==================== CARD 2: AutoCart ====================
+        if (autoCartVisible()) {
+            int acH = getAutoCartHeight();
+            box(context, card1X, leftY, cardW, acH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, acH, 0xFF292D36, 6);
 
-        text(context, "Name Protect", card1X + 12, c2Y + 12, 0xFFE2E5ED);
-        text(context, "KeyBind:", card1X + 12, c2Y + 29, 0xFF8E95A4);
+            text(context, "AutoCart", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-        String kbName = listeningNameKey ? "..." : formatKey(NameProtectModule.keyBind);
-        button(context, kbName, card1X + 60, c2Y + 25, 48, 16, mouseX, mouseY);
-        toggle(context, card1X + cardW - 38, c2Y + 12, NameProtectModule.enabled, mouseX, mouseY, delta);
+            String kbCart = listeningCartKey ? "..." : formatKey(AutoCartModule.keyBind);
+            button(context, kbCart, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, AutoCartModule.enabled, mouseX, mouseY, delta);
 
-        if (NameProtectModule.expanded) {
-            context.fill(card1X + 8, c2Y + 46, card1X + cardW - 8, c2Y + 47, 0xFF292D36);
+            if (AutoCartModule.expanded) {
+                context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
 
-            int curY = c2Y + 54;
-            // Row 1: Alias Field
-            text(context, "Alias:", card1X + 14, curY + 4, 0xFFD4D8E0);
-            int aliasFieldX = card1X + 54;
-            int aliasFieldW = cardW - 54 - 14;
-            if (nameProtectAliasField != null) {
-                nameProtectAliasField.setX(aliasFieldX);
-                nameProtectAliasField.setY(curY);
-                nameProtectAliasField.setWidth(aliasFieldW);
-                nameProtectAliasField.setHeight(18);
-                nameProtectAliasField.visible = true;
-                nameProtectAliasField.active = curY + 18 > cy && curY < cy + ch;
-                nameProtectAliasField.render(context, mouseX, mouseY, delta);
+                int rowY = leftY + 54;
+                text(context, "Switch Back", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, rowY + 2, AutoCartModule.switchBack, mouseX, mouseY, delta);
+                rowY += 26;
+
+                button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
             }
-            curY += 26;
+            leftY += acH + 12;
+        }
 
-            // Row 2: Reset Button
-            button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+        // ==================== CARD 3: Name Protect ====================
+        if (nameProtectVisible()) {
+            int c2H = getNameProtectHeight();
+            box(context, card1X, leftY, cardW, c2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, c2H, 0xFF292D36, 6);
+
+            text(context, "Name Protect", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
+
+            String kbName = listeningNameKey ? "..." : formatKey(NameProtectModule.keyBind);
+            button(context, kbName, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, NameProtectModule.enabled, mouseX, mouseY, delta);
+
+            if (NameProtectModule.expanded) {
+                context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
+
+                int curY = leftY + 54;
+                text(context, "Alias:", card1X + 14, curY + 4, 0xFFD4D8E0);
+                int aliasFieldX = card1X + 54;
+                int aliasFieldW = cardW - 54 - 14;
+                if (nameProtectAliasField != null) {
+                    nameProtectAliasField.setX(aliasFieldX);
+                    nameProtectAliasField.setY(curY);
+                    nameProtectAliasField.setWidth(aliasFieldW);
+                    nameProtectAliasField.setHeight(18);
+                    nameProtectAliasField.visible = true;
+                    nameProtectAliasField.active = curY + 18 > cy && curY < cy + ch;
+                    nameProtectAliasField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 26;
+
+                button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            } else {
+                if (nameProtectAliasField != null) nameProtectAliasField.visible = nameProtectAliasField.active = false;
+            }
+            leftY += c2H + 12;
         } else {
             if (nameProtectAliasField != null) nameProtectAliasField.visible = nameProtectAliasField.active = false;
         }
 
-        // ==================== CARD 3: Fake Scoreboard ====================
-        box(context, card2X, c3Y, cardW, c3H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        CustomGuiUtils.drawUltraRoundedOutline(context, card2X, c3Y, cardW, c3H, 0xFF292D36, 6);
+        int rightY = baseY;
 
-        text(context, "Fake Scoreboard", card2X + 12, c3Y + 12, 0xFFE2E5ED);
-        text(context, "KeyBind:", card2X + 12, c3Y + 29, 0xFF8E95A4);
+        // ==================== CARD 4: Fake Scoreboard ====================
+        if (fakeScoreboardVisible()) {
+            int c3H = getFakeScoreboardHeight();
+            box(context, card2X, rightY, cardW, c3H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c3H, 0xFF292D36, 6);
 
-        String kb2 = listeningFakeKey ? "..." : formatKey(FakeScoreboardModule.keyBind);
-        button(context, kb2, card2X + 60, c3Y + 25, 48, 16, mouseX, mouseY);
-        toggle(context, card2X + cardW - 38, c3Y + 12, FakeScoreboardModule.enabled, mouseX, mouseY, delta);
+            text(context, "Fake Scoreboard", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-        int labelW = 44;
-        int fieldW = cardW - labelW - 28;
-        if (FakeScoreboardModule.expanded) {
-            context.fill(card2X + 8, c3Y + 46, card2X + cardW - 8, c3Y + 47, 0xFF292D36);
+            String kb2 = listeningFakeKey ? "..." : formatKey(FakeScoreboardModule.keyBind);
+            button(context, kb2, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, FakeScoreboardModule.enabled, mouseX, mouseY, delta);
 
-            int fieldX = card2X + 14 + labelW;
-            int curY = c3Y + 54;
+            int labelW = 44;
+            int fieldW = cardW - labelW - 28;
+            if (FakeScoreboardModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
 
-            text(context, "Money:", card2X + 14, curY + 4, 0xFFD4D8E0);
-            if (fakeMoneyField != null) {
-                fakeMoneyField.setX(fieldX);
-                fakeMoneyField.setY(curY);
-                fakeMoneyField.setWidth(fieldW);
-                fakeMoneyField.visible = true;
-                fakeMoneyField.active = curY + 18 > cy && curY < cy + ch;
-                fakeMoneyField.render(context, mouseX, mouseY, delta);
+                int fieldX = card2X + 14 + labelW;
+                int curY = rightY + 54;
+
+                text(context, "Money:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                if (fakeMoneyField != null) {
+                    fakeMoneyField.setX(fieldX);
+                    fakeMoneyField.setY(curY);
+                    fakeMoneyField.setWidth(fieldW);
+                    fakeMoneyField.visible = true;
+                    fakeMoneyField.active = curY + 18 > cy && curY < cy + ch;
+                    fakeMoneyField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 24;
+
+                text(context, "Stars:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                if (fakeStarsField != null) {
+                    fakeStarsField.setX(fieldX);
+                    fakeStarsField.setY(curY);
+                    fakeStarsField.setWidth(fieldW);
+                    fakeStarsField.visible = true;
+                    fakeStarsField.active = curY + 18 > cy && curY < cy + ch;
+                    fakeStarsField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 24;
+
+                text(context, "Kills:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                if (fakeKillsField != null) {
+                    fakeKillsField.setX(fieldX);
+                    fakeKillsField.setY(curY);
+                    fakeKillsField.setWidth(fieldW);
+                    fakeKillsField.visible = true;
+                    fakeKillsField.active = curY + 18 > cy && curY < cy + ch;
+                    fakeKillsField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 24;
+
+                text(context, "Deaths:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                if (fakeDeathsField != null) {
+                    fakeDeathsField.setX(fieldX);
+                    fakeDeathsField.setY(curY);
+                    fakeDeathsField.setWidth(fieldW);
+                    fakeDeathsField.visible = true;
+                    fakeDeathsField.active = curY + 18 > cy && curY < cy + ch;
+                    fakeDeathsField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 24;
+
+                text(context, "Time:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                if (fakeTimeField != null) {
+                    fakeTimeField.setX(fieldX);
+                    fakeTimeField.setY(curY);
+                    fakeTimeField.setWidth(fieldW);
+                    fakeTimeField.visible = true;
+                    fakeTimeField.active = curY + 18 > cy && curY < cy + ch;
+                    fakeTimeField.render(context, mouseX, mouseY, delta);
+                }
+                curY += 26;
+
+                button(context, "Edit HUD", card2X + 14, curY, 52, 16, mouseX, mouseY);
+                button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            } else {
+                if (fakeMoneyField != null) fakeMoneyField.visible = fakeMoneyField.active = false;
+                if (fakeStarsField != null) fakeStarsField.visible = fakeStarsField.active = false;
+                if (fakeKillsField != null) fakeKillsField.visible = fakeKillsField.active = false;
+                if (fakeDeathsField != null) fakeDeathsField.visible = fakeDeathsField.active = false;
+                if (fakeTimeField != null) fakeTimeField.visible = fakeTimeField.active = false;
             }
-            curY += 24;
-
-            text(context, "Stars:", card2X + 14, curY + 4, 0xFFD4D8E0);
-            if (fakeStarsField != null) {
-                fakeStarsField.setX(fieldX);
-                fakeStarsField.setY(curY);
-                fakeStarsField.setWidth(fieldW);
-                fakeStarsField.visible = true;
-                fakeStarsField.active = curY + 18 > cy && curY < cy + ch;
-                fakeStarsField.render(context, mouseX, mouseY, delta);
-            }
-            curY += 24;
-
-            text(context, "Kills:", card2X + 14, curY + 4, 0xFFD4D8E0);
-            if (fakeKillsField != null) {
-                fakeKillsField.setX(fieldX);
-                fakeKillsField.setY(curY);
-                fakeKillsField.setWidth(fieldW);
-                fakeKillsField.visible = true;
-                fakeKillsField.active = curY + 18 > cy && curY < cy + ch;
-                fakeKillsField.render(context, mouseX, mouseY, delta);
-            }
-            curY += 24;
-
-            text(context, "Deaths:", card2X + 14, curY + 4, 0xFFD4D8E0);
-            if (fakeDeathsField != null) {
-                fakeDeathsField.setX(fieldX);
-                fakeDeathsField.setY(curY);
-                fakeDeathsField.setWidth(fieldW);
-                fakeDeathsField.visible = true;
-                fakeDeathsField.active = curY + 18 > cy && curY < cy + ch;
-                fakeDeathsField.render(context, mouseX, mouseY, delta);
-            }
-            curY += 24;
-
-            text(context, "Time:", card2X + 14, curY + 4, 0xFFD4D8E0);
-            if (fakeTimeField != null) {
-                fakeTimeField.setX(fieldX);
-                fakeTimeField.setY(curY);
-                fakeTimeField.setWidth(fieldW);
-                fakeTimeField.visible = true;
-                fakeTimeField.active = curY + 18 > cy && curY < cy + ch;
-                fakeTimeField.render(context, mouseX, mouseY, delta);
-            }
-            curY += 26;
-
-            button(context, "Edit HUD", card2X + 14, curY, 52, 16, mouseX, mouseY);
-            button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            rightY += c3H + 12;
         } else {
             if (fakeMoneyField != null) fakeMoneyField.visible = fakeMoneyField.active = false;
             if (fakeStarsField != null) fakeStarsField.visible = fakeStarsField.active = false;
@@ -536,69 +651,75 @@ public class SecretScreen extends Screen {
             if (fakeTimeField != null) fakeTimeField.visible = fakeTimeField.active = false;
         }
 
-        // ==================== CARD 4: SkinProtect ====================
-        box(context, card2X, c4Y, cardW, c4H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-        CustomGuiUtils.drawUltraRoundedOutline(context, card2X, c4Y, cardW, c4H, 0xFF292D36, 6);
+        // ==================== CARD 5: SkinProtect ====================
+        if (skinProtectVisible()) {
+            int c4H = getSkinProtectHeight();
+            box(context, card2X, rightY, cardW, c4H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c4H, 0xFF292D36, 6);
 
-        text(context, "SkinProtect", card2X + 12, c4Y + 12, 0xFFE2E5ED);
-        text(context, "KeyBind:", card2X + 12, c4Y + 29, 0xFF8E95A4);
+            text(context, "SkinProtect", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-        String kbSkin = listeningSkinKey ? "..." : formatKey(SkinProtectModule.keyBind);
-        button(context, kbSkin, card2X + 60, c4Y + 25, 48, 16, mouseX, mouseY);
-        toggle(context, card2X + cardW - 38, c4Y + 12, SkinProtectModule.enabled, mouseX, mouseY, delta);
+            String kbSkin = listeningSkinKey ? "..." : formatKey(SkinProtectModule.keyBind);
+            button(context, kbSkin, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, SkinProtectModule.enabled, mouseX, mouseY, delta);
 
-        if (SkinProtectModule.expanded) {
-            context.fill(card2X + 8, c4Y + 46, card2X + cardW - 8, c4Y + 47, 0xFF292D36);
+            if (SkinProtectModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
 
-            // Preview box
-            int prevPad = 12;
-            int prevX = card2X + prevPad;
-            int prevY = c4Y + 52;
-            int prevW = cardW - prevPad * 2;
-            int prevH = 135;
-            box(context, prevX, prevY, prevW, prevH, 0xFF0E1117);
-            CustomGuiUtils.drawUltraRoundedOutline(context, prevX, prevY, prevW, prevH, 0xFF232733);
+                // Preview box
+                int prevPad = 12;
+                int prevX = card2X + prevPad;
+                int prevY = rightY + 52;
+                int prevW = cardW - prevPad * 2;
+                int prevH = 135;
+                box(context, prevX, prevY, prevW, prevH, 0xFF0E1117);
+                CustomGuiUtils.drawUltraRoundedOutline(context, prevX, prevY, prevW, prevH, 0xFF232733);
 
-            if (skinPreviewWidget == null && client != null && client.getLoadedEntityModels() != null) {
-                skinPreviewWidget = new PlayerSkinWidget(prevW, prevH, client.getLoadedEntityModels(), SkinProtectModule::getCurrentSkin);
-            }
-            if (skinPreviewWidget != null) {
-                skinPreviewWidget.setDimensionsAndPosition(prevW, prevH, prevX, prevY);
-                context.enableScissor(Math.max(cx, prevX), Math.max(cy, prevY), Math.min(cx + cw, prevX + prevW), Math.min(cy + ch, prevY + prevH));
-                skinPreviewWidget.render(context, mouseX, mouseY, delta);
+                if (skinPreviewWidget == null && client != null && client.getLoadedEntityModels() != null) {
+                    skinPreviewWidget = new PlayerSkinWidget(prevW, prevH, client.getLoadedEntityModels(), SkinProtectModule::getCurrentSkin);
+                }
+                if (skinPreviewWidget != null) {
+                    skinPreviewWidget.setDimensionsAndPosition(prevW, prevH, prevX, prevY);
+                    context.enableScissor(Math.max(cx, prevX), Math.max(cy, prevY), Math.min(cx + cw, prevX + prevW), Math.min(cy + ch, prevY + prevH));
+                    skinPreviewWidget.render(context, mouseX, mouseY, delta);
+                    context.disableScissor();
+                }
+
+                int curY = prevY + prevH + 9;
+
+                // Row 1: Search player name field + Set button
+                int pad = 12;
+                int searchX2 = card2X + pad;
+                int btnW = 38;
+                int sFieldW = (cardW - pad * 2) - btnW - 6;
+                if (skinSearchWidget != null) {
+                    skinSearchWidget.setX(searchX2);
+                    skinSearchWidget.setY(curY);
+                    skinSearchWidget.setWidth(sFieldW);
+                    skinSearchWidget.setHeight(18);
+                    skinSearchWidget.visible = true;
+                    skinSearchWidget.active = curY + 18 > cy && curY < cy + ch;
+                    skinSearchWidget.render(context, mouseX, mouseY, delta);
+                }
+                button(context, "Set", searchX2 + sFieldW + 6, curY, btnW, 18, mouseX, mouseY);
+                curY += 24;
+
+                // Row 2: Skin name label + Shuffle button
+                int maxTextW = cardW - 28 - 62;
+                context.enableScissor(Math.max(cx, card2X + 14), Math.max(cy, curY), Math.min(cx + cw, card2X + 14 + maxTextW), Math.min(cy + ch, curY + 20));
+                text(context, "Skin: " + SkinProtectModule.getCurrentSkinName(), card2X + 14, curY + 4, 0xFFD4D8E0);
                 context.disableScissor();
+
+                button(context, "Shuffle", card2X + cardW - 70, curY, 56, 16, mouseX, mouseY);
+                curY += 26;
+
+                // Row 3: Reset button
+                button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            } else {
+                if (skinSearchWidget != null) skinSearchWidget.visible = skinSearchWidget.active = false;
             }
-
-            int curY = prevY + prevH + 9;
-
-            // Row 1: Search player name field + Set button
-            int pad = 12;
-            int searchX = card2X + pad;
-            int btnW = 38;
-            int sFieldW = (cardW - pad * 2) - btnW - 6;
-            if (skinSearchWidget != null) {
-                skinSearchWidget.setX(searchX);
-                skinSearchWidget.setY(curY);
-                skinSearchWidget.setWidth(sFieldW);
-                skinSearchWidget.setHeight(18);
-                skinSearchWidget.visible = true;
-                skinSearchWidget.active = curY + 18 > cy && curY < cy + ch;
-                skinSearchWidget.render(context, mouseX, mouseY, delta);
-            }
-            button(context, "Set", searchX + sFieldW + 6, curY, btnW, 18, mouseX, mouseY);
-            curY += 24;
-
-            // Row 2: Skin name label + Shuffle button
-            int maxTextW = cardW - 28 - 62;
-            context.enableScissor(Math.max(cx, card2X + 14), Math.max(cy, curY), Math.min(cx + cw, card2X + 14 + maxTextW), Math.min(cy + ch, curY + 20));
-            text(context, "Skin: " + SkinProtectModule.getCurrentSkinName(), card2X + 14, curY + 4, 0xFFD4D8E0);
-            context.disableScissor();
-
-            button(context, "Shuffle", card2X + cardW - 70, curY, 56, 16, mouseX, mouseY);
-            curY += 26;
-
-            // Row 3: Reset button
-            button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+            rightY += c4H + 12;
         } else {
             if (skinSearchWidget != null) skinSearchWidget.visible = skinSearchWidget.active = false;
         }
@@ -649,6 +770,7 @@ public class SecretScreen extends Screen {
                 listeningCombo = !listeningCombo;
                 if (listeningCombo) {
                     listeningPearlKey = false;
+                    listeningCartKey = false;
                     listeningNameKey = false;
                     listeningFakeKey = false;
                     listeningSkinKey = false;
@@ -658,14 +780,15 @@ public class SecretScreen extends Screen {
             }
         }
 
-        if (click.button() != 0) return false;
-
-        // Close button
-        if (inside(mx, my, px + pw - 64, py + 14, 50, 18)) {
-            ClientSoundManager.playClick();
-            close();
+        // Search Field clicked
+        if (searchField != null && searchField.mouseClicked(click, twice)) {
+            unfocus();
+            searchField.setFocused(true);
+            setFocused(searchField);
             return true;
         }
+
+        if (click.button() != 0) return false;
 
         int cx = px + 14;
         int cy = py + 48;
@@ -693,272 +816,338 @@ public class SecretScreen extends Screen {
         int card2X = card1X + cardW + gap;
 
         int baseY = cy - (int) scroll;
-        int c1Y = baseY;
-        int c1H = PearlPredictionModule.expanded ? 168 : 46;
-        int c2Y = c1Y + c1H + 12;
-        int c2H = NameProtectModule.expanded ? 104 : 46;
-
-        int c3Y = baseY;
-        int c3H = FakeScoreboardModule.expanded ? 208 : 46;
-        int c4Y = c3Y + c3H + 12;
-        int c4H = SkinProtectModule.expanded ? 275 : 46;
+        int leftY = baseY;
 
         // ==================== Card 1: Pearl Prediction ====================
-        // Main toggle
-        if (inside(mx, my, card1X + cardW - 38, c1Y + 12, 26, 14)) {
-            PearlPredictionModule.enabled = !PearlPredictionModule.enabled;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        // Keybind button
-        if (inside(mx, my, card1X + 60, c1Y + 25, 48, 16)) {
-            listeningPearlKey = true;
-            listeningCombo = false;
-            listeningNameKey = false;
-            listeningFakeKey = false;
-            listeningSkinKey = false;
-            ClientSoundManager.playClick();
-            return true;
-        }
-
-        // Header expand click
-        if (inside(mx, my, card1X, c1Y, cardW, 46)) {
-            PearlPredictionModule.expanded = !PearlPredictionModule.expanded;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        if (PearlPredictionModule.expanded) {
-            int curY = c1Y + 54;
-            // Enemy Only toggle
-            if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
-                PearlPredictionModule.enemyOnly = !PearlPredictionModule.enemyOnly;
+        if (pearlVisible()) {
+            int c1H = getPearlHeight();
+            // Main toggle
+            if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
+                PearlPredictionModule.enabled = !PearlPredictionModule.enabled;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
             }
-            curY += 26;
 
-            // Landing Box toggle
-            if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
-                PearlPredictionModule.landingBox = !PearlPredictionModule.landingBox;
+            // Keybind button
+            if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
+                listeningPearlKey = true;
+                listeningCombo = false;
+                listeningCartKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                PearlPredictionModule.expanded = !PearlPredictionModule.expanded;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
             }
-            curY += 26;
 
-            // Throw Preview toggle
-            if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
-                PearlPredictionModule.throwPreview = !PearlPredictionModule.throwPreview;
-                ClientSoundManager.playClick();
-                BameClientConfig.save();
-                return true;
-            }
-            curY += 26;
-
-            // Reset button
-            if (inside(mx, my, card1X + cardW - 58, curY, 46, 16)) {
-                PearlPredictionModule.resetToDefault();
-                ClientSoundManager.playClick();
-                return true;
-            }
-        }
-
-        // ==================== Card 2: Name Protect ====================
-        // Main toggle
-        if (inside(mx, my, card1X + cardW - 38, c2Y + 12, 26, 14)) {
-            NameProtectModule.enabled = !NameProtectModule.enabled;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        // Keybind button
-        if (inside(mx, my, card1X + 60, c2Y + 25, 48, 16)) {
-            listeningNameKey = true;
-            listeningCombo = false;
-            listeningPearlKey = false;
-            listeningFakeKey = false;
-            listeningSkinKey = false;
-            ClientSoundManager.playClick();
-            return true;
-        }
-
-        // Header expand click
-        if (inside(mx, my, card1X, c2Y, cardW, 46)) {
-            NameProtectModule.expanded = !NameProtectModule.expanded;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        if (NameProtectModule.expanded) {
-            int curY = c2Y + 54;
-            // Alias Field
-            if (nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
-                unfocus();
-                nameProtectAliasField.setFocused(true);
-                setFocused(nameProtectAliasField);
-                return true;
-            }
-            curY += 26;
-
-            // Reset button
-            if (inside(mx, my, card1X + cardW - 58, curY, 46, 16)) {
-                resetNameProtect();
-                ClientSoundManager.playClick();
-                return true;
-            }
-        }
-
-        // ==================== Card 3: Fake Scoreboard ====================
-        // Main toggle
-        if (inside(mx, my, card2X + cardW - 38, c3Y + 12, 26, 14)) {
-            FakeScoreboardModule.enabled = !FakeScoreboardModule.enabled;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        // Keybind button
-        if (inside(mx, my, card2X + 60, c3Y + 25, 48, 16)) {
-            listeningFakeKey = true;
-            listeningCombo = false;
-            listeningPearlKey = false;
-            listeningNameKey = false;
-            listeningSkinKey = false;
-            ClientSoundManager.playClick();
-            return true;
-        }
-
-        // Header expand click
-        if (inside(mx, my, card2X, c3Y, cardW, 46)) {
-            FakeScoreboardModule.expanded = !FakeScoreboardModule.expanded;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        if (FakeScoreboardModule.expanded) {
-            if (fakeMoneyField != null && fakeMoneyField.mouseClicked(click, twice)) {
-                unfocus();
-                fakeMoneyField.setFocused(true);
-                setFocused(fakeMoneyField);
-                return true;
-            }
-            if (fakeStarsField != null && fakeStarsField.mouseClicked(click, twice)) {
-                unfocus();
-                fakeStarsField.setFocused(true);
-                setFocused(fakeStarsField);
-                return true;
-            }
-            if (fakeKillsField != null && fakeKillsField.mouseClicked(click, twice)) {
-                unfocus();
-                fakeKillsField.setFocused(true);
-                setFocused(fakeKillsField);
-                return true;
-            }
-            if (fakeDeathsField != null && fakeDeathsField.mouseClicked(click, twice)) {
-                unfocus();
-                fakeDeathsField.setFocused(true);
-                setFocused(fakeDeathsField);
-                return true;
-            }
-            if (fakeTimeField != null && fakeTimeField.mouseClicked(click, twice)) {
-                unfocus();
-                fakeTimeField.setFocused(true);
-                setFocused(fakeTimeField);
-                return true;
-            }
-
-            int actionY = c3Y + 54 + 5 * 24 + 2;
-            // Edit HUD button
-            if (inside(mx, my, card2X + 14, actionY, 52, 16)) {
-                ClientSoundManager.playClick();
-                if (this.client != null) {
-                    this.client.setScreen(new HudEditorScreen(this));
+            if (PearlPredictionModule.expanded) {
+                int curY = leftY + 54;
+                // Enemy Only toggle
+                if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
+                    PearlPredictionModule.enemyOnly = !PearlPredictionModule.enemyOnly;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
                 }
-                return true;
-            }
+                curY += 26;
 
-            // Reset button
-            if (inside(mx, my, card2X + cardW - 58, actionY, 46, 16)) {
-                resetFakeScoreboard();
-                ClientSoundManager.playClick();
-                return true;
+                // Landing Box toggle
+                if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
+                    PearlPredictionModule.landingBox = !PearlPredictionModule.landingBox;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
+
+                // Throw Preview toggle
+                if (inside(mx, my, card1X + cardW - 38, curY + 2, 26, 14)) {
+                    PearlPredictionModule.throwPreview = !PearlPredictionModule.throwPreview;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
+
+                // Reset button
+                if (inside(mx, my, card1X + cardW - 58, curY, 46, 16)) {
+                    PearlPredictionModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
             }
+            leftY += c1H + 12;
         }
 
-        // ==================== Card 4: SkinProtect ====================
-        // Main toggle
-        if (inside(mx, my, card2X + cardW - 38, c4Y + 12, 26, 14)) {
-            SkinProtectModule.enabled = !SkinProtectModule.enabled;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        // Keybind button
-        if (inside(mx, my, card2X + 60, c4Y + 25, 48, 16)) {
-            listeningSkinKey = true;
-            listeningCombo = false;
-            listeningPearlKey = false;
-            listeningNameKey = false;
-            listeningFakeKey = false;
-            ClientSoundManager.playClick();
-            return true;
-        }
-
-        // Header expand click
-        if (inside(mx, my, card2X, c4Y, cardW, 46)) {
-            SkinProtectModule.expanded = !SkinProtectModule.expanded;
-            ClientSoundManager.playClick();
-            BameClientConfig.save();
-            return true;
-        }
-
-        if (SkinProtectModule.expanded) {
-            int prevH = 135;
-            int curY = c4Y + 52 + prevH + 9;
-            int pad = 12;
-            int searchX = card2X + pad;
-            int btnW = 38;
-            int sFieldW = (cardW - pad * 2) - btnW - 6;
-
-            // Search Field
-            if (skinSearchWidget != null && skinSearchWidget.mouseClicked(click, twice)) {
-                unfocus();
-                skinSearchWidget.setFocused(true);
-                setFocused(skinSearchWidget);
-                return true;
-            }
-
-            // Set button
-            if (inside(mx, my, searchX + sFieldW + 6, curY, btnW, 18)) {
-                applySkinSearch();
-                return true;
-            }
-            curY += 24;
-
-            // Shuffle button
-            if (inside(mx, my, card2X + cardW - 70, curY, 56, 16)) {
-                SkinProtectModule.shuffle();
+        // ==================== Card 2: AutoCart ====================
+        if (autoCartVisible()) {
+            int acH = getAutoCartHeight();
+            // Main toggle
+            if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
+                AutoCartModule.enabled = !AutoCartModule.enabled;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
             }
-            curY += 26;
 
-            // Reset button
-            if (inside(mx, my, card2X + cardW - 58, curY, 46, 16)) {
-                resetSkinProtect();
+            // Keybind button
+            if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
+                listeningCartKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
                 ClientSoundManager.playClick();
                 return true;
             }
+
+            // Header expand click
+            if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                AutoCartModule.expanded = !AutoCartModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (AutoCartModule.expanded) {
+                int rowY = leftY + 54;
+                // Switch Back toggle
+                if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                    AutoCartModule.switchBack = !AutoCartModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                rowY += 26;
+
+                // Reset button
+                if (inside(mx, my, card1X + cardW - 58, rowY, 46, 16)) {
+                    AutoCartModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            leftY += acH + 12;
+        }
+
+        // ==================== Card 3: Name Protect ====================
+        if (nameProtectVisible()) {
+            int c2H = getNameProtectHeight();
+            // Main toggle
+            if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
+                NameProtectModule.enabled = !NameProtectModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
+                listeningNameKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                NameProtectModule.expanded = !NameProtectModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (NameProtectModule.expanded) {
+                int curY = leftY + 54;
+                // Alias Field
+                if (nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
+                    unfocus();
+                    nameProtectAliasField.setFocused(true);
+                    setFocused(nameProtectAliasField);
+                    return true;
+                }
+                curY += 26;
+
+                // Reset button
+                if (inside(mx, my, card1X + cardW - 58, curY, 46, 16)) {
+                    resetNameProtect();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            leftY += c2H + 12;
+        }
+
+        int rightY = baseY;
+
+        // ==================== Card 4: Fake Scoreboard ====================
+        if (fakeScoreboardVisible()) {
+            int c3H = getFakeScoreboardHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                FakeScoreboardModule.enabled = !FakeScoreboardModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningFakeKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningNameKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
+                FakeScoreboardModule.expanded = !FakeScoreboardModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (FakeScoreboardModule.expanded) {
+                if (fakeMoneyField != null && fakeMoneyField.mouseClicked(click, twice)) {
+                    unfocus();
+                    fakeMoneyField.setFocused(true);
+                    setFocused(fakeMoneyField);
+                    return true;
+                }
+                if (fakeStarsField != null && fakeStarsField.mouseClicked(click, twice)) {
+                    unfocus();
+                    fakeStarsField.setFocused(true);
+                    setFocused(fakeStarsField);
+                    return true;
+                }
+                if (fakeKillsField != null && fakeKillsField.mouseClicked(click, twice)) {
+                    unfocus();
+                    fakeKillsField.setFocused(true);
+                    setFocused(fakeKillsField);
+                    return true;
+                }
+                if (fakeDeathsField != null && fakeDeathsField.mouseClicked(click, twice)) {
+                    unfocus();
+                    fakeDeathsField.setFocused(true);
+                    setFocused(fakeDeathsField);
+                    return true;
+                }
+                if (fakeTimeField != null && fakeTimeField.mouseClicked(click, twice)) {
+                    unfocus();
+                    fakeTimeField.setFocused(true);
+                    setFocused(fakeTimeField);
+                    return true;
+                }
+
+                int actionY = rightY + 54 + 5 * 24 + 2;
+                // Edit HUD button
+                if (inside(mx, my, card2X + 14, actionY, 52, 16)) {
+                    ClientSoundManager.playClick();
+                    if (this.client != null) {
+                        this.client.setScreen(new HudEditorScreen(this));
+                    }
+                    return true;
+                }
+
+                // Reset button
+                if (inside(mx, my, card2X + cardW - 58, actionY, 46, 16)) {
+                    resetFakeScoreboard();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            rightY += c3H + 12;
+        }
+
+        // ==================== Card 5: SkinProtect ====================
+        if (skinProtectVisible()) {
+            int c4H = getSkinProtectHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                SkinProtectModule.enabled = !SkinProtectModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningSkinKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
+                SkinProtectModule.expanded = !SkinProtectModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (SkinProtectModule.expanded) {
+                int prevH = 135;
+                int curY = rightY + 52 + prevH + 9;
+                int pad = 12;
+                int searchX = card2X + pad;
+                int btnW = 38;
+                int sFieldW = (cardW - pad * 2) - btnW - 6;
+
+                // Search Field
+                if (skinSearchWidget != null && skinSearchWidget.mouseClicked(click, twice)) {
+                    unfocus();
+                    skinSearchWidget.setFocused(true);
+                    setFocused(skinSearchWidget);
+                    return true;
+                }
+
+                // Set button
+                if (inside(mx, my, searchX + sFieldW + 6, curY, btnW, 18)) {
+                    applySkinSearch();
+                    return true;
+                }
+                curY += 24;
+
+                // Shuffle button
+                if (inside(mx, my, card2X + cardW - 70, curY, 56, 16)) {
+                    SkinProtectModule.shuffle();
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
+
+                // Reset button
+                if (inside(mx, my, card2X + cardW - 58, curY, 46, 16)) {
+                    resetSkinProtect();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            rightY += c4H + 12;
         }
 
         unfocus();
@@ -1014,6 +1203,14 @@ public class SecretScreen extends Screen {
         if (listeningPearlKey) {
             PearlPredictionModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
             listeningPearlKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningCartKey) {
+            AutoCartModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningCartKey = false;
             ClientSoundManager.playClick();
             BameClientConfig.save();
             return true;
@@ -1078,6 +1275,15 @@ public class SecretScreen extends Screen {
             return true;
         }
 
+        if (searchField != null && searchField.isFocused()) {
+            if (key == GLFW.GLFW_KEY_ESCAPE || key == GLFW.GLFW_KEY_ENTER) {
+                searchField.setFocused(false);
+                setFocused(null);
+                return true;
+            }
+            if (searchField.keyPressed(input)) return true;
+        }
+
         if (nameProtectAliasField != null && nameProtectAliasField.isFocused()) {
             if (key == GLFW.GLFW_KEY_ESCAPE || key == GLFW.GLFW_KEY_ENTER) {
                 nameProtectAliasField.setFocused(false);
@@ -1131,6 +1337,7 @@ public class SecretScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput input) {
+        if (searchField != null && searchField.isFocused()) return searchField.charTyped(input);
         if (nameProtectAliasField != null && nameProtectAliasField.isFocused()) return nameProtectAliasField.charTyped(input);
         if (skinSearchWidget != null && skinSearchWidget.isFocused()) return skinSearchWidget.charTyped(input);
         if (fakeMoneyField != null && fakeMoneyField.isFocused()) return fakeMoneyField.charTyped(input);

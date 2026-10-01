@@ -432,6 +432,16 @@ public class BameClientConfig {
                 if (props.containsKey("throwPreview")) PearlPredictionModule.throwPreview = Boolean.parseBoolean(props.getProperty("throwPreview"));
             }
 
+            // Combat - AutoCart
+            Path autoCartFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_cart.properties");
+            if (Files.exists(autoCartFile)) {
+                Properties props = loadProps(autoCartFile);
+                if (props.containsKey("enabled")) AutoCartModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("switchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+            }
+
             // World - NoFog
             Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
             if (Files.exists(noFogFile)) {
@@ -948,6 +958,14 @@ public class BameClientConfig {
             pearlProps.setProperty("throwPreview", String.valueOf(PearlPredictionModule.throwPreview));
             saveProps(combatDir.resolve("pearl_prediction.properties"), pearlProps, "Caeser Client - Pearl Prediction");
 
+            // Combat - AutoCart
+            Properties autoCartProps = new Properties();
+            autoCartProps.setProperty("enabled", String.valueOf(AutoCartModule.enabled));
+            autoCartProps.setProperty("keyBind", String.valueOf(AutoCartModule.keyBind));
+            autoCartProps.setProperty("expanded", String.valueOf(AutoCartModule.expanded));
+            autoCartProps.setProperty("switchBack", String.valueOf(AutoCartModule.switchBack));
+            saveProps(combatDir.resolve("auto_cart.properties"), autoCartProps, "Caeser Client - AutoCart");
+
             // World - NoFog
             Properties noFogProps = new Properties();
             noFogProps.setProperty("enabled", String.valueOf(NoFogModule.enabled));
@@ -1239,6 +1257,11 @@ public class BameClientConfig {
             if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
             if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
             if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
+
+            if (props.containsKey("autoCartEnabled")) AutoCartModule.enabled = Boolean.parseBoolean(props.getProperty("autoCartEnabled"));
+            if (props.containsKey("autoCartKeyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("autoCartKeyBind"));
+            if (props.containsKey("autoCartExpanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("autoCartExpanded"));
+            if (props.containsKey("autoCartSwitchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("autoCartSwitchBack"));
 
             if (props.containsKey("theme")) theme = props.getProperty("theme");
             if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));

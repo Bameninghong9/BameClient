@@ -64,4 +64,11 @@ public class ClientPlayerInteractionManagerMixin {
             }
         }
     }
+
+    @Inject(method = "stopUsingItem", at = @At("HEAD"))
+    private void onStopUsingItem(PlayerEntity player, CallbackInfo ci) {
+        if (player != null) {
+            com.bame.client.module.AutoCartModule.onStopUsingItem(player);
+        }
+    }
 }
