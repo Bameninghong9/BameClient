@@ -28,6 +28,9 @@ public class BameClient implements ClientModInitializer {
     private static boolean spotifyHudWasPressed = false;
     private static boolean scoreboardWasPressed = false;
     private static boolean crosshairWasPressed = false;
+    private static boolean timeChangerWasPressed = false;
+    private static boolean skinProtectWasPressed = false;
+    private static boolean secretComboWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -39,6 +42,10 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.spotify.SpotifyService.start();
         }
         HitColorModule.apply();
+        com.bame.client.wallpaper.WallpaperManager.getWallpaperDir();
+        try {
+            net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT, DurabilityGuardModule.ALARM_ID, DurabilityGuardModule.ALARM_SOUND);
+        } catch (Exception ignored) {}
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommandManager.literal("caeserclient")
@@ -70,6 +77,14 @@ public class BameClient implements ClientModInitializer {
             ReachDisplayModule.onTick(client);
             LowShieldModule.onTick(client);
             CustomHitboxesModule.onTick(client);
+            AutoToolModule.onTick(client);
+            NoFogModule.onTick(client);
+            BlockOutlineModule.onTick(client);
+            FreelookModule.onTick(client);
+            ItemSizeModule.onTick(client);
+            DurabilityGuardModule.onTick(client);
+            ZoomModule.onTick(client);
+            com.bame.client.module.PearlPredictionModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind
@@ -90,16 +105,6 @@ public class BameClient implements ClientModInitializer {
                         BameClientConfig.save();
                     }
                     fullbrightWasPressed = down;
-                }
-
-                // Zoom bind
-                if (ZoomModule.keyBind != -1) {
-                    boolean down = InputUtil.isKeyPressed(client.getWindow(), ZoomModule.keyBind);
-                    if (down && !zoomWasPressed) {
-                        ZoomModule.enabled = !ZoomModule.enabled;
-                        BameClientConfig.save();
-                    }
-                    zoomWasPressed = down;
                 }
 
                 // FPS bind
@@ -205,6 +210,26 @@ public class BameClient implements ClientModInitializer {
                     crosshairWasPressed = down;
                 }
 
+                // Time Changer bind
+                if (com.bame.client.module.TimeChangerModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.TimeChangerModule.keyBind);
+                    if (down && !timeChangerWasPressed) {
+                        com.bame.client.module.TimeChangerModule.enabled = !com.bame.client.module.TimeChangerModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    timeChangerWasPressed = down;
+                }
+
+                // SkinProtect bind
+                if (com.bame.client.module.SkinProtectModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.SkinProtectModule.keyBind);
+                    if (down && !skinProtectWasPressed) {
+                        com.bame.client.module.SkinProtectModule.enabled = !com.bame.client.module.SkinProtectModule.enabled;
+                        BameClientConfig.save();
+                    }
+                    skinProtectWasPressed = down;
+                }
+
                 // Menu bind
                 if (BameClientConfig.menuBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), BameClientConfig.menuBind);
@@ -212,6 +237,27 @@ public class BameClient implements ClientModInitializer {
                         client.setScreen(new BameClientScreen());
                     }
                     menuWasPressed = down;
+                }
+
+                // Secret unlock combo bind
+                if (BameClientConfig.secretKey != -1 && client.getWindow() != null) {
+                    long handle = client.getWindow().getHandle();
+                    boolean shift = org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS
+                            || org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+                    boolean ctrl = org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL) == org.lwjgl.glfw.GLFW.GLFW_PRESS
+                            || org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+                    boolean alt = org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT) == org.lwjgl.glfw.GLFW.GLFW_PRESS
+                            || org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+                    boolean key = InputUtil.isKeyPressed(client.getWindow(), BameClientConfig.secretKey);
+                    if (key && !secretComboWasPressed) {
+                        if (shift == BameClientConfig.secretRequireShift
+                                && ctrl == BameClientConfig.secretRequireCtrl
+                                && alt == BameClientConfig.secretRequireAlt) {
+                            BameClientConfig.secretUnlocked = !BameClientConfig.secretUnlocked;
+                            com.bame.client.sound.ClientSoundManager.playClick();
+                        }
+                    }
+                    secretComboWasPressed = key;
                 }
 
                 // InvMove tick (keybind & arrow navigation)
@@ -225,6 +271,7 @@ public class BameClient implements ClientModInitializer {
         
         WorldRenderEvents.END_MAIN.register(context -> {
             AreaRenderer.render(context);
+            com.bame.client.render.PearlPredictionRenderer.render(context);
         });
     }
 }

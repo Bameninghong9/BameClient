@@ -5,7 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Properties;
+import java.util.*;
 
 public class BameClientConfig {
     public static final Path BASE_CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve("CaeserClient");
@@ -18,7 +18,13 @@ public class BameClientConfig {
     public static String theme = "Ultraviolet";
     public static boolean seeThrough = false, frostedBlur = true, ambientBackground = true;
 
-    public static int guiAnimation = 0; // 0=Zoom/Fade, 1=Slide, 2=None
+    // Custom Wallpaper
+    public static boolean customWallpaper = false;
+    public static String selectedWallpaper = "";
+    public static float wallpaperBrightness = 0.85f;
+    public static float wallpaperBlur = 0.0f;
+
+    public static int guiAnimation = 0; // 0=Fade In, 1=Slide In, 2=Elastic Bounce, 3=Swirl Twist, 4=None
     public static boolean customMainColor = false, classicToggle = false, ambientAnimation = true;
     public static int mainColor = 0xFFB23CEE, ambientPrimary = 0xFF5675FF, ambientSecondary = 0xFFA647F2;
     public static int ambientMode = 0;
@@ -26,6 +32,21 @@ public class BameClientConfig {
     public static int menuBind = org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT;
     public static boolean quickFriend = false;
     public static String selectedCategory = "Visuals";
+
+    // Secret Key Combo Settings (Hidden GUI unlock)
+    public static boolean secretRequireShift = false;
+    public static boolean secretRequireCtrl = true;
+    public static boolean secretRequireAlt = false;
+    public static int secretKey = org.lwjgl.glfw.GLFW.GLFW_KEY_C;
+    public static boolean secretUnlocked = false; // Always starts locked on launch
+
+    // Client Sounds
+    public static boolean moduleSound = true;
+    public static int soundPack = 0; // 0=Default, 1=Mechanical, 2=Pop, 3=Metallic, 4=Modern
+    public static float soundVolume = 0.70f;
+    public static boolean hoverSound = true;
+    public static int hoverStyle = 0; // 0=Soft Tick, 1=Pop, 2=Subtle, 3=Breeze
+    public static float hoverVolume = 1.00f;
 
     public static void load() {
         Path visualsDir = BASE_CONFIG_DIR.resolve("Visuals");
@@ -257,6 +278,9 @@ public class BameClientConfig {
                 if (props.containsKey("enabled")) ZoomModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
                 if (props.containsKey("keyBind")) ZoomModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
                 if (props.containsKey("mode")) ZoomModule.mode = Integer.parseInt(props.getProperty("mode"));
+                if (props.containsKey("type")) ZoomModule.type = Integer.parseInt(props.getProperty("type"));
+                if (props.containsKey("scrollZoom")) ZoomModule.scrollZoom = Boolean.parseBoolean(props.getProperty("scrollZoom"));
+                if (props.containsKey("defaultLevel")) ZoomModule.defaultLevel = Integer.parseInt(props.getProperty("defaultLevel"));
             }
 
             // 5. Visuals - Fake Scoreboard
@@ -323,6 +347,7 @@ public class BameClientConfig {
                 if (props.containsKey("color")) CustomCrosshairModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
                 if (props.containsKey("grid")) CustomCrosshairModule.setEncodedGrid(props.getProperty("grid"));
             }
+
 
             // Combat - AutoClicker
             Path acFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_clicker.properties");
@@ -394,6 +419,153 @@ public class BameClientConfig {
                 if (props.containsKey("showViewVector")) CustomHitboxesModule.showViewVector = Boolean.parseBoolean(props.getProperty("showViewVector"));
             }
 
+            // Combat - PearlPrediction
+            Path pearlFile = BASE_CONFIG_DIR.resolve("Combat").resolve("pearl_prediction.properties");
+            if (Files.exists(pearlFile)) {
+                Properties props = loadProps(pearlFile);
+                if (props.containsKey("enabled")) PearlPredictionModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) PearlPredictionModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) PearlPredictionModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("enemyOnly")) PearlPredictionModule.enemyOnly = Boolean.parseBoolean(props.getProperty("enemyOnly"));
+                if (props.containsKey("landingBox")) PearlPredictionModule.landingBox = Boolean.parseBoolean(props.getProperty("landingBox"));
+                if (props.containsKey("throwPreview")) PearlPredictionModule.throwPreview = Boolean.parseBoolean(props.getProperty("throwPreview"));
+            }
+
+            // World - NoFog
+            Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
+            if (Files.exists(noFogFile)) {
+                Properties props = loadProps(noFogFile);
+                if (props.containsKey("enabled")) NoFogModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) NoFogModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) NoFogModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("allFog")) NoFogModule.allFog = Boolean.parseBoolean(props.getProperty("allFog"));
+                if (props.containsKey("netherFog")) NoFogModule.netherFog = Boolean.parseBoolean(props.getProperty("netherFog"));
+                if (props.containsKey("waterFog")) NoFogModule.waterFog = Boolean.parseBoolean(props.getProperty("waterFog"));
+                if (props.containsKey("lavaFog")) NoFogModule.lavaFog = Boolean.parseBoolean(props.getProperty("lavaFog"));
+            }
+
+            // Misc - AutoTool
+            Path autoToolFile = BASE_CONFIG_DIR.resolve("Misc").resolve("auto_tool.properties");
+            if (Files.exists(autoToolFile)) {
+                Properties props = loadProps(autoToolFile);
+                if (props.containsKey("enabled")) AutoToolModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) AutoToolModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) AutoToolModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("switchBack")) AutoToolModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+            }
+
+            // Misc - DurabilityGuard
+            Path durabilityGuardFile = BASE_CONFIG_DIR.resolve("Misc").resolve("durability_guard.properties");
+            if (Files.exists(durabilityGuardFile)) {
+                Properties props = loadProps(durabilityGuardFile);
+                if (props.containsKey("enabled")) DurabilityGuardModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) DurabilityGuardModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) DurabilityGuardModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("alertMode")) DurabilityGuardModule.alertMode = Integer.parseInt(props.getProperty("alertMode"));
+                if (props.containsKey("toolThresholds")) {
+                    DurabilityGuardModule.toolThresholds.clear();
+                    String val = props.getProperty("toolThresholds");
+                    if (val != null && !val.trim().isEmpty()) {
+                        for (String entry : val.split(",")) {
+                            entry = entry.trim();
+                            if (entry.isEmpty()) continue;
+                            int sep = entry.lastIndexOf('=');
+                            if (sep == -1) sep = entry.lastIndexOf(':');
+                            if (sep != -1) {
+                                String id = entry.substring(0, sep).trim();
+                                try {
+                                    int threshold = Integer.parseInt(entry.substring(sep + 1).trim());
+                                    DurabilityGuardModule.toolThresholds.put(id, threshold);
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+                }
+            } else {
+                DurabilityGuardModule.resetToDefault();
+            }
+
+            // Visuals - BlockOutline
+            Path blockOutlineFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("block_outline.properties");
+            if (Files.exists(blockOutlineFile)) {
+                Properties props = loadProps(blockOutlineFile);
+                if (props.containsKey("enabled")) BlockOutlineModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) BlockOutlineModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) BlockOutlineModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("color")) BlockOutlineModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
+                if (props.containsKey("lineWidth")) BlockOutlineModule.lineWidth = Float.parseFloat(props.getProperty("lineWidth"));
+                if (props.containsKey("chroma")) BlockOutlineModule.chroma = Boolean.parseBoolean(props.getProperty("chroma"));
+                if (props.containsKey("opacity")) BlockOutlineModule.opacity = Float.parseFloat(props.getProperty("opacity"));
+            }
+
+            // Movement - Freelook
+            Path freelookFile = BASE_CONFIG_DIR.resolve("Movement").resolve("freelook.properties");
+            if (Files.exists(freelookFile)) {
+                Properties props = loadProps(freelookFile);
+                if (props.containsKey("enabled")) FreelookModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) FreelookModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) FreelookModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("toggleMode")) FreelookModule.toggleMode = Boolean.parseBoolean(props.getProperty("toggleMode"));
+                if (props.containsKey("invertPitch")) FreelookModule.invertPitch = Boolean.parseBoolean(props.getProperty("invertPitch"));
+                if (props.containsKey("sensitivity")) FreelookModule.sensitivity = Float.parseFloat(props.getProperty("sensitivity"));
+            }
+
+            // Visuals - ItemSize
+            Path itemSizeFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("item_size.properties");
+            if (Files.exists(itemSizeFile)) {
+                Properties props = loadProps(itemSizeFile);
+                if (props.containsKey("enabled")) ItemSizeModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) ItemSizeModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) ItemSizeModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("scale")) ItemSizeModule.scale = Float.parseFloat(props.getProperty("scale"));
+                if (props.containsKey("yOffset")) ItemSizeModule.yOffset = Float.parseFloat(props.getProperty("yOffset"));
+                if (props.containsKey("selectedItems")) {
+                    ItemSizeModule.selectedItems.clear();
+                    String val = props.getProperty("selectedItems");
+                    if (val != null && !val.trim().isEmpty()) {
+                        for (String id : val.split(",")) {
+                            if (!id.trim().isEmpty()) {
+                                ItemSizeModule.selectedItems.add(id.trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            // World - TimeChanger
+            Path timeChangerFile = BASE_CONFIG_DIR.resolve("World").resolve("time_changer.properties");
+            if (Files.exists(timeChangerFile)) {
+                Properties props = loadProps(timeChangerFile);
+                if (props.containsKey("enabled")) TimeChangerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("expanded")) TimeChangerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("keyBind")) TimeChangerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("timeMode")) TimeChangerModule.timeMode = Integer.parseInt(props.getProperty("timeMode"));
+            }
+
+            // Visuals - SkinProtect
+            Path skinProtectFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("skin_protect.properties");
+            if (Files.exists(skinProtectFile)) {
+                Properties props = loadProps(skinProtectFile);
+                if (props.containsKey("enabled")) SkinProtectModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("expanded")) SkinProtectModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("keyBind")) SkinProtectModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("skinIndex")) SkinProtectModule.currentSkinIndex = Integer.parseInt(props.getProperty("skinIndex"));
+                if (props.containsKey("currentSkinName")) SkinProtectModule.targetInitialSkinName = props.getProperty("currentSkinName");
+                if (props.containsKey("customSkins")) {
+                    String val = props.getProperty("customSkins");
+                    if (!val.trim().isEmpty()) {
+                        for (String part : val.split(";")) {
+                            String[] s = part.split(":");
+                            if (s.length == 2) {
+                                try {
+                                    SkinProtectModule.addCustomSkin(s[0], UUID.fromString(s[1]));
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+                }
+            }
+
             // 6. Theme
             Path themeFile = BASE_CONFIG_DIR.resolve("Theme").resolve("theme.properties");
             if (Files.exists(themeFile)) {
@@ -413,6 +585,10 @@ public class BameClientConfig {
                 if (props.containsKey("ambientRadius")) ambientRadius = Math.clamp(Float.parseFloat(props.getProperty("ambientRadius")), 0f, 1f);
                 if (props.containsKey("ambientAnimation")) ambientAnimation = Boolean.parseBoolean(props.getProperty("ambientAnimation"));
                 if (props.containsKey("animationSpeed")) animationSpeed = Math.clamp(Float.parseFloat(props.getProperty("animationSpeed")), 0f, 1f);
+                if (props.containsKey("customWallpaper")) customWallpaper = Boolean.parseBoolean(props.getProperty("customWallpaper"));
+                if (props.containsKey("selectedWallpaper")) selectedWallpaper = props.getProperty("selectedWallpaper");
+                if (props.containsKey("wallpaperBrightness")) wallpaperBrightness = Math.clamp(Float.parseFloat(props.getProperty("wallpaperBrightness")), 0.1f, 1f);
+                if (props.containsKey("wallpaperBlur")) wallpaperBlur = Math.clamp(Float.parseFloat(props.getProperty("wallpaperBlur")), 0f, 1f);
             }
 
             // 7. Settings
@@ -426,6 +602,16 @@ public class BameClientConfig {
                     selectedCategory = props.getProperty("selectedCategory");
                     com.bame.client.gui.BameClientScreen.selected = selectedCategory;
                 }
+                if (props.containsKey("moduleSound")) moduleSound = Boolean.parseBoolean(props.getProperty("moduleSound"));
+                if (props.containsKey("soundPack")) soundPack = Integer.parseInt(props.getProperty("soundPack"));
+                if (props.containsKey("soundVolume")) soundVolume = Float.parseFloat(props.getProperty("soundVolume"));
+                if (props.containsKey("hoverSound")) hoverSound = Boolean.parseBoolean(props.getProperty("hoverSound"));
+                if (props.containsKey("hoverStyle")) hoverStyle = Integer.parseInt(props.getProperty("hoverStyle"));
+                if (props.containsKey("hoverVolume")) hoverVolume = Float.parseFloat(props.getProperty("hoverVolume"));
+                if (props.containsKey("secretRequireShift")) secretRequireShift = Boolean.parseBoolean(props.getProperty("secretRequireShift"));
+                if (props.containsKey("secretRequireCtrl")) secretRequireCtrl = Boolean.parseBoolean(props.getProperty("secretRequireCtrl"));
+                if (props.containsKey("secretRequireAlt")) secretRequireAlt = Boolean.parseBoolean(props.getProperty("secretRequireAlt"));
+                if (props.containsKey("secretKey")) secretKey = Integer.parseInt(props.getProperty("secretKey"));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -441,6 +627,7 @@ public class BameClientConfig {
             Path worldDir = BASE_CONFIG_DIR.resolve("World");
             Path themeDir = BASE_CONFIG_DIR.resolve("Theme");
             Path settingsDir = BASE_CONFIG_DIR.resolve("Settings");
+            Path wallpapersDir = BASE_CONFIG_DIR.resolve("wallpapers");
 
             Files.createDirectories(combatDir);
             Files.createDirectories(movementDir);
@@ -449,6 +636,7 @@ public class BameClientConfig {
             Files.createDirectories(worldDir);
             Files.createDirectories(themeDir);
             Files.createDirectories(settingsDir);
+            Files.createDirectories(wallpapersDir);
 
             // 1. World - Auto Area Miner
             Properties worldProps = new Properties();
@@ -625,6 +813,9 @@ public class BameClientConfig {
             zoomProps.setProperty("enabled", String.valueOf(ZoomModule.enabled));
             zoomProps.setProperty("keyBind", String.valueOf(ZoomModule.keyBind));
             zoomProps.setProperty("mode", String.valueOf(ZoomModule.mode));
+            zoomProps.setProperty("type", String.valueOf(ZoomModule.type));
+            zoomProps.setProperty("scrollZoom", String.valueOf(ZoomModule.scrollZoom));
+            zoomProps.setProperty("defaultLevel", String.valueOf(ZoomModule.defaultLevel));
             saveProps(visualsDir.resolve("zoom.properties"), zoomProps, "Caeser Client - Zoom");
 
             // 5. Visuals - Fake Scoreboard
@@ -683,6 +874,7 @@ public class BameClientConfig {
             crosshairProps.setProperty("color", Integer.toHexString(CustomCrosshairModule.color));
             crosshairProps.setProperty("grid", CustomCrosshairModule.getEncodedGrid());
             saveProps(visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
+
 
             // Combat - AutoClicker
             Properties acProps = new Properties();
@@ -744,6 +936,100 @@ public class BameClientConfig {
             hbProps.setProperty("showViewVector", String.valueOf(CustomHitboxesModule.showViewVector));
             saveProps(combatDir.resolve("custom_hitboxes.properties"), hbProps, "Caeser Client - Custom Hitboxes");
 
+            // Combat - PearlPrediction
+            Properties pearlProps = new Properties();
+            pearlProps.setProperty("enabled", String.valueOf(PearlPredictionModule.enabled));
+            pearlProps.setProperty("keyBind", String.valueOf(PearlPredictionModule.keyBind));
+            pearlProps.setProperty("expanded", String.valueOf(PearlPredictionModule.expanded));
+            pearlProps.setProperty("enemyOnly", String.valueOf(PearlPredictionModule.enemyOnly));
+            pearlProps.setProperty("landingBox", String.valueOf(PearlPredictionModule.landingBox));
+            pearlProps.setProperty("throwPreview", String.valueOf(PearlPredictionModule.throwPreview));
+            saveProps(combatDir.resolve("pearl_prediction.properties"), pearlProps, "Caeser Client - Pearl Prediction");
+
+            // World - NoFog
+            Properties noFogProps = new Properties();
+            noFogProps.setProperty("enabled", String.valueOf(NoFogModule.enabled));
+            noFogProps.setProperty("keyBind", String.valueOf(NoFogModule.keyBind));
+            noFogProps.setProperty("expanded", String.valueOf(NoFogModule.expanded));
+            noFogProps.setProperty("allFog", String.valueOf(NoFogModule.allFog));
+            noFogProps.setProperty("netherFog", String.valueOf(NoFogModule.netherFog));
+            noFogProps.setProperty("waterFog", String.valueOf(NoFogModule.waterFog));
+            noFogProps.setProperty("lavaFog", String.valueOf(NoFogModule.lavaFog));
+            saveProps(worldDir.resolve("no_fog.properties"), noFogProps, "Caeser Client - NoFog");
+
+            // Misc - AutoTool
+            Properties autoToolProps = new Properties();
+            autoToolProps.setProperty("enabled", String.valueOf(AutoToolModule.enabled));
+            autoToolProps.setProperty("keyBind", String.valueOf(AutoToolModule.keyBind));
+            autoToolProps.setProperty("expanded", String.valueOf(AutoToolModule.expanded));
+            autoToolProps.setProperty("switchBack", String.valueOf(AutoToolModule.switchBack));
+            saveProps(miscDir.resolve("auto_tool.properties"), autoToolProps, "Caeser Client - AutoTool");
+
+            // Misc - DurabilityGuard
+            Properties durabilityGuardProps = new Properties();
+            durabilityGuardProps.setProperty("enabled", String.valueOf(DurabilityGuardModule.enabled));
+            durabilityGuardProps.setProperty("keyBind", String.valueOf(DurabilityGuardModule.keyBind));
+            durabilityGuardProps.setProperty("expanded", String.valueOf(DurabilityGuardModule.expanded));
+            durabilityGuardProps.setProperty("alertMode", String.valueOf(DurabilityGuardModule.alertMode));
+            StringBuilder dguardSb = new StringBuilder();
+            for (java.util.Map.Entry<String, Integer> e : DurabilityGuardModule.toolThresholds.entrySet()) {
+                if (dguardSb.length() > 0) dguardSb.append(",");
+                dguardSb.append(e.getKey()).append("=").append(e.getValue());
+            }
+            durabilityGuardProps.setProperty("toolThresholds", dguardSb.toString());
+            saveProps(miscDir.resolve("durability_guard.properties"), durabilityGuardProps, "Caeser Client - DurabilityGuard");
+
+            // Visuals - BlockOutline
+            Properties blockOutlineProps = new Properties();
+            blockOutlineProps.setProperty("enabled", String.valueOf(BlockOutlineModule.enabled));
+            blockOutlineProps.setProperty("keyBind", String.valueOf(BlockOutlineModule.keyBind));
+            blockOutlineProps.setProperty("expanded", String.valueOf(BlockOutlineModule.expanded));
+            blockOutlineProps.setProperty("color", Integer.toHexString(BlockOutlineModule.color));
+            blockOutlineProps.setProperty("lineWidth", String.valueOf(BlockOutlineModule.lineWidth));
+            blockOutlineProps.setProperty("chroma", String.valueOf(BlockOutlineModule.chroma));
+            blockOutlineProps.setProperty("opacity", String.valueOf(BlockOutlineModule.opacity));
+            saveProps(visualsDir.resolve("block_outline.properties"), blockOutlineProps, "Caeser Client - BlockOutline");
+
+            // Movement - Freelook
+            Properties freelookProps = new Properties();
+            freelookProps.setProperty("enabled", String.valueOf(FreelookModule.enabled));
+            freelookProps.setProperty("keyBind", String.valueOf(FreelookModule.keyBind));
+            freelookProps.setProperty("expanded", String.valueOf(FreelookModule.expanded));
+            freelookProps.setProperty("toggleMode", String.valueOf(FreelookModule.toggleMode));
+            freelookProps.setProperty("invertPitch", String.valueOf(FreelookModule.invertPitch));
+            freelookProps.setProperty("sensitivity", String.valueOf(FreelookModule.sensitivity));
+            saveProps(movementDir.resolve("freelook.properties"), freelookProps, "Caeser Client - Freelook");
+
+            // Visuals - ItemSize
+            Properties itemSizeProps = new Properties();
+            itemSizeProps.setProperty("enabled", String.valueOf(ItemSizeModule.enabled));
+            itemSizeProps.setProperty("keyBind", String.valueOf(ItemSizeModule.keyBind));
+            itemSizeProps.setProperty("expanded", String.valueOf(ItemSizeModule.expanded));
+            itemSizeProps.setProperty("scale", String.valueOf(ItemSizeModule.scale));
+            itemSizeProps.setProperty("yOffset", String.valueOf(ItemSizeModule.yOffset));
+            itemSizeProps.setProperty("selectedItems", String.join(",", ItemSizeModule.selectedItems));
+            // World - TimeChanger
+            Properties timeChangerProps = new Properties();
+            timeChangerProps.setProperty("enabled", String.valueOf(TimeChangerModule.enabled));
+            timeChangerProps.setProperty("expanded", String.valueOf(TimeChangerModule.expanded));
+            timeChangerProps.setProperty("keyBind", String.valueOf(TimeChangerModule.keyBind));
+            timeChangerProps.setProperty("timeMode", String.valueOf(TimeChangerModule.timeMode));
+            saveProps(worldDir.resolve("time_changer.properties"), timeChangerProps, "Caeser Client - TimeChanger");
+
+            // Visuals - SkinProtect
+            Properties skinProtectProps = new Properties();
+            skinProtectProps.setProperty("enabled", String.valueOf(SkinProtectModule.enabled));
+            skinProtectProps.setProperty("expanded", String.valueOf(SkinProtectModule.expanded));
+            skinProtectProps.setProperty("keyBind", String.valueOf(SkinProtectModule.keyBind));
+            skinProtectProps.setProperty("skinIndex", String.valueOf(SkinProtectModule.currentSkinIndex));
+            skinProtectProps.setProperty("currentSkinName", SkinProtectModule.getCurrentSkinName());
+            List<String> customSkinList = new ArrayList<>();
+            for (SkinProtectModule.RealSkinEntry e : SkinProtectModule.CUSTOM_SEARCHED_SKINS) {
+                customSkinList.add(e.name + ":" + e.uuid.toString());
+            }
+            skinProtectProps.setProperty("customSkins", String.join(";", customSkinList));
+            saveProps(visualsDir.resolve("skin_protect.properties"), skinProtectProps, "Caeser Client - SkinProtect");
+
             // 6. Theme
             Properties themeProps = new Properties();
             themeProps.setProperty("theme", theme);
@@ -761,6 +1047,10 @@ public class BameClientConfig {
             themeProps.setProperty("ambientRadius", String.valueOf(ambientRadius));
             themeProps.setProperty("ambientAnimation", String.valueOf(ambientAnimation));
             themeProps.setProperty("animationSpeed", String.valueOf(animationSpeed));
+            themeProps.setProperty("customWallpaper", String.valueOf(customWallpaper));
+            themeProps.setProperty("selectedWallpaper", selectedWallpaper != null ? selectedWallpaper : "");
+            themeProps.setProperty("wallpaperBrightness", String.valueOf(wallpaperBrightness));
+            themeProps.setProperty("wallpaperBlur", String.valueOf(wallpaperBlur));
             saveProps(themeDir.resolve("theme.properties"), themeProps, "Caeser Client - Theme");
 
             // 7. Settings
@@ -769,6 +1059,16 @@ public class BameClientConfig {
             settingsProps.setProperty("quickFriend", String.valueOf(quickFriend));
             settingsProps.setProperty("guiAnimation", String.valueOf(guiAnimation));
             settingsProps.setProperty("selectedCategory", selectedCategory);
+            settingsProps.setProperty("moduleSound", String.valueOf(moduleSound));
+            settingsProps.setProperty("soundPack", String.valueOf(soundPack));
+            settingsProps.setProperty("soundVolume", String.valueOf(soundVolume));
+            settingsProps.setProperty("hoverSound", String.valueOf(hoverSound));
+            settingsProps.setProperty("hoverStyle", String.valueOf(hoverStyle));
+            settingsProps.setProperty("hoverVolume", String.valueOf(hoverVolume));
+            settingsProps.setProperty("secretRequireShift", String.valueOf(secretRequireShift));
+            settingsProps.setProperty("secretRequireCtrl", String.valueOf(secretRequireCtrl));
+            settingsProps.setProperty("secretRequireAlt", String.valueOf(secretRequireAlt));
+            settingsProps.setProperty("secretKey", String.valueOf(secretKey));
             saveProps(settingsDir.resolve("settings.properties"), settingsProps, "Caeser Client - General Settings");
         } catch (Exception e) {
             e.printStackTrace();
@@ -835,6 +1135,9 @@ public class BameClientConfig {
             if (props.containsKey("zoomEnabled")) ZoomModule.enabled = Boolean.parseBoolean(props.getProperty("zoomEnabled"));
             if (props.containsKey("zoomKeyBind")) ZoomModule.keyBind = Integer.parseInt(props.getProperty("zoomKeyBind"));
             if (props.containsKey("zoomMode")) ZoomModule.mode = Integer.parseInt(props.getProperty("zoomMode"));
+            if (props.containsKey("zoomType")) ZoomModule.type = Integer.parseInt(props.getProperty("zoomType"));
+            if (props.containsKey("zoomScrollZoom")) ZoomModule.scrollZoom = Boolean.parseBoolean(props.getProperty("zoomScrollZoom"));
+            if (props.containsKey("zoomDefaultLevel")) ZoomModule.defaultLevel = Integer.parseInt(props.getProperty("zoomDefaultLevel"));
 
             if (props.containsKey("fakeScoreboardEnabled")) FakeScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("fakeScoreboardEnabled"));
             if (props.containsKey("fakeScoreboardKeyBind")) FakeScoreboardModule.keyBind = Integer.parseInt(props.getProperty("fakeScoreboardKeyBind"));

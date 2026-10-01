@@ -255,6 +255,23 @@ public class CustomGuiUtils {
     public static void drawGlobeIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "world", x, y, color); }
     public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, color); }
     public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, color); }
+    public static void drawTrashIcon(DrawContext context, int x, int y, int color) {
+        context.fill(x + 6, y + 2, x + 10, y + 3, color);
+        context.fill(x + 3, y + 3, x + 13, y + 4, color);
+        context.fill(x + 4, y + 5, x + 5, y + 13, color);
+        context.fill(x + 11, y + 5, x + 12, y + 13, color);
+        context.fill(x + 4, y + 12, x + 12, y + 13, color);
+        context.fill(x + 6, y + 6, x + 7, y + 11, color);
+        context.fill(x + 9, y + 6, x + 10, y + 11, color);
+    }
+
+    public static void drawMusicIcon(DrawContext context, int x, int y, int color) {
+        context.fill(x + 1, y + 7, x + 4, y + 10, color);
+        context.fill(x + 7, y + 5, x + 10, y + 8, color);
+        context.fill(x + 3, y + 2, x + 4, y + 8, color);
+        context.fill(x + 9, y + 1, x + 10, y + 6, color);
+        context.fill(x + 3, y + 1, x + 10, y + 3, color);
+    }
 
     private static final Identifier C_LOGO = Identifier.of("bameclient", "textures/gui/c_logo.png");
     public static void drawCLogo(DrawContext context, int x, int y, int size) {
@@ -262,7 +279,7 @@ public class CustomGuiUtils {
             C_LOGO, x, y, 0.0f, 0.0f, size, size, 34, 34, 34, 34, 0xFFFFFFFF);
     }
 
-    private static final Style SANS_STYLE = Style.EMPTY
+    public static final Style SANS_STYLE = Style.EMPTY
         .withFont(new StyleSpriteSource.Font(Identifier.of("bameclient", "sans")));
     private static final Map<String, Text> TEXT_CACHE = new ConcurrentHashMap<>();
 

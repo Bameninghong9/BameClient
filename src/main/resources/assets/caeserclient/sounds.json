@@ -1,0 +1,7 @@
+{
+  "alarm": {
+    "sounds": [
+      "caeserclient:alarm"
+    ]
+  }
+}

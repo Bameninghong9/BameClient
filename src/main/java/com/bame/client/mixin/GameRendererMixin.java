@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Float> cir) {
-        double targetZoom = ZoomModule.enabled ? 0.25 : 1.0;
+        double targetZoom = ZoomModule.getTargetZoom();
         if (ZoomModule.mode == 1) { // Instant
             ZoomModule.currentZoom = targetZoom;
         } else { // Smooth
-            double factor = 0.1;
+            double factor = 0.16;
             ZoomModule.currentZoom += (targetZoom - ZoomModule.currentZoom) * factor;
             if (Math.abs(ZoomModule.currentZoom - targetZoom) < 0.001) {
                 ZoomModule.currentZoom = targetZoom;

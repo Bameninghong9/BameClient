@@ -1,6 +1,7 @@
 package com.bame.client.gui;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.wallpaper.WallpaperManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 
@@ -14,10 +15,16 @@ final class ThemeSettingsPanel {
     private int ambientTop() { return y+Math.max(appearanceHeight(),168)+12; }
     private int ambientHeight() { return open==1?232:open==2?264:174; }
     private int motionTop() { return ambientTop()+ambientHeight()+12; }
-    int height() { return motionTop()-y+90; }
+    private int wallpaperTop() { return motionTop()+90+12; }
+    private int wallpaperHeight() { return 106; }
+    int height() { return wallpaperTop()-y+wallpaperHeight(); }
     private int colorY(int i) { return i==0?y+38:ambientTop()+38+(i==2?32+(open==1?116:0):0); }
     private int groupY(int i) { return y+(i==0?74:120)+(open==0?116:0); }
-    private int sliderY(int i) { return i==3?motionTop()+43:ambientTop()+34+i*43; }
+    private int sliderY(int i) {
+        if(i < 3) return ambientTop()+34+i*43;
+        if(i == 3) return motionTop()+43;
+        return wallpaperTop()+28+(i-4)*38;
+    }
     private int sliderX() { return right()+12; }
     private int sliderWidth() { return w-(sliderX()-x)-44; }
     void layout(int x,int y,int w) {
@@ -52,8 +59,13 @@ final class ThemeSettingsPanel {
         }
     }
     private float value(int i) { return switch(i) {
-        case 0 -> BameClientConfig.ambientIntensity; case 1 -> BameClientConfig.ambientOpacity;
-        case 2 -> BameClientConfig.ambientRadius; default -> BameClientConfig.animationSpeed; }; }
+        case 0 -> BameClientConfig.ambientIntensity;
+        case 1 -> BameClientConfig.ambientOpacity;
+        case 2 -> BameClientConfig.ambientRadius;
+        case 3 -> BameClientConfig.animationSpeed;
+        case 4 -> BameClientConfig.wallpaperBrightness;
+        default -> BameClientConfig.wallpaperBlur;
+    }; }
     void render(DrawContext c,int mx,int my,float delta) {
         card(c,x,y,half(),appearanceHeight(),"APPEARANCE");
         swatch(c,"Main Color",0,GuiTheme.accent());
@@ -75,8 +87,62 @@ final class ThemeSettingsPanel {
         card(c,x,motionTop(),w,90,"MOTION");
         text(c,"Ambient Animation",x+12,motionTop()+38,0xFFD4D8E0);
         new CustomToggleWidget(x+half()-38,motionTop()+54,26,14,BameClientConfig.ambientAnimation).render(c,mx,my,delta);
-        String[] labels={"Intensity","Opacity","Radius","Animation Speed"};
-        for(int i=0;i<4;i++) {
+
+        // Custom Wallpaper Card
+        card(c,x,wallpaperTop(),w,wallpaperHeight(),"CUSTOM WALLPAPER");
+
+        // Open Folder button in card header
+        int fx=x+w-96, fy=wallpaperTop()+8, fw=84, fh=16;
+        boolean fHover=hit(mx,my,fx,fy,fw,fh);
+        CustomGuiUtils.fillUltraRounded(c,fx,fy,fw,fh,fHover?0xFF232833:0xFF141822,3);
+        CustomGuiUtils.drawUltraRoundedOutline(c,fx,fy,fw,fh,fHover?GuiTheme.accent():0xFF292E3A,3);
+        int fwt=MinecraftClient.getInstance().textRenderer.getWidth(CustomGuiUtils.getFontText("Open Folder"));
+        text(c,"Open Folder",fx+(fw-fwt)/2,fy+4,fHover?0xFFFFFFFF:0xFFB5BAC6);
+
+        // Custom Wallpaper toggle
+        text(c,"Custom Wallpaper",x+12,wallpaperTop()+34,0xFFD4D8E0);
+        new CustomToggleWidget(x+half()-38,wallpaperTop()+32,26,14,BameClientConfig.customWallpaper).render(c,mx,my,delta);
+
+        // Wallpaper selector row
+        text(c,"Wallpaper",x+12,wallpaperTop()+58,0xFFD4D8E0);
+        int bx=x+12, bw=half()-24, by=wallpaperTop()+70, btnH=18;
+
+        // Prev button [<]
+        boolean prevHover=hit(mx,my,bx,by+1,18,btnH);
+        CustomGuiUtils.fillUltraRounded(c,bx,by+1,18,btnH,prevHover?0xFF252A36:0xFF12151E,3);
+        CustomGuiUtils.drawUltraRoundedOutline(c,bx,by+1,18,btnH,prevHover?GuiTheme.accent():0xFF262C38,3);
+        text(c,"<",bx+6,by+5,prevHover?0xFFFFFFFF:0xFFB5BAC6);
+
+        // Middle filename box
+        int boxX=bx+22, boxW=bw-66;
+        CustomGuiUtils.fillUltraRounded(c,boxX,by+1,boxW,btnH,0xFF0D1017,3);
+        CustomGuiUtils.drawUltraRoundedOutline(c,boxX,by+1,boxW,btnH,0xFF202530,3);
+        String wpName=BameClientConfig.selectedWallpaper;
+        if(wpName==null||wpName.isEmpty()) wpName="No Wallpapers Found";
+        c.enableScissor(boxX+4,by+1,boxX+boxW-4,by+1+btnH);
+        int nameW=MinecraftClient.getInstance().textRenderer.getWidth(CustomGuiUtils.getFontText(wpName));
+        int textX=nameW<(boxW-8)?boxX+(boxW-nameW)/2:boxX+6;
+        text(c,wpName,textX,by+5,wpName.startsWith("No ")?0xFF6C7382:0xFFFFFFFF);
+        c.disableScissor();
+
+        // Next button [>]
+        int btnNextX=bx+bw-40;
+        boolean nextHover=hit(mx,my,btnNextX,by+1,18,btnH);
+        CustomGuiUtils.fillUltraRounded(c,btnNextX,by+1,18,btnH,nextHover?0xFF252A36:0xFF12151E,3);
+        CustomGuiUtils.drawUltraRoundedOutline(c,btnNextX,by+1,18,btnH,nextHover?GuiTheme.accent():0xFF262C38,3);
+        text(c,">",btnNextX+6,by+5,nextHover?0xFFFFFFFF:0xFFB5BAC6);
+
+        // Refresh button [⟳]
+        int btnRefX=bx+bw-18;
+        boolean refHover=hit(mx,my,btnRefX,by+1,18,btnH);
+        CustomGuiUtils.fillUltraRounded(c,btnRefX,by+1,18,btnH,refHover?0xFF252A36:0xFF12151E,3);
+        CustomGuiUtils.drawUltraRoundedOutline(c,btnRefX,by+1,18,btnH,refHover?GuiTheme.accent():0xFF262C38,3);
+        int rw=MinecraftClient.getInstance().textRenderer.getWidth(CustomGuiUtils.getFontText("⟳"));
+        text(c,"⟳",btnRefX+(18-rw)/2,by+5,refHover?0xFFFFFFFF:0xFFB5BAC6);
+
+        // All 6 Sliders
+        String[] labels={"Intensity","Opacity","Radius","Animation Speed","Brightness","Blur"};
+        for(int i=0;i<6;i++) {
             int yy=sliderY(i),sx=sliderX(),sw=sliderWidth();
             text(c,labels[i],sx,yy,0xFFD4D8E0);
             CustomGuiUtils.fillUltraRounded(c,sx,yy+20,sw,4,0xFF303442,2);
@@ -117,7 +183,35 @@ final class ThemeSettingsPanel {
             BameClientConfig.save(); return true;
         }
         if(hit(mx,my,x+half()-38,motionTop()+54,26,14)) { BameClientConfig.ambientAnimation=!BameClientConfig.ambientAnimation; BameClientConfig.save(); return true; }
-        for(int i=0;i<4;i++) if(hit(mx,my,sliderX()-4,sliderY(i)+12,sliderWidth()+8,22)) { slider=i; drag(mx,my); return true; }
+
+        // Wallpaper controls click
+        if(hit(mx,my,x+12,wallpaperTop()+28,half()-20,22)) {
+            BameClientConfig.customWallpaper=!BameClientConfig.customWallpaper;
+            BameClientConfig.save();
+            WallpaperManager.updateTexture(true);
+            return true;
+        }
+        int fx=x+w-96, fy=wallpaperTop()+8, fw=84, fh=16;
+        if(hit(mx,my,fx,fy,fw,fh)) {
+            WallpaperManager.openFolder();
+            return true;
+        }
+        int bx=x+12, bw=half()-24, by=wallpaperTop()+70;
+        if(hit(mx,my,bx,by+1,18,18)) {
+            WallpaperManager.previousWallpaper();
+            return true;
+        }
+        if(hit(mx,my,bx+bw-40,by+1,18,18)||hit(mx,my,bx+22,by+1,bw-66,18)) {
+            WallpaperManager.nextWallpaper();
+            return true;
+        }
+        if(hit(mx,my,bx+bw-18,by+1,18,18)) {
+            WallpaperManager.refreshWallpapers();
+            WallpaperManager.updateTexture(true);
+            return true;
+        }
+
+        for(int i=0;i<6;i++) if(hit(mx,my,sliderX()-4,sliderY(i)+12,sliderWidth()+8,22)) { slider=i; drag(mx,my); return true; }
         return false;
     }
     boolean dragging() { return slider>=0||(colorPicker!=null&&colorPicker.dragging()); }
@@ -125,12 +219,26 @@ final class ThemeSettingsPanel {
         if(colorPicker!=null&&colorPicker.dragging()) { colorPicker.update(mx,my); return; }
         if(slider<0) return;
         float v=(float)Math.clamp((mx-sliderX())/sliderWidth(),0,1);
-        switch(slider) { case 0 -> BameClientConfig.ambientIntensity=v; case 1 -> BameClientConfig.ambientOpacity=v;
-            case 2 -> BameClientConfig.ambientRadius=v; case 3 -> BameClientConfig.animationSpeed=v; }
+        switch(slider) {
+            case 0 -> BameClientConfig.ambientIntensity=v;
+            case 1 -> BameClientConfig.ambientOpacity=v;
+            case 2 -> BameClientConfig.ambientRadius=v;
+            case 3 -> BameClientConfig.animationSpeed=v;
+            case 4 -> BameClientConfig.wallpaperBrightness=Math.max(0.10f, v);
+            case 5 -> {
+                BameClientConfig.wallpaperBlur=v;
+                WallpaperManager.updateTexture(false);
+            }
+        }
     }
     void release() {
         if(colorPicker!=null) colorPicker.release();
-        if(slider>=0) slider=-1;
+        if(slider>=0) {
+            if(slider==4||slider==5) {
+                WallpaperManager.updateTexture(true);
+            }
+            slider=-1;
+        }
         BameClientConfig.save();
     }
     void close() {

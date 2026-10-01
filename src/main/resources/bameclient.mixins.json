@@ -24,7 +24,17 @@
     "DebugRendererMixin",
     "EntityHitboxDebugRendererMixin",
     "NrcHitboxMixin",
-    "NrcHitboxRendererMixin"
+    "NrcHitboxRendererMixin",
+    "FogRendererMixin",
+    "WorldRendererMixin",
+    "CameraMixin",
+    "MouseMixin",
+    "ItemEntityRendererMixin",
+    "ItemEntityRenderStateMixin",
+    "ClientWorldPropertiesMixin",
+    "DefaultSkinHelperAccessor",
+    "AbstractClientPlayerEntityMixin",
+    "PlayerListEntryMixin"
   ],
   "injectors": {
     "defaultRequire": 1
