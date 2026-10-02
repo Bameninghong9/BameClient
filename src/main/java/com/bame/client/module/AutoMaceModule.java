@@ -43,9 +43,32 @@ public class AutoMaceModule {
     public static MaceMode mode = MaceMode.AUTOMATIC;
     public static int switchDelay = 2; // 1, 2, or 3 ticks (default 2 for AntiCheat safety)
     public static boolean switchBack = true;
-    public static boolean cooldownCheck = true; // wait for attack cooldown (full smash damage + AntiCheat safe)
+    public static boolean cooldownCheck = false; // default false to allow instant hits from low jumps (3 blocks)
     public static boolean onlyPlayers = true;
-    public static double minFallDistance = 1.5; // vanilla requirement for smash attack
+    public static double minFallDistance = 1.5; // vanilla requirement: 1.5 blocks; configurable (e.g. 3.0 blocks)
+
+    public static final double[] HEIGHT_PRESETS = {1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 8.0};
+
+    public static String getHeightLabel() {
+        return String.format(java.util.Locale.ROOT, "%.1f Blöcke", minFallDistance);
+    }
+
+    public static void cycleHeight(boolean forward) {
+        int index = 1; // default 1.5
+        for (int i = 0; i < HEIGHT_PRESETS.length; i++) {
+            if (Math.abs(minFallDistance - HEIGHT_PRESETS[i]) < 0.1) {
+                index = i;
+                break;
+            }
+        }
+        if (forward) {
+            index = (index + 1) % HEIGHT_PRESETS.length;
+        } else {
+            index = (index - 1 + HEIGHT_PRESETS.length) % HEIGHT_PRESETS.length;
+        }
+        minFallDistance = HEIGHT_PRESETS[index];
+        BameClientConfig.save();
+    }
 
     private static boolean wasKeyBindPressed = false;
     private static boolean wasAttackKeyPressed = false;
@@ -101,10 +124,10 @@ public class AutoMaceModule {
 
             // STATE 1: Waiting to perform the hit after Mace switch
             if (state == 1) {
-                // AntiCheat cooldown check: ensure attack cooldown is charged for maximum smash damage
-                if (cooldownCheck && player.getAttackCooldownProgress(0.5f) < 0.85f) {
-                    if (timeoutTicks < 8) {
-                        return; // Wait up to a few ticks for full charge
+                // AntiCheat cooldown check: optional short buffer (max 2 ticks) if enabled
+                if (cooldownCheck && player.getAttackCooldownProgress(0.0f) < 0.5f) {
+                    if (timeoutTicks < 2) {
+                        return; // Wait at most 1-2 ticks
                     }
                 }
 
@@ -211,10 +234,10 @@ public class AutoMaceModule {
             return;
         }
 
-        // Distance check: don't switch slot if target is still 10 blocks away
+        // Distance check: don't switch slot if target is still too far away (reach + 3.0 allows prompt swap on 3-block jumps)
         double reach = player.getEntityInteractionRange() + 0.3;
         double currentDist = player.getEyePos().distanceTo(target.getEntityPos().add(0, target.getHeight() / 2.0, 0));
-        if (currentDist > reach + 1.8) {
+        if (currentDist > reach + 3.0) {
             return; // Wait until player gets closer on descent
         }
 
@@ -222,8 +245,8 @@ public class AutoMaceModule {
         ItemStack heldStack = player.getMainHandStack();
         if (heldStack.getItem() == Items.MACE) {
             // Already holding Mace, simply hit when close enough!
-            if (currentDist <= reach + 0.5) {
-                if (!cooldownCheck || player.getAttackCooldownProgress(0.5f) >= 0.85f) {
+            if (currentDist <= reach + 0.6) {
+                if (!cooldownCheck || player.getAttackCooldownProgress(0.0f) >= 0.5f) {
                     client.interactionManager.attackEntity(player, target);
                     player.swingHand(Hand.MAIN_HAND);
                     CpsModule.registerClick(false);
@@ -366,7 +389,7 @@ public class AutoMaceModule {
         mode = MaceMode.AUTOMATIC;
         switchDelay = 2; // Default 2 Ticks for AntiCheat safety
         switchBack = true;
-        cooldownCheck = true;
+        cooldownCheck = false;
         onlyPlayers = true;
         minFallDistance = 1.5;
         state = 0;

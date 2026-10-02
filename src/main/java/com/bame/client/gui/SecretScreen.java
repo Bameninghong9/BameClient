@@ -161,7 +161,7 @@ public class SecretScreen extends Screen {
     }
 
     private int getAutoMaceHeight() {
-        return AutoMaceModule.expanded ? 210 : 46;
+        return AutoMaceModule.expanded ? 240 : 46;
     }
 
     private int getNameProtectHeight() {
@@ -580,6 +580,11 @@ public class SecretScreen extends Screen {
 
                 modeButton(context, "Automatisch", btn1X, rowY, btnW, btnH, mouseX, mouseY, AutoMaceModule.mode == AutoMaceModule.MaceMode.AUTOMATIC);
                 modeButton(context, "Bei Klick", btn2X, rowY, btnW, btnH, mouseX, mouseY, AutoMaceModule.mode == AutoMaceModule.MaceMode.ON_CLICK);
+
+                rowY += 26;
+                text(context, "Min. Höhe", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                String heightLabel = AutoMaceModule.getHeightLabel();
+                button(context, heightLabel, card1X + cardW - 74, rowY, 62, 16, mouseX, mouseY);
 
                 rowY += 26;
                 text(context, "Switch Delay", card1X + 14, rowY + 4, 0xFFD4D8E0);
@@ -1115,6 +1120,14 @@ public class SecretScreen extends Screen {
                     AutoMaceModule.mode = AutoMaceModule.MaceMode.ON_CLICK;
                     ClientSoundManager.playClick();
                     BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Min. Höhe button (cycles 1.0 -> 1.5 -> 2.0 -> 2.5 -> 3.0 -> 4.0 -> 5.0 -> 8.0)
+                if (inside(mx, my, card1X + cardW - 74, rowY, 62, 16)) {
+                    AutoMaceModule.cycleHeight(true);
+                    ClientSoundManager.playClick();
                     return true;
                 }
 
