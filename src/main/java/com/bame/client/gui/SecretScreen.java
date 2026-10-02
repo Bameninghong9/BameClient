@@ -2,6 +2,7 @@ package com.bame.client.gui;
 
 import com.bame.client.BameClientConfig;
 import com.bame.client.module.AutoCartModule;
+import com.bame.client.module.AutoMaceModule;
 import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.PearlPredictionModule;
@@ -27,6 +28,7 @@ public class SecretScreen extends Screen {
     private boolean listeningCombo = false;
     private boolean listeningPearlKey = false;
     private boolean listeningCartKey = false;
+    private boolean listeningMaceKey = false;
     private boolean listeningNameKey = false;
     private boolean listeningFakeKey = false;
     private boolean listeningSkinKey = false;
@@ -126,6 +128,12 @@ public class SecretScreen extends Screen {
         return "autocart".contains(q) || "auto cart".contains(q) || "cart".contains(q) || "tnt".contains(q) || "minecart".contains(q) || "flame".contains(q) || "bow".contains(q) || "rail".contains(q) || "schiene".contains(q) || "slot".contains(q) || "switch".contains(q) || "automatic".contains(q) || "automatisch".contains(q);
     }
 
+    private boolean autoMaceVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "auto mace".contains(q) || "automace".contains(q) || "mace".contains(q) || "keule".contains(q) || "smash".contains(q) || "anticheat".contains(q) || "slot switch".contains(q) || "delay".contains(q);
+    }
+
     private boolean nameProtectVisible() {
         String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
         if (q.isEmpty()) return true;
@@ -150,6 +158,10 @@ public class SecretScreen extends Screen {
 
     private int getAutoCartHeight() {
         return AutoCartModule.expanded ? 158 : 46;
+    }
+
+    private int getAutoMaceHeight() {
+        return AutoMaceModule.expanded ? 210 : 46;
     }
 
     private int getNameProtectHeight() {
@@ -227,9 +239,10 @@ public class SecretScreen extends Screen {
         int leftH = 0;
         if (pearlVisible()) leftH += getPearlHeight() + 12;
         if (autoCartVisible()) leftH += getAutoCartHeight() + 12;
-        if (nameProtectVisible()) leftH += getNameProtectHeight() + 12;
+        if (autoMaceVisible()) leftH += getAutoMaceHeight() + 12;
 
         int rightH = 0;
+        if (nameProtectVisible()) rightH += getNameProtectHeight() + 12;
         if (fakeScoreboardVisible()) rightH += getFakeScoreboardHeight() + 12;
         if (skinProtectVisible()) rightH += getSkinProtectHeight() + 12;
 
@@ -536,25 +549,82 @@ public class SecretScreen extends Screen {
             leftY += acH + 12;
         }
 
-        // ==================== CARD 3: Name Protect ====================
-        if (nameProtectVisible()) {
-            int c2H = getNameProtectHeight();
-            box(context, card1X, leftY, cardW, c2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, c2H, 0xFF292D36, 6);
+        // ==================== CARD 3: Auto Mace ====================
+        if (autoMaceVisible()) {
+            int amH = getAutoMaceHeight();
+            box(context, card1X, leftY, cardW, amH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, amH, 0xFF292D36, 6);
 
-            text(context, "Name Protect", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "Auto Mace", card1X + 12, leftY + 12, 0xFFE2E5ED);
+
+            // Subtitle badge showing active mode
+            String modeBadge = AutoMaceModule.mode.getDisplayName();
+            text(context, modeBadge, card1X + 74, leftY + 12, 0xFF8E95A4);
+
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kbName = listeningNameKey ? "..." : formatKey(NameProtectModule.keyBind);
-            button(context, kbName, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
-            toggle(context, card1X + cardW - 38, leftY + 12, NameProtectModule.enabled, mouseX, mouseY, delta);
+            String kbMace = listeningMaceKey ? "..." : formatKey(AutoMaceModule.keyBind);
+            button(context, kbMace, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, AutoMaceModule.enabled, mouseX, mouseY, delta);
 
-            if (NameProtectModule.expanded) {
+            if (AutoMaceModule.expanded) {
                 context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
 
-                int curY = leftY + 54;
-                text(context, "Alias:", card1X + 14, curY + 4, 0xFFD4D8E0);
-                int aliasFieldX = card1X + 54;
+                int rowY = leftY + 54;
+                text(context, "Modus", card1X + 14, rowY + 5, 0xFFD4D8E0);
+
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card1X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                modeButton(context, "Automatisch", btn1X, rowY, btnW, btnH, mouseX, mouseY, AutoMaceModule.mode == AutoMaceModule.MaceMode.AUTOMATIC);
+                modeButton(context, "Bei Klick", btn2X, rowY, btnW, btnH, mouseX, mouseY, AutoMaceModule.mode == AutoMaceModule.MaceMode.ON_CLICK);
+
+                rowY += 26;
+                text(context, "Switch Delay", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                String delayLabel = AutoMaceModule.switchDelay + (AutoMaceModule.switchDelay == 1 ? " Tick" : " Ticks");
+                button(context, delayLabel, card1X + cardW - 64, rowY, 52, 16, mouseX, mouseY);
+
+                rowY += 26;
+                text(context, "Switch Back", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, rowY + 2, AutoMaceModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Cooldown Check", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, rowY + 2, AutoMaceModule.cooldownCheck, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Nur Spieler", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, rowY + 2, AutoMaceModule.onlyPlayers, mouseX, mouseY, delta);
+
+                rowY += 26;
+                button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+            }
+            leftY += amH + 12;
+        }
+
+        int rightY = baseY;
+
+        // ==================== CARD 4: Name Protect ====================
+        if (nameProtectVisible()) {
+            int c2H = getNameProtectHeight();
+            box(context, card2X, rightY, cardW, c2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c2H, 0xFF292D36, 6);
+
+            text(context, "Name Protect", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
+
+            String kbName = listeningNameKey ? "..." : formatKey(NameProtectModule.keyBind);
+            button(context, kbName, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, NameProtectModule.enabled, mouseX, mouseY, delta);
+
+            if (NameProtectModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
+
+                int curY = rightY + 54;
+                text(context, "Alias:", card2X + 14, curY + 4, 0xFFD4D8E0);
+                int aliasFieldX = card2X + 54;
                 int aliasFieldW = cardW - 54 - 14;
                 if (nameProtectAliasField != null) {
                     nameProtectAliasField.setX(aliasFieldX);
@@ -567,16 +637,14 @@ public class SecretScreen extends Screen {
                 }
                 curY += 26;
 
-                button(context, "Reset", card1X + cardW - 58, curY, 46, 16, mouseX, mouseY);
+                button(context, "Reset", card2X + cardW - 58, curY, 46, 16, mouseX, mouseY);
             } else {
                 if (nameProtectAliasField != null) nameProtectAliasField.visible = nameProtectAliasField.active = false;
             }
-            leftY += c2H + 12;
+            rightY += c2H + 12;
         } else {
             if (nameProtectAliasField != null) nameProtectAliasField.visible = nameProtectAliasField.active = false;
         }
-
-        int rightY = baseY;
 
         // ==================== CARD 4: Fake Scoreboard ====================
         if (fakeScoreboardVisible()) {
@@ -792,6 +860,7 @@ public class SecretScreen extends Screen {
                 if (listeningCombo) {
                     listeningPearlKey = false;
                     listeningCartKey = false;
+                    listeningMaceKey = false;
                     listeningNameKey = false;
                     listeningFakeKey = false;
                     listeningSkinKey = false;
@@ -855,6 +924,7 @@ public class SecretScreen extends Screen {
                 listeningPearlKey = true;
                 listeningCombo = false;
                 listeningCartKey = false;
+                listeningMaceKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
@@ -925,6 +995,7 @@ public class SecretScreen extends Screen {
                 listeningCartKey = true;
                 listeningCombo = false;
                 listeningPearlKey = false;
+                listeningMaceKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
@@ -992,12 +1063,12 @@ public class SecretScreen extends Screen {
             leftY += acH + 12;
         }
 
-        // ==================== Card 3: Name Protect ====================
-        if (nameProtectVisible()) {
-            int c2H = getNameProtectHeight();
+        // ==================== Card 3: Auto Mace ====================
+        if (autoMaceVisible()) {
+            int amH = getAutoMaceHeight();
             // Main toggle
             if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
-                NameProtectModule.enabled = !NameProtectModule.enabled;
+                AutoMaceModule.enabled = !AutoMaceModule.enabled;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1005,10 +1076,11 @@ public class SecretScreen extends Screen {
 
             // Keybind button
             if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
-                listeningNameKey = true;
+                listeningMaceKey = true;
                 listeningCombo = false;
                 listeningPearlKey = false;
                 listeningCartKey = false;
+                listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
                 ClientSoundManager.playClick();
@@ -1017,6 +1089,112 @@ public class SecretScreen extends Screen {
 
             // Header expand click
             if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                AutoMaceModule.expanded = !AutoMaceModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (AutoMaceModule.expanded) {
+                int rowY = leftY + 54;
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card1X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                // Mode: Automatisch
+                if (inside(mx, my, btn1X, rowY, btnW, btnH)) {
+                    AutoMaceModule.mode = AutoMaceModule.MaceMode.AUTOMATIC;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Mode: Bei Klick
+                if (inside(mx, my, btn2X, rowY, btnW, btnH)) {
+                    AutoMaceModule.mode = AutoMaceModule.MaceMode.ON_CLICK;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Delay button (cycles 1 -> 2 -> 3 -> 1 tick)
+                if (inside(mx, my, card1X + cardW - 64, rowY, 52, 16)) {
+                    if (AutoMaceModule.switchDelay == 1) AutoMaceModule.switchDelay = 2;
+                    else if (AutoMaceModule.switchDelay == 2) AutoMaceModule.switchDelay = 3;
+                    else AutoMaceModule.switchDelay = 1;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Back toggle
+                if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                    AutoMaceModule.switchBack = !AutoMaceModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Cooldown Check toggle
+                if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                    AutoMaceModule.cooldownCheck = !AutoMaceModule.cooldownCheck;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Nur Spieler toggle
+                if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                    AutoMaceModule.onlyPlayers = !AutoMaceModule.onlyPlayers;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reset button
+                if (inside(mx, my, card1X + cardW - 58, rowY, 46, 16)) {
+                    AutoMaceModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            leftY += amH + 12;
+        }
+
+        int rightY = baseY;
+
+        // ==================== Card 4: Name Protect ====================
+        if (nameProtectVisible()) {
+            int c2H = getNameProtectHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                NameProtectModule.enabled = !NameProtectModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningNameKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
                 NameProtectModule.expanded = !NameProtectModule.expanded;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
@@ -1024,7 +1202,7 @@ public class SecretScreen extends Screen {
             }
 
             if (NameProtectModule.expanded) {
-                int curY = leftY + 54;
+                int curY = rightY + 54;
                 // Alias Field
                 if (nameProtectAliasField != null && nameProtectAliasField.mouseClicked(click, twice)) {
                     unfocus();
@@ -1035,16 +1213,14 @@ public class SecretScreen extends Screen {
                 curY += 26;
 
                 // Reset button
-                if (inside(mx, my, card1X + cardW - 58, curY, 46, 16)) {
+                if (inside(mx, my, card2X + cardW - 58, curY, 46, 16)) {
                     resetNameProtect();
                     ClientSoundManager.playClick();
                     return true;
                 }
             }
-            leftY += c2H + 12;
+            rightY += c2H + 12;
         }
-
-        int rightY = baseY;
 
         // ==================== Card 4: Fake Scoreboard ====================
         if (fakeScoreboardVisible()) {
@@ -1063,6 +1239,7 @@ public class SecretScreen extends Screen {
                 listeningCombo = false;
                 listeningPearlKey = false;
                 listeningCartKey = false;
+                listeningMaceKey = false;
                 listeningNameKey = false;
                 listeningSkinKey = false;
                 ClientSoundManager.playClick();
@@ -1146,6 +1323,7 @@ public class SecretScreen extends Screen {
                 listeningCombo = false;
                 listeningPearlKey = false;
                 listeningCartKey = false;
+                listeningMaceKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 ClientSoundManager.playClick();
@@ -1263,6 +1441,14 @@ public class SecretScreen extends Screen {
         if (listeningCartKey) {
             AutoCartModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
             listeningCartKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningMaceKey) {
+            AutoMaceModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningMaceKey = false;
             ClientSoundManager.playClick();
             BameClientConfig.save();
             return true;

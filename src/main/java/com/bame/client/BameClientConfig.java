@@ -448,6 +448,25 @@ public class BameClientConfig {
                 }
             }
 
+            // Combat - AutoMace
+            Path autoMaceFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_mace.properties");
+            if (Files.exists(autoMaceFile)) {
+                Properties props = loadProps(autoMaceFile);
+                if (props.containsKey("enabled")) AutoMaceModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) AutoMaceModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) AutoMaceModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("switchBack")) AutoMaceModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+                if (props.containsKey("switchDelay")) AutoMaceModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
+                if (props.containsKey("cooldownCheck")) AutoMaceModule.cooldownCheck = Boolean.parseBoolean(props.getProperty("cooldownCheck"));
+                if (props.containsKey("onlyPlayers")) AutoMaceModule.onlyPlayers = Boolean.parseBoolean(props.getProperty("onlyPlayers"));
+                if (props.containsKey("minFallDistance")) AutoMaceModule.minFallDistance = Double.parseDouble(props.getProperty("minFallDistance"));
+                if (props.containsKey("mode")) {
+                    try {
+                        AutoMaceModule.mode = AutoMaceModule.MaceMode.valueOf(props.getProperty("mode"));
+                    } catch (Exception ignored) {}
+                }
+            }
+
             // World - NoFog
             Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
             if (Files.exists(noFogFile)) {
@@ -974,6 +993,19 @@ public class BameClientConfig {
             autoCartProps.setProperty("mode", AutoCartModule.mode.name());
             saveProps(combatDir.resolve("auto_cart.properties"), autoCartProps, "Caeser Client - AutoCart");
 
+            // Combat - AutoMace
+            Properties autoMaceProps = new Properties();
+            autoMaceProps.setProperty("enabled", String.valueOf(AutoMaceModule.enabled));
+            autoMaceProps.setProperty("keyBind", String.valueOf(AutoMaceModule.keyBind));
+            autoMaceProps.setProperty("expanded", String.valueOf(AutoMaceModule.expanded));
+            autoMaceProps.setProperty("switchBack", String.valueOf(AutoMaceModule.switchBack));
+            autoMaceProps.setProperty("switchDelay", String.valueOf(AutoMaceModule.switchDelay));
+            autoMaceProps.setProperty("cooldownCheck", String.valueOf(AutoMaceModule.cooldownCheck));
+            autoMaceProps.setProperty("onlyPlayers", String.valueOf(AutoMaceModule.onlyPlayers));
+            autoMaceProps.setProperty("minFallDistance", String.valueOf(AutoMaceModule.minFallDistance));
+            autoMaceProps.setProperty("mode", AutoMaceModule.mode.name());
+            saveProps(combatDir.resolve("auto_mace.properties"), autoMaceProps, "Caeser Client - AutoMace");
+
             // World - NoFog
             Properties noFogProps = new Properties();
             noFogProps.setProperty("enabled", String.valueOf(NoFogModule.enabled));
@@ -1274,6 +1306,20 @@ public class BameClientConfig {
             if (props.containsKey("autoCartMode")) {
                 try {
                     AutoCartModule.mode = AutoCartModule.CartMode.valueOf(props.getProperty("autoCartMode"));
+                } catch (Exception ignored) {}
+            }
+
+            if (props.containsKey("autoMaceEnabled")) AutoMaceModule.enabled = Boolean.parseBoolean(props.getProperty("autoMaceEnabled"));
+            if (props.containsKey("autoMaceKeyBind")) AutoMaceModule.keyBind = Integer.parseInt(props.getProperty("autoMaceKeyBind"));
+            if (props.containsKey("autoMaceExpanded")) AutoMaceModule.expanded = Boolean.parseBoolean(props.getProperty("autoMaceExpanded"));
+            if (props.containsKey("autoMaceSwitchBack")) AutoMaceModule.switchBack = Boolean.parseBoolean(props.getProperty("autoMaceSwitchBack"));
+            if (props.containsKey("autoMaceSwitchDelay")) AutoMaceModule.switchDelay = Integer.parseInt(props.getProperty("autoMaceSwitchDelay"));
+            if (props.containsKey("autoMaceCooldownCheck")) AutoMaceModule.cooldownCheck = Boolean.parseBoolean(props.getProperty("autoMaceCooldownCheck"));
+            if (props.containsKey("autoMaceOnlyPlayers")) AutoMaceModule.onlyPlayers = Boolean.parseBoolean(props.getProperty("autoMaceOnlyPlayers"));
+            if (props.containsKey("autoMaceMinFallDistance")) AutoMaceModule.minFallDistance = Double.parseDouble(props.getProperty("autoMaceMinFallDistance"));
+            if (props.containsKey("autoMaceMode")) {
+                try {
+                    AutoMaceModule.mode = AutoMaceModule.MaceMode.valueOf(props.getProperty("autoMaceMode"));
                 } catch (Exception ignored) {}
             }
 
