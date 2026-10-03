@@ -65,7 +65,7 @@ public class BameClientScreen extends Screen {
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
     private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger,listeningHandPosition;
     private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingLowShieldTotem,draggingHitboxAlpha,draggingHitboxWidth,draggingBlockOutlineWidth,draggingBlockOutlineOpacity;
-    private boolean draggingFreelookSensitivity,draggingItemScale,draggingItemYOffset,itemScrollDragging,draggingSoundVolume,draggingHoverVolume,draggingHandX,draggingHandY,draggingHandZ,draggingHandScale;
+    private boolean draggingFreelookSensitivity,draggingItemScale,draggingItemYOffset,itemScrollDragging,draggingSoundVolume,draggingHoverVolume,draggingHandX,draggingHandY,draggingHandZ,draggingHandScale,draggingHandPitch,draggingHandYaw,draggingHandRoll;
     private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false, hitboxColorPickerOpen = false, blockOutlineColorPickerOpen = false;
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
@@ -325,7 +325,7 @@ public class BameClientScreen extends Screen {
         return selected.equals("Visuals");
     }
     private int getHandPositionHeight() {
-        return HandPositionModule.expanded ? 258 : 46;
+        return HandPositionModule.expanded ? 234 : 46;
     }
 
     private int getFreelookHeight() {
@@ -1622,68 +1622,120 @@ public class BameClientScreen extends Screen {
 
         int curY = y + 54;
 
-        // Presets row: Default, Lowered, Doom, Small
-        int pBtnW = (w - 24 - 9) / 4;
+        // Row 1: Swing Style mode buttons
+        String[] swingStyles = {"Slash", "Thrust", "Swipe", "Punch"};
+        int sBtnW = (w - 24 - 9) / 4;
+        for (int i = 0; i < 4; i++) {
+            modeButton(c, swingStyles[i], x + 12 + i * (sBtnW + 3), curY, sBtnW, 16, mx, my, HandPositionModule.swingStyle == i);
+        }
+        curY += 22;
+
+        // Row 2: Presets
         String[] pNames = {"Default", "Lowered", "Doom", "Small"};
+        int pBtnW = (w - 24 - 9) / 4;
         for (int i = 0; i < 4; i++) {
             button(c, pNames[i], x + 12 + i * (pBtnW + 3), curY, pBtnW, 16, mx, my);
         }
-        curY += 26;
+        curY += 24;
 
-        // X Offset slider (-0.80 to +0.80)
+        // Two Column Layout
+        int colGap = 10;
+        int colW = (w - 24 - colGap) / 2;
+        int c1X = x + 12;
+        int c2X = c1X + colW + colGap;
+
+        // Row 3: Section Headers
+        text(c, "POSITION", c1X + 1, curY + 2, 0xFF8E95A4);
+        text(c, "ROTATION", c2X + 1, curY + 2, 0xFF8E95A4);
+        curY += 14;
+
+        // Row 4: X Offset (Left) | Pitch (Right)
         String xStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posX);
-        text(c, "X: " + xStr, x + 14, curY + 4, 0xFFD4D8E0);
-        int sx = x + 84;
-        int sw = w - 98;
-        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        text(c, "X Offset", c1X, curY, 0xFFD4D8E0);
+        int xValW = textRenderer.getWidth(CustomGuiUtils.getFontText(xStr));
+        text(c, xStr, c1X + colW - xValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, colW, 4, 0xFF303442, 2);
         float xNorm = (HandPositionModule.posX - (-0.80f)) / 1.60f;
-        int xFill = Math.round(sw * Math.clamp(xNorm, 0f, 1f));
-        if (xFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, xFill, 4, GuiTheme.accent(), 2);
-        CustomGuiUtils.fillUltraRounded(c, sx + xFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
-        curY += 26;
+        int xFill = Math.round(colW * Math.clamp(xNorm, 0f, 1f));
+        if (xFill > 0) CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, xFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c1X + xFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
 
-        // Y Offset slider (-0.80 to +0.80)
+        String pitchStr = Math.round(HandPositionModule.pitch) + "°";
+        text(c, "Pitch (Tilt)", c2X, curY, 0xFFD4D8E0);
+        int pitchValW = textRenderer.getWidth(CustomGuiUtils.getFontText(pitchStr));
+        text(c, pitchStr, c2X + colW - pitchValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, colW, 4, 0xFF303442, 2);
+        float pitchNorm = (HandPositionModule.pitch - (-180f)) / 360f;
+        int pitchFill = Math.round(colW * Math.clamp(pitchNorm, 0f, 1f));
+        if (pitchFill > 0) CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, pitchFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c2X + pitchFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
+        curY += 23;
+
+        // Row 5: Y Offset (Left) | Yaw (Right)
         String yStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posY);
-        text(c, "Y: " + yStr, x + 14, curY + 4, 0xFFD4D8E0);
-        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        text(c, "Y Offset", c1X, curY, 0xFFD4D8E0);
+        int yValW = textRenderer.getWidth(CustomGuiUtils.getFontText(yStr));
+        text(c, yStr, c1X + colW - yValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, colW, 4, 0xFF303442, 2);
         float yNorm = (HandPositionModule.posY - (-0.80f)) / 1.60f;
-        int yFill = Math.round(sw * Math.clamp(yNorm, 0f, 1f));
-        if (yFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, yFill, 4, GuiTheme.accent(), 2);
-        CustomGuiUtils.fillUltraRounded(c, sx + yFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
-        curY += 26;
+        int yFill = Math.round(colW * Math.clamp(yNorm, 0f, 1f));
+        if (yFill > 0) CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, yFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c1X + yFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
 
-        // Z Offset slider (-0.80 to +0.80)
+        String yawStr = Math.round(HandPositionModule.yaw) + "°";
+        text(c, "Yaw (Turn)", c2X, curY, 0xFFD4D8E0);
+        int yawValW = textRenderer.getWidth(CustomGuiUtils.getFontText(yawStr));
+        text(c, yawStr, c2X + colW - yawValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, colW, 4, 0xFF303442, 2);
+        float yawNorm = (HandPositionModule.yaw - (-180f)) / 360f;
+        int yawFill = Math.round(colW * Math.clamp(yawNorm, 0f, 1f));
+        if (yawFill > 0) CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, yawFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c2X + yawFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
+        curY += 23;
+
+        // Row 6: Z Offset (Left) | Roll (Right)
         String zStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posZ);
-        text(c, "Z: " + zStr, x + 14, curY + 4, 0xFFD4D8E0);
-        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        text(c, "Z Offset", c1X, curY, 0xFFD4D8E0);
+        int zValW = textRenderer.getWidth(CustomGuiUtils.getFontText(zStr));
+        text(c, zStr, c1X + colW - zValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, colW, 4, 0xFF303442, 2);
         float zNorm = (HandPositionModule.posZ - (-0.80f)) / 1.60f;
-        int zFill = Math.round(sw * Math.clamp(zNorm, 0f, 1f));
-        if (zFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, zFill, 4, GuiTheme.accent(), 2);
-        CustomGuiUtils.fillUltraRounded(c, sx + zFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
-        curY += 26;
+        int zFill = Math.round(colW * Math.clamp(zNorm, 0f, 1f));
+        if (zFill > 0) CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, zFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c1X + zFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
 
-        // Scale slider (0.30 to 1.50)
+        String rollStr = Math.round(HandPositionModule.roll) + "°";
+        text(c, "Roll (Angle)", c2X, curY, 0xFFD4D8E0);
+        int rollValW = textRenderer.getWidth(CustomGuiUtils.getFontText(rollStr));
+        text(c, rollStr, c2X + colW - rollValW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, colW, 4, 0xFF303442, 2);
+        float rollNorm = (HandPositionModule.roll - (-180f)) / 360f;
+        int rollFill = Math.round(colW * Math.clamp(rollNorm, 0f, 1f));
+        if (rollFill > 0) CustomGuiUtils.fillUltraRounded(c, c2X, curY + 11, rollFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c2X + rollFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
+        curY += 23;
+
+        // Row 7: Scale Slider (Left) | Offhand Toggle (Right)
         int scalePct = Math.round(HandPositionModule.scale * 100);
-        text(c, "Scale: " + scalePct + "%", x + 14, curY + 4, 0xFFD4D8E0);
-        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        text(c, "Item Scale", c1X, curY, 0xFFD4D8E0);
+        String sPctStr = scalePct + "%";
+        int sPctW = textRenderer.getWidth(CustomGuiUtils.getFontText(sPctStr));
+        text(c, sPctStr, c1X + colW - sPctW, curY, 0xFF8E95A4);
+        CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, colW, 4, 0xFF303442, 2);
         float sNorm = (HandPositionModule.scale - 0.30f) / 1.20f;
-        int sFill = Math.round(sw * Math.clamp(sNorm, 0f, 1f));
-        if (sFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sFill, 4, GuiTheme.accent(), 2);
-        CustomGuiUtils.fillUltraRounded(c, sx + sFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
-        curY += 26;
+        int sFill = Math.round(colW * Math.clamp(sNorm, 0f, 1f));
+        if (sFill > 0) CustomGuiUtils.fillUltraRounded(c, c1X, curY + 11, sFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, c1X + sFill - 3, curY + 9, 7, 8, 0xFFFFFFFF, 4);
 
-        // Apply to Offhand toggle
-        text(c, "Apply to Offhand", x + 14, curY + 4, 0xFFD4D8E0);
-        toggle(c, x + w - 38, curY + 2, HandPositionModule.applyToOffhand, mx, my, delta);
-        curY += 26;
+        text(c, "Offhand", c2X, curY + 2, 0xFFD4D8E0);
+        toggle(c, c2X + colW - 28, curY, HandPositionModule.applyToOffhand, mx, my, delta);
+        curY += 23;
 
-        // Weapons Only toggle
-        text(c, "Weapons Only", x + 14, curY + 4, 0xFFD4D8E0);
-        toggle(c, x + w - 38, curY + 2, HandPositionModule.weaponsOnly, mx, my, delta);
-        curY += 26;
+        // Row 8: Weapons Only Toggle (Left) | Reset Button (Right)
+        text(c, "Weapons Only", c1X, curY + 2, 0xFFD4D8E0);
+        toggle(c, c1X + colW - 28, curY, HandPositionModule.weaponsOnly, mx, my, delta);
 
-        // Reset button
-        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+        button(c, "Reset", c2X + colW - 46, curY, 46, 16, mx, my);
     }
 
     private void renderFreelookModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
@@ -3241,7 +3293,19 @@ public class BameClientScreen extends Screen {
                 }
                 if (HandPositionModule.expanded) {
                     int curY = myY + 54;
-                    // Presets
+                    // Row 1: Swing Style mode buttons
+                    int sBtnW = (halfW - 24 - 9) / 4;
+                    for (int i = 0; i < 4; i++) {
+                        if (inside(mx, my, cx + 12 + i * (sBtnW + 3), curY, sBtnW, 16)) {
+                            HandPositionModule.swingStyle = i;
+                            com.bame.client.sound.ClientSoundManager.playClick();
+                            BameClientConfig.save();
+                            return true;
+                        }
+                    }
+                    curY += 22;
+
+                    // Row 2: Presets
                     int pBtnW = (halfW - 24 - 9) / 4;
                     for (int i = 0; i < 4; i++) {
                         if (inside(mx, my, cx + 12 + i * (pBtnW + 3), curY, pBtnW, 16)) {
@@ -3251,70 +3315,91 @@ public class BameClientScreen extends Screen {
                             return true;
                         }
                     }
-                    curY += 26;
+                    curY += 24;
 
-                    // X Slider
-                    int sx = cx + 84;
-                    int sw = halfW - 98;
-                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                    // Two columns
+                    int colGap = 10;
+                    int colW = (halfW - 24 - colGap) / 2;
+                    int c1X = cx + 12;
+                    int c2X = c1X + colW + colGap;
+
+                    curY += 14; // skip section headers
+
+                    // Row 4: X Slider (Left) | Pitch Slider (Right)
+                    if (inside(mx, my, c1X - 2, curY + 6, colW + 4, 14)) {
                         draggingHandX = true;
-                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        float fval = (float) Math.clamp((mx - c1X) / (double) colW, 0.0, 1.0);
                         HandPositionModule.posX = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
+                    if (inside(mx, my, c2X - 2, curY + 6, colW + 4, 14)) {
+                        draggingHandPitch = true;
+                        float fval = (float) Math.clamp((mx - c2X) / (double) colW, 0.0, 1.0);
+                        HandPositionModule.pitch = Math.round(-180f + fval * 360f);
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 23;
 
-                    // Y Slider
-                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                    // Row 5: Y Slider (Left) | Yaw Slider (Right)
+                    if (inside(mx, my, c1X - 2, curY + 6, colW + 4, 14)) {
                         draggingHandY = true;
-                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        float fval = (float) Math.clamp((mx - c1X) / (double) colW, 0.0, 1.0);
                         HandPositionModule.posY = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
+                    if (inside(mx, my, c2X - 2, curY + 6, colW + 4, 14)) {
+                        draggingHandYaw = true;
+                        float fval = (float) Math.clamp((mx - c2X) / (double) colW, 0.0, 1.0);
+                        HandPositionModule.yaw = Math.round(-180f + fval * 360f);
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 23;
 
-                    // Z Slider
-                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                    // Row 6: Z Slider (Left) | Roll Slider (Right)
+                    if (inside(mx, my, c1X - 2, curY + 6, colW + 4, 14)) {
                         draggingHandZ = true;
-                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        float fval = (float) Math.clamp((mx - c1X) / (double) colW, 0.0, 1.0);
                         HandPositionModule.posZ = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
+                    if (inside(mx, my, c2X - 2, curY + 6, colW + 4, 14)) {
+                        draggingHandRoll = true;
+                        float fval = (float) Math.clamp((mx - c2X) / (double) colW, 0.0, 1.0);
+                        HandPositionModule.roll = Math.round(-180f + fval * 360f);
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 23;
 
-                    // Scale Slider
-                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                    // Row 7: Scale Slider (Left) | Offhand Toggle (Right)
+                    if (inside(mx, my, c1X - 2, curY + 6, colW + 4, 14)) {
                         draggingHandScale = true;
-                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        float fval = (float) Math.clamp((mx - c1X) / (double) colW, 0.0, 1.0);
                         HandPositionModule.scale = Math.round((0.30f + fval * 1.20f) * 100f) / 100f;
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
-
-                    // Apply to Offhand toggle
-                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                    if (inside(mx, my, c2X + colW - 28, curY, 26, 14)) {
                         HandPositionModule.applyToOffhand = !HandPositionModule.applyToOffhand;
                         com.bame.client.sound.ClientSoundManager.playClick();
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
+                    curY += 23;
 
-                    // Weapons only toggle
-                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                    // Row 8: Weapons Only Toggle (Left) | Reset Button (Right)
+                    if (inside(mx, my, c1X + colW - 28, curY, 26, 14)) {
                         HandPositionModule.weaponsOnly = !HandPositionModule.weaponsOnly;
                         com.bame.client.sound.ClientSoundManager.playClick();
                         BameClientConfig.save();
                         return true;
                     }
-                    curY += 26;
-
-                    // Reset button
-                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                    if (inside(mx, my, c2X + colW - 46, curY, 46, 16)) {
                         resetHandPosition();
                         com.bame.client.sound.ClientSoundManager.playClick();
                         return true;
@@ -4394,37 +4479,71 @@ public class BameClientScreen extends Screen {
         if (draggingHandX) {
             int gap = 16;
             int halfW = (cw - gap) / 2;
-            int sx = cx + 84;
-            int sw = halfW - 98;
-            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c1X = cx + 12;
+            float fval = (float) Math.clamp(((click.x() - c1X) / (double) colW), 0.0, 1.0);
             HandPositionModule.posX = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
             return true;
         }
         if (draggingHandY) {
             int gap = 16;
             int halfW = (cw - gap) / 2;
-            int sx = cx + 84;
-            int sw = halfW - 98;
-            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c1X = cx + 12;
+            float fval = (float) Math.clamp(((click.x() - c1X) / (double) colW), 0.0, 1.0);
             HandPositionModule.posY = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
             return true;
         }
         if (draggingHandZ) {
             int gap = 16;
             int halfW = (cw - gap) / 2;
-            int sx = cx + 84;
-            int sw = halfW - 98;
-            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c1X = cx + 12;
+            float fval = (float) Math.clamp(((click.x() - c1X) / (double) colW), 0.0, 1.0);
             HandPositionModule.posZ = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
             return true;
         }
         if (draggingHandScale) {
             int gap = 16;
             int halfW = (cw - gap) / 2;
-            int sx = cx + 84;
-            int sw = halfW - 98;
-            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c1X = cx + 12;
+            float fval = (float) Math.clamp(((click.x() - c1X) / (double) colW), 0.0, 1.0);
             HandPositionModule.scale = Math.round((0.30f + fval * 1.20f) * 100f) / 100f;
+            return true;
+        }
+        if (draggingHandPitch) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c2X = cx + 12 + colW + colGap;
+            float fval = (float) Math.clamp(((click.x() - c2X) / (double) colW), 0.0, 1.0);
+            HandPositionModule.pitch = Math.round(-180f + fval * 360f);
+            return true;
+        }
+        if (draggingHandYaw) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c2X = cx + 12 + colW + colGap;
+            float fval = (float) Math.clamp(((click.x() - c2X) / (double) colW), 0.0, 1.0);
+            HandPositionModule.yaw = Math.round(-180f + fval * 360f);
+            return true;
+        }
+        if (draggingHandRoll) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int colGap = 10;
+            int colW = (halfW - 24 - colGap) / 2;
+            int c2X = cx + 12 + colW + colGap;
+            float fval = (float) Math.clamp(((click.x() - c2X) / (double) colW), 0.0, 1.0);
+            HandPositionModule.roll = Math.round(-180f + fval * 360f);
             return true;
         }
         if(picker.dragging()) { picker.update(click.x(),click.y()); return true; }
@@ -4439,8 +4558,8 @@ public class BameClientScreen extends Screen {
         }
         cpDrag = -1;
         itemScrollDragging = false;
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight||draggingLowShieldTotem||draggingHitboxAlpha||draggingHitboxWidth||draggingBlockOutlineWidth||draggingBlockOutlineOpacity||draggingFreelookSensitivity||draggingItemScale||draggingItemYOffset||draggingSoundVolume||draggingHoverVolume||draggingHandX||draggingHandY||draggingHandZ||draggingHandScale;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; draggingLowShieldTotem=false; draggingHitboxAlpha=false; draggingHitboxWidth=false; draggingBlockOutlineWidth=false; draggingBlockOutlineOpacity=false; draggingFreelookSensitivity=false; draggingItemScale=false; draggingItemYOffset=false; draggingSoundVolume=false; draggingHoverVolume=false; draggingHandX=false; draggingHandY=false; draggingHandZ=false; draggingHandScale=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight||draggingLowShieldTotem||draggingHitboxAlpha||draggingHitboxWidth||draggingBlockOutlineWidth||draggingBlockOutlineOpacity||draggingFreelookSensitivity||draggingItemScale||draggingItemYOffset||draggingSoundVolume||draggingHoverVolume||draggingHandX||draggingHandY||draggingHandZ||draggingHandScale||draggingHandPitch||draggingHandYaw||draggingHandRoll;
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; draggingLowShieldTotem=false; draggingHitboxAlpha=false; draggingHitboxWidth=false; draggingBlockOutlineWidth=false; draggingBlockOutlineOpacity=false; draggingFreelookSensitivity=false; draggingItemScale=false; draggingItemYOffset=false; draggingSoundVolume=false; draggingHoverVolume=false; draggingHandX=false; draggingHandY=false; draggingHandZ=false; draggingHandScale=false; draggingHandPitch=false; draggingHandYaw=false; draggingHandRoll=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {

@@ -630,6 +630,10 @@ public class BameClientConfig {
                 if (props.containsKey("posY")) HandPositionModule.posY = Float.parseFloat(props.getProperty("posY"));
                 if (props.containsKey("posZ")) HandPositionModule.posZ = Float.parseFloat(props.getProperty("posZ"));
                 if (props.containsKey("scale")) HandPositionModule.scale = Float.parseFloat(props.getProperty("scale"));
+                if (props.containsKey("pitch")) HandPositionModule.pitch = Float.parseFloat(props.getProperty("pitch"));
+                if (props.containsKey("yaw")) HandPositionModule.yaw = Float.parseFloat(props.getProperty("yaw"));
+                if (props.containsKey("roll")) HandPositionModule.roll = Float.parseFloat(props.getProperty("roll"));
+                if (props.containsKey("swingStyle")) HandPositionModule.swingStyle = Integer.parseInt(props.getProperty("swingStyle"));
                 if (props.containsKey("applyToOffhand")) HandPositionModule.applyToOffhand = Boolean.parseBoolean(props.getProperty("applyToOffhand"));
                 if (props.containsKey("weaponsOnly")) HandPositionModule.weaponsOnly = Boolean.parseBoolean(props.getProperty("weaponsOnly"));
             }
@@ -1186,6 +1190,10 @@ public class BameClientConfig {
             handPosProps.setProperty("posY", String.valueOf(HandPositionModule.posY));
             handPosProps.setProperty("posZ", String.valueOf(HandPositionModule.posZ));
             handPosProps.setProperty("scale", String.valueOf(HandPositionModule.scale));
+            handPosProps.setProperty("pitch", String.valueOf(HandPositionModule.pitch));
+            handPosProps.setProperty("yaw", String.valueOf(HandPositionModule.yaw));
+            handPosProps.setProperty("roll", String.valueOf(HandPositionModule.roll));
+            handPosProps.setProperty("swingStyle", String.valueOf(HandPositionModule.swingStyle));
             handPosProps.setProperty("applyToOffhand", String.valueOf(HandPositionModule.applyToOffhand));
             handPosProps.setProperty("weaponsOnly", String.valueOf(HandPositionModule.weaponsOnly));
             saveProps(visualsDir.resolve("hand_position.properties"), handPosProps, "Caeser Client - HandPosition");
