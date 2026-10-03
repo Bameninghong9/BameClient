@@ -19,11 +19,18 @@ public class AutoToolModule {
     private static boolean isMining = false;
     private static int miningTicks = 0;
     private static boolean wasKeyBindPressed = false;
+    private static BlockPos lastMiningPos = null;
 
     public static void onAttackBlock(BlockPos pos) {
         if (!enabled) return;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
+
+        if (isMining && pos.equals(lastMiningPos)) {
+            miningTicks = 0;
+            return;
+        }
+        lastMiningPos = pos;
 
         BlockState state = client.world.getBlockState(pos);
         if (state.isAir() || state.getHardness(client.world, pos) < 0) return;
@@ -83,6 +90,7 @@ public class AutoToolModule {
                     }
                     previousSlot = -1;
                     isMining = false;
+                    lastMiningPos = null;
                 }
             } else {
                 miningTicks = 0;

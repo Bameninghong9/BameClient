@@ -16,8 +16,6 @@ import org.slf4j.LoggerFactory;
 public class BameClient implements ClientModInitializer {
     private static boolean menuWasPressed = false;
     private static boolean keyStrokesWasPressed = false;
-    private static boolean fullbrightWasPressed = false;
-    private static boolean zoomWasPressed = false;
     private static boolean fpsWasPressed = false;
     private static boolean pingWasPressed = false;
     private static boolean cpsWasPressed = false;
@@ -100,16 +98,6 @@ public class BameClient implements ClientModInitializer {
                         BameClientConfig.save();
                     }
                     keyStrokesWasPressed = down;
-                }
-
-                // Fullbright bind
-                if (FullbrightModule.keyBind != -1) {
-                    boolean down = InputUtil.isKeyPressed(client.getWindow(), FullbrightModule.keyBind);
-                    if (down && !fullbrightWasPressed) {
-                        FullbrightModule.enabled = !FullbrightModule.enabled;
-                        BameClientConfig.save();
-                    }
-                    fullbrightWasPressed = down;
                 }
 
                 // FPS bind

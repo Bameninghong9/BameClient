@@ -142,6 +142,7 @@ public class AreaRenderer {
         float ny = y2 - y1;
         float nz = z2 - z1;
         float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (length == 0) return;
         nx /= length; ny /= length; nz /= length;
         buffer.vertex(matrix, x1, y1, z1).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(com.bame.client.BameClientConfig.outlineWidth);
         buffer.vertex(matrix, x2, y2, z2).color(r, g, b, a).normal(entry, nx, ny, nz).lineWidth(com.bame.client.BameClientConfig.outlineWidth);

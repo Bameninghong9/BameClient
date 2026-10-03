@@ -285,6 +285,9 @@ public class CustomGuiUtils {
 
     public static Text getFontText(String text) {
         if (text == null) return Text.empty();
+        if (TEXT_CACHE.size() > 1000) {
+            TEXT_CACHE.clear();
+        }
         return TEXT_CACHE.computeIfAbsent(text, t -> Text.literal(t).setStyle(SANS_STYLE));
     }
 }

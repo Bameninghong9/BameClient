@@ -211,21 +211,13 @@ public class AggroPearlModule {
         double dz = targetPos.z - eyePos.z;
         float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
 
-        // Scan candidate pitch angles (-80° up to +15° down)
-        float bestPitch = -43.0f; // Default standard max-range throw
+        float bestPitch = -43.0f;
         double bestDistSq = Double.MAX_VALUE;
 
-        for (float p = -80.0f; p <= 15.0f; p += 2.0f) {
-            float f = 0.017453292F;
-            float vx = -MathHelper.sin(targetYaw * f) * MathHelper.cos(p * f);
-            float vy = -MathHelper.sin(p * f);
-            float vz = MathHelper.cos(targetYaw * f) * MathHelper.cos(p * f);
-            Vec3d dir = new Vec3d(vx, vy, vz).normalize();
-            Vec3d launchVel = dir.multiply(1.5);
-            Vec3d pVel = player.getVelocity();
-            launchVel = launchVel.add(pVel.x, player.isOnGround() ? 0.0 : pVel.y, pVel.z);
-
-            Vec3d simulatedLand = simulatePearlLanding(world, eyePos, launchVel, player);
+        // Pass 1: Coarse search (5° steps from -75° to +15°)
+        for (float p = -75.0f; p <= 15.0f; p += 5.0f) {
+            Vec3d launchVel = getLaunchVelocity(player, targetYaw, p);
+            Vec3d simulatedLand = simulatePearlLanding(world, eyePos, launchVel, player, false);
             if (simulatedLand != null) {
                 double distSq = simulatedLand.squaredDistanceTo(targetPos);
                 if (distSq < bestDistSq) {
@@ -235,19 +227,29 @@ public class AggroPearlModule {
             }
         }
 
-        // Fine-tuning pass in 0.5° steps
-        float finePitch = bestPitch;
-        for (float p = bestPitch - 1.5f; p <= bestPitch + 1.5f; p += 0.5f) {
-            float f = 0.017453292F;
-            float vx = -MathHelper.sin(targetYaw * f) * MathHelper.cos(p * f);
-            float vy = -MathHelper.sin(p * f);
-            float vz = MathHelper.cos(targetYaw * f) * MathHelper.cos(p * f);
-            Vec3d dir = new Vec3d(vx, vy, vz).normalize();
-            Vec3d launchVel = dir.multiply(1.5);
-            Vec3d pVel = player.getVelocity();
-            launchVel = launchVel.add(pVel.x, player.isOnGround() ? 0.0 : pVel.y, pVel.z);
+        // Pass 2: Medium refinement (1.5° steps around best)
+        float mediumPitch = bestPitch;
+        float startP = Math.max(-85.0f, bestPitch - 4.0f);
+        float endP = Math.min(25.0f, bestPitch + 4.0f);
+        for (float p = startP; p <= endP; p += 1.5f) {
+            Vec3d launchVel = getLaunchVelocity(player, targetYaw, p);
+            Vec3d simulatedLand = simulatePearlLanding(world, eyePos, launchVel, player, false);
+            if (simulatedLand != null) {
+                double distSq = simulatedLand.squaredDistanceTo(targetPos);
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq;
+                    mediumPitch = p;
+                }
+            }
+        }
 
-            Vec3d simulatedLand = simulatePearlLanding(world, eyePos, launchVel, player);
+        // Pass 3: Fine refinement (0.5° steps around medium)
+        float finePitch = mediumPitch;
+        startP = Math.max(-85.0f, mediumPitch - 1.0f);
+        endP = Math.min(25.0f, mediumPitch + 1.0f);
+        for (float p = startP; p <= endP; p += 0.5f) {
+            Vec3d launchVel = getLaunchVelocity(player, targetYaw, p);
+            Vec3d simulatedLand = simulatePearlLanding(world, eyePos, launchVel, player, false);
             if (simulatedLand != null) {
                 double distSq = simulatedLand.squaredDistanceTo(targetPos);
                 if (distSq < bestDistSq) {
@@ -260,13 +262,30 @@ public class AggroPearlModule {
         return new float[]{targetYaw, finePitch};
     }
 
+    private static Vec3d getLaunchVelocity(ClientPlayerEntity player, float targetYaw, float pitch) {
+        float f = 0.017453292F;
+        float vx = -MathHelper.sin(targetYaw * f) * MathHelper.cos(pitch * f);
+        float vy = -MathHelper.sin(pitch * f);
+        float vz = MathHelper.cos(targetYaw * f) * MathHelper.cos(pitch * f);
+        Vec3d dir = new Vec3d(vx, vy, vz).normalize();
+        Vec3d launchVel = dir.multiply(1.5);
+        Vec3d pVel = player.getVelocity();
+        return launchVel.add(pVel.x, player.isOnGround() ? 0.0 : pVel.y, pVel.z);
+    }
+
     public static Vec3d simulatePearlLanding(ClientWorld world, Vec3d startPos, Vec3d startVel, Entity ignoreEntity) {
+        return simulatePearlLanding(world, startPos, startVel, ignoreEntity, true);
+    }
+
+    public static Vec3d simulatePearlLanding(ClientWorld world, Vec3d startPos, Vec3d startVel, Entity ignoreEntity, boolean checkEntities) {
         if (world == null) return null;
         Vec3d pos = startPos;
         Vec3d vel = startVel;
         MinecraftClient client = MinecraftClient.getInstance();
 
         for (int step = 0; step < 140; step++) {
+            if (pos.y < -64.0) break; // Falling into the void
+
             Vec3d nextPos = pos.add(vel);
 
             RaycastContext raycastContext = new RaycastContext(
@@ -278,18 +297,22 @@ public class AggroPearlModule {
             BlockHitResult blockHit = world.raycast(raycastContext);
             Vec3d stepEnd = (blockHit != null && blockHit.getType() != HitResult.Type.MISS) ? blockHit.getPos() : nextPos;
 
-            Box stepBox = new Box(pos, stepEnd).expand(0.8);
-            EntityHitResult entityHit = ProjectileUtil.getEntityCollision(
-                    world,
-                    ignoreEntity != null ? ignoreEntity : client.player,
-                    pos, stepEnd, stepBox,
-                    e -> !e.isSpectator() && e.canHit() && e != (ignoreEntity != null ? (ignoreEntity instanceof EnderPearlEntity ep ? ep.getOwner() : ignoreEntity) : client.player),
-                    0.0f
-            );
+            if (checkEntities) {
+                Box stepBox = new Box(pos, stepEnd).expand(0.8);
+                EntityHitResult entityHit = ProjectileUtil.getEntityCollision(
+                        world,
+                        ignoreEntity != null ? ignoreEntity : client.player,
+                        pos, stepEnd, stepBox,
+                        e -> !e.isSpectator() && e.canHit() && e != (ignoreEntity != null ? (ignoreEntity instanceof EnderPearlEntity ep ? ep.getOwner() : ignoreEntity) : client.player),
+                        0.0f
+                );
 
-            if (entityHit != null) {
-                return entityHit.getPos();
-            } else if (blockHit != null && blockHit.getType() != HitResult.Type.MISS) {
+                if (entityHit != null) {
+                    return entityHit.getPos();
+                }
+            }
+
+            if (blockHit != null && blockHit.getType() != HitResult.Type.MISS) {
                 return blockHit.getPos();
             }
 

@@ -30,15 +30,35 @@ public class CustomHitboxesModule {
     public static boolean showViewVector = false;
 
     private static boolean wasKeyBindPressed = false;
+    private static boolean nrcChecked = false;
+    private static Object nrcInstance = null;
+    private static Method nrcIsEnabledMethod = null;
+    private static Method nrcSetEnabledMethod = null;
+
+    private static void ensureNrcChecked() {
+        if (!nrcChecked) {
+            nrcChecked = true;
+            try {
+                Class<?> nrcHitBoxClass = Class.forName("gg.norisk.client.v2.modules.hitbox.HitBox");
+                nrcInstance = nrcHitBoxClass.getField("INSTANCE").get(null);
+                nrcIsEnabledMethod = nrcHitBoxClass.getMethod("isEnabled");
+                nrcSetEnabledMethod = nrcHitBoxClass.getMethod("setEnabled", boolean.class);
+            } catch (Throwable ignored) {
+                nrcInstance = null;
+                nrcIsEnabledMethod = null;
+                nrcSetEnabledMethod = null;
+            }
+        }
+    }
 
     public static boolean isF3BActive() {
         // 1. Check NoRiskClient if running
-        try {
-            Class<?> nrcHitBoxClass = Class.forName("gg.norisk.client.v2.modules.hitbox.HitBox");
-            Object instance = nrcHitBoxClass.getField("INSTANCE").get(null);
-            Method isEnabledMethod = nrcHitBoxClass.getMethod("isEnabled");
-            return (boolean) isEnabledMethod.invoke(instance);
-        } catch (Throwable ignored) {}
+        ensureNrcChecked();
+        if (nrcIsEnabledMethod != null && nrcInstance != null) {
+            try {
+                return (boolean) nrcIsEnabledMethod.invoke(nrcInstance);
+            } catch (Throwable ignored) {}
+        }
 
         // 2. Vanilla fallback
         MinecraftClient client = MinecraftClient.getInstance();
@@ -56,15 +76,14 @@ public class CustomHitboxesModule {
 
     public static void toggleHitboxes() {
         // 1. Try NoRiskClient toggle
-        try {
-            Class<?> nrcHitBoxClass = Class.forName("gg.norisk.client.v2.modules.hitbox.HitBox");
-            Object instance = nrcHitBoxClass.getField("INSTANCE").get(null);
-            Method isEnabledMethod = nrcHitBoxClass.getMethod("isEnabled");
-            Method setEnabledMethod = nrcHitBoxClass.getMethod("setEnabled", boolean.class);
-            boolean current = (boolean) isEnabledMethod.invoke(instance);
-            setEnabledMethod.invoke(instance, !current);
-            return;
-        } catch (Throwable ignored) {}
+        ensureNrcChecked();
+        if (nrcIsEnabledMethod != null && nrcSetEnabledMethod != null && nrcInstance != null) {
+            try {
+                boolean current = (boolean) nrcIsEnabledMethod.invoke(nrcInstance);
+                nrcSetEnabledMethod.invoke(nrcInstance, !current);
+                return;
+            } catch (Throwable ignored) {}
+        }
 
         // 2. Vanilla toggle
         MinecraftClient client = MinecraftClient.getInstance();

@@ -65,15 +65,56 @@ public class PearlPredictionRenderer {
 
                 // Cyan trajectory line & landing box (matching media_1790874294861.png)
                 int previewColor = 0xFF00EEEE;
-                simulateAndRender(context, cameraPos, launchPos, launchVel, client.player, previewColor);
+
+                boolean canReuseCache = cachedPreviewPoints != null
+                        && cachedLaunchPos != null
+                        && cachedLaunchVel != null
+                        && launchPos.squaredDistanceTo(cachedLaunchPos) < 0.0001
+                        && launchVel.squaredDistanceTo(cachedLaunchVel) < 0.0001
+                        && Math.abs(pitch - cachedPitch) < 0.02f
+                        && Math.abs(yaw - cachedYaw) < 0.02f;
+
+                if (canReuseCache) {
+                    renderTrajectoryAndBox(context, cameraPos, cachedPreviewPoints, cachedPreviewHitPos, previewColor);
+                } else {
+                    SimulationResult res = simulateTrajectory(client.world, launchPos, launchVel, client.player);
+                    if (res != null) {
+                        cachedLaunchPos = launchPos;
+                        cachedLaunchVel = launchVel;
+                        cachedPitch = pitch;
+                        cachedYaw = yaw;
+                        cachedPreviewPoints = res.points;
+                        cachedPreviewHitPos = res.hitPos;
+                        renderTrajectoryAndBox(context, cameraPos, res.points, res.hitPos, previewColor);
+                    }
+                }
+            } else {
+                cachedPreviewPoints = null;
             }
+        } else {
+            cachedPreviewPoints = null;
         }
     }
 
-    private static void simulateAndRender(WorldRenderContext context, Vec3d cameraPos, Vec3d startPos, Vec3d startVel, Entity ignoreEntity, int color) {
+    private static Vec3d cachedLaunchPos = null;
+    private static Vec3d cachedLaunchVel = null;
+    private static float cachedPitch = 0f;
+    private static float cachedYaw = 0f;
+    private static List<Vec3d> cachedPreviewPoints = null;
+    private static Vec3d cachedPreviewHitPos = null;
+
+    private static class SimulationResult {
+        final List<Vec3d> points;
+        final Vec3d hitPos;
+        SimulationResult(List<Vec3d> points, Vec3d hitPos) {
+            this.points = points;
+            this.hitPos = hitPos;
+        }
+    }
+
+    private static SimulationResult simulateTrajectory(ClientWorld world, Vec3d startPos, Vec3d startVel, Entity ignoreEntity) {
+        if (world == null) return null;
         MinecraftClient client = MinecraftClient.getInstance();
-        ClientWorld world = client.world;
-        if (world == null) return;
 
         List<Vec3d> points = new ArrayList<>();
         points.add(startPos);
@@ -119,6 +160,23 @@ public class PearlPredictionRenderer {
             // Gravity: 0.03, Drag: 0.99
             vel = vel.multiply(0.99).subtract(0, 0.03, 0);
         }
+
+        return new SimulationResult(points, hitPos);
+    }
+
+    private static void simulateAndRender(WorldRenderContext context, Vec3d cameraPos, Vec3d startPos, Vec3d startVel, Entity ignoreEntity, int color) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientWorld world = client.world;
+        if (world == null) return;
+
+        SimulationResult res = simulateTrajectory(world, startPos, startVel, ignoreEntity);
+        if (res != null) {
+            renderTrajectoryAndBox(context, cameraPos, res.points, res.hitPos, color);
+        }
+    }
+
+    private static void renderTrajectoryAndBox(WorldRenderContext context, Vec3d cameraPos, List<Vec3d> points, Vec3d hitPos, int color) {
+        if (points == null || points.isEmpty()) return;
 
         context.matrices().push();
         context.matrices().translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);

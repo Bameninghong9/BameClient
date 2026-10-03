@@ -76,9 +76,8 @@ public class AutoClickerModule {
         if (weaponOnly) {
             ItemStack held = client.player.getMainHandStack();
             if (held.isEmpty()) return;
-            String itemName = held.getItem().toString().toLowerCase();
             boolean isWeapon = held.isIn(ItemTags.SWORDS) || held.isIn(ItemTags.AXES)
-                    || itemName.contains("sword") || itemName.contains("axe") || itemName.contains("mace");
+                    || held.isOf(net.minecraft.item.Items.MACE);
             if (!isWeapon) return;
         }
 

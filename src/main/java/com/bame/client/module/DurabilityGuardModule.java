@@ -34,6 +34,7 @@ public class DurabilityGuardModule {
 
     public static boolean shouldCancel(ItemStack stack) {
         if (!enabled || stack == null || stack.isEmpty()) return false;
+        if (toolThresholds.isEmpty()) return false;
         if (!stack.isDamageable()) return false;
         String id = Registries.ITEM.getId(stack.getItem()).toString();
         Integer threshold = toolThresholds.get(id);

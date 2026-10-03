@@ -110,6 +110,13 @@ public class WallpaperManager {
         String targetName = BameClientConfig.selectedWallpaper;
         float targetBlur = BameClientConfig.wallpaperBlur;
 
+        boolean fileChanged = targetName == null || !targetName.equals(currentLoadedFile);
+        boolean blurChanged = Math.abs(targetBlur - currentLoadedBlur) > 0.02f;
+
+        if (!force && !fileChanged && !blurChanged && hasTexture) {
+            return;
+        }
+
         Path file = (targetName != null && !targetName.isEmpty()) ? getWallpaperDir().resolve(targetName) : null;
         if (file == null || !Files.exists(file)) {
             refreshWallpapers();
@@ -119,13 +126,6 @@ public class WallpaperManager {
 
         if (file == null || !Files.exists(file)) {
             clearTexture();
-            return;
-        }
-
-        boolean fileChanged = !targetName.equals(currentLoadedFile);
-        boolean blurChanged = Math.abs(targetBlur - currentLoadedBlur) > 0.02f;
-
-        if (!force && !fileChanged && !blurChanged && hasTexture) {
             return;
         }
 

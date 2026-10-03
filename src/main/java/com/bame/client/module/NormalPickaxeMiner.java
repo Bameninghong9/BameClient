@@ -101,7 +101,19 @@ final class NormalPickaxeMiner {
         if (!c.player.isOnGround()) return;
         Cell feet = cell(c.player.getBlockPos());
 
-        // 1. Collect all remaining blocks in current band (from top to bottom)
+        // 1. If we are already breaking a block in this band and it's still valid, continue mining it directly!
+        if (breaking != null) {
+            if (diggable(c, breaking) && inBand(breaking)) {
+                if (mine(c, breaking)) {
+                    return;
+                }
+            } else {
+                breaking = null;
+                if (c.interactionManager != null) c.interactionManager.cancelBlockBreaking();
+            }
+        }
+
+        // 2. Collect all remaining blocks in current band (from top to bottom)
         ArrayList<Cell> remaining = new ArrayList<>();
         for (int y = top; y >= bottom; y--) {
             for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
@@ -126,16 +138,12 @@ final class NormalPickaxeMiner {
             return;
         }
 
-        // 2. If we are already breaking a block in this band and it's still valid, continue mining it!
-        if (breaking != null && diggable(c, breaking) && inBand(breaking) && mine(c, breaking)) {
-            return;
-        }
+        // 3. Sort candidates to prioritize in-reach, current column, higher Y, and closest (zero raycasts inside comparator!)
+        double reach = c.player.getBlockInteractionRange() + 0.5;
+        double maxReachSq = reach * reach;
+        Vec3d eye = c.player.getEyePos();
 
-        // 3. Sort candidates to prioritize reachable, higher Y, and closest
         remaining.sort((p1, p2) -> {
-            boolean hit1 = hit(c, p1) != null;
-            boolean hit2 = hit(c, p2) != null;
-            if (hit1 != hit2) return hit1 ? -1 : 1;
             // Finish column before changing columns
             boolean col1 = (column != null && p1.x() == column.x() && p1.z() == column.z());
             boolean col2 = (column != null && p2.x() == column.x() && p2.z() == column.z());
@@ -144,15 +152,19 @@ final class NormalPickaxeMiner {
             boolean underFeet1 = p1.equals(feet.add(0, -1, 0));
             boolean underFeet2 = p2.equals(feet.add(0, -1, 0));
             if (underFeet1 != underFeet2) return underFeet1 ? 1 : -1;
+            double d1 = pos(p1).toCenterPos().squaredDistanceTo(eye);
+            double d2 = pos(p2).toCenterPos().squaredDistanceTo(eye);
+            boolean inReach1 = d1 <= maxReachSq;
+            boolean inReach2 = d2 <= maxReachSq;
+            if (inReach1 != inReach2) return inReach1 ? -1 : 1;
             if (p1.y() != p2.y()) return Integer.compare(p2.y(), p1.y()); // higher Y first
-            double d1 = pos(p1).toCenterPos().squaredDistanceTo(c.player.getEyePos());
-            double d2 = pos(p2).toCenterPos().squaredDistanceTo(c.player.getEyePos());
             return Double.compare(d1, d2);
         });
 
         // 4. Try to directly mine any reachable block
         for (Cell p : remaining) {
-            if (diggable(c, p) && hit(c, p) != null) {
+            double d = pos(p).toCenterPos().squaredDistanceTo(eye);
+            if (d <= maxReachSq && diggable(c, p)) {
                 if (mine(c, p)) {
                     column = p;
                     idleTicks = 0;

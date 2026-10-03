@@ -155,7 +155,8 @@ public class SpotifyService {
     }
 
     public static void checkTextureUpdate() {
-        if (!coverDirty && hasCoverTexture) return;
+        if (!coverDirty) return;
+        coverDirty = false;
 
         if (coverPath == null || !Files.exists(coverPath)) return;
 
@@ -170,7 +171,6 @@ public class SpotifyService {
                         NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "spotify_cover", image);
                         MinecraftClient.getInstance().getTextureManager().registerTexture(COVER_ID, tex);
                         hasCoverTexture = true;
-                        coverDirty = false;
                     }
                 }
             }
