@@ -467,6 +467,47 @@ public class BameClientConfig {
                 }
             }
 
+            // Combat - DTap
+            Path dTapFile = BASE_CONFIG_DIR.resolve("Combat").resolve("d_tap.properties");
+            if (Files.exists(dTapFile)) {
+                Properties props = loadProps(dTapFile);
+                if (props.containsKey("enabled")) DTapModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) DTapModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) DTapModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("tapDelay")) DTapModule.tapDelay = Integer.parseInt(props.getProperty("tapDelay"));
+                if (props.containsKey("switchBack")) DTapModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+                if (props.containsKey("mode")) {
+                    try {
+                        DTapModule.mode = DTapModule.DTapMode.valueOf(props.getProperty("mode"));
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // Combat - PearlCatch
+            Path pearlCatchFile = BASE_CONFIG_DIR.resolve("Combat").resolve("pearl_catch.properties");
+            if (Files.exists(pearlCatchFile)) {
+                Properties props = loadProps(pearlCatchFile);
+                if (props.containsKey("enabled")) PearlCatchModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) PearlCatchModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) PearlCatchModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("timingDelay")) PearlCatchModule.timingDelay = Integer.parseInt(props.getProperty("timingDelay"));
+                if (props.containsKey("autoAim")) PearlCatchModule.autoAim = Boolean.parseBoolean(props.getProperty("autoAim"));
+                if (props.containsKey("switchToMace")) PearlCatchModule.switchToMace = Boolean.parseBoolean(props.getProperty("switchToMace"));
+                if (props.containsKey("switchBack")) PearlCatchModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+            }
+
+            // Combat - AggroPearl
+            Path aggroPearlFile = BASE_CONFIG_DIR.resolve("Combat").resolve("aggro_pearl.properties");
+            if (Files.exists(aggroPearlFile)) {
+                Properties props = loadProps(aggroPearlFile);
+                if (props.containsKey("enabled")) AggroPearlModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) AggroPearlModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) AggroPearlModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("throwDelay")) AggroPearlModule.throwDelay = Integer.parseInt(props.getProperty("throwDelay"));
+                if (props.containsKey("autoAim")) AggroPearlModule.autoAim = Boolean.parseBoolean(props.getProperty("autoAim"));
+                if (props.containsKey("switchBack")) AggroPearlModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+            }
+
             // World - NoFog
             Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
             if (Files.exists(noFogFile)) {
@@ -1006,6 +1047,37 @@ public class BameClientConfig {
             autoMaceProps.setProperty("mode", AutoMaceModule.mode.name());
             saveProps(combatDir.resolve("auto_mace.properties"), autoMaceProps, "Caeser Client - AutoMace");
 
+            // Combat - DTap
+            Properties dTapProps = new Properties();
+            dTapProps.setProperty("enabled", String.valueOf(DTapModule.enabled));
+            dTapProps.setProperty("keyBind", String.valueOf(DTapModule.keyBind));
+            dTapProps.setProperty("expanded", String.valueOf(DTapModule.expanded));
+            dTapProps.setProperty("tapDelay", String.valueOf(DTapModule.tapDelay));
+            dTapProps.setProperty("switchBack", String.valueOf(DTapModule.switchBack));
+            dTapProps.setProperty("mode", DTapModule.mode.name());
+            saveProps(combatDir.resolve("d_tap.properties"), dTapProps, "Caeser Client - DTap");
+
+            // Combat - PearlCatch
+            Properties pearlCatchProps = new Properties();
+            pearlCatchProps.setProperty("enabled", String.valueOf(PearlCatchModule.enabled));
+            pearlCatchProps.setProperty("keyBind", String.valueOf(PearlCatchModule.keyBind));
+            pearlCatchProps.setProperty("expanded", String.valueOf(PearlCatchModule.expanded));
+            pearlCatchProps.setProperty("timingDelay", String.valueOf(PearlCatchModule.timingDelay));
+            pearlCatchProps.setProperty("autoAim", String.valueOf(PearlCatchModule.autoAim));
+            pearlCatchProps.setProperty("switchToMace", String.valueOf(PearlCatchModule.switchToMace));
+            pearlCatchProps.setProperty("switchBack", String.valueOf(PearlCatchModule.switchBack));
+            saveProps(combatDir.resolve("pearl_catch.properties"), pearlCatchProps, "Caeser Client - PearlCatch");
+
+            // Combat - AggroPearl
+            Properties aggroPearlProps = new Properties();
+            aggroPearlProps.setProperty("enabled", String.valueOf(AggroPearlModule.enabled));
+            aggroPearlProps.setProperty("keyBind", String.valueOf(AggroPearlModule.keyBind));
+            aggroPearlProps.setProperty("expanded", String.valueOf(AggroPearlModule.expanded));
+            aggroPearlProps.setProperty("throwDelay", String.valueOf(AggroPearlModule.throwDelay));
+            aggroPearlProps.setProperty("autoAim", String.valueOf(AggroPearlModule.autoAim));
+            aggroPearlProps.setProperty("switchBack", String.valueOf(AggroPearlModule.switchBack));
+            saveProps(combatDir.resolve("aggro_pearl.properties"), aggroPearlProps, "Caeser Client - AggroPearl");
+
             // World - NoFog
             Properties noFogProps = new Properties();
             noFogProps.setProperty("enabled", String.valueOf(NoFogModule.enabled));
@@ -1322,6 +1394,25 @@ public class BameClientConfig {
                     AutoMaceModule.mode = AutoMaceModule.MaceMode.valueOf(props.getProperty("autoMaceMode"));
                 } catch (Exception ignored) {}
             }
+
+            if (props.containsKey("dTapEnabled")) DTapModule.enabled = Boolean.parseBoolean(props.getProperty("dTapEnabled"));
+            if (props.containsKey("dTapKeyBind")) DTapModule.keyBind = Integer.parseInt(props.getProperty("dTapKeyBind"));
+            if (props.containsKey("dTapExpanded")) DTapModule.expanded = Boolean.parseBoolean(props.getProperty("dTapExpanded"));
+            if (props.containsKey("dTapTapDelay")) DTapModule.tapDelay = Integer.parseInt(props.getProperty("dTapTapDelay"));
+            if (props.containsKey("dTapSwitchBack")) DTapModule.switchBack = Boolean.parseBoolean(props.getProperty("dTapSwitchBack"));
+            if (props.containsKey("dTapMode")) {
+                try {
+                    DTapModule.mode = DTapModule.DTapMode.valueOf(props.getProperty("dTapMode"));
+                } catch (Exception ignored) {}
+            }
+
+            if (props.containsKey("pearlCatchEnabled")) PearlCatchModule.enabled = Boolean.parseBoolean(props.getProperty("pearlCatchEnabled"));
+            if (props.containsKey("pearlCatchKeyBind")) PearlCatchModule.keyBind = Integer.parseInt(props.getProperty("pearlCatchKeyBind"));
+            if (props.containsKey("pearlCatchExpanded")) PearlCatchModule.expanded = Boolean.parseBoolean(props.getProperty("pearlCatchExpanded"));
+            if (props.containsKey("pearlCatchTimingDelay")) PearlCatchModule.timingDelay = Integer.parseInt(props.getProperty("pearlCatchTimingDelay"));
+            if (props.containsKey("pearlCatchAutoAim")) PearlCatchModule.autoAim = Boolean.parseBoolean(props.getProperty("pearlCatchAutoAim"));
+            if (props.containsKey("pearlCatchSwitchToMace")) PearlCatchModule.switchToMace = Boolean.parseBoolean(props.getProperty("pearlCatchSwitchToMace"));
+            if (props.containsKey("pearlCatchSwitchBack")) PearlCatchModule.switchBack = Boolean.parseBoolean(props.getProperty("pearlCatchSwitchBack"));
 
             if (props.containsKey("theme")) theme = props.getProperty("theme");
             if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));

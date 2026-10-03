@@ -87,6 +87,9 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.module.PearlPredictionModule.onTick(client);
             com.bame.client.module.AutoCartModule.onTick(client);
             com.bame.client.module.AutoMaceModule.onTick(client);
+            com.bame.client.module.DTapModule.onTick(client);
+            com.bame.client.module.PearlCatchModule.onTick(client);
+            com.bame.client.module.AggroPearlModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind

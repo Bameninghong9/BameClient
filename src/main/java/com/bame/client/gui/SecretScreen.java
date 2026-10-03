@@ -1,10 +1,13 @@
 package com.bame.client.gui;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.module.AggroPearlModule;
 import com.bame.client.module.AutoCartModule;
 import com.bame.client.module.AutoMaceModule;
+import com.bame.client.module.DTapModule;
 import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.NameProtectModule;
+import com.bame.client.module.PearlCatchModule;
 import com.bame.client.module.PearlPredictionModule;
 import com.bame.client.module.SkinProtectModule;
 import com.bame.client.render.BlurRenderer;
@@ -29,9 +32,16 @@ public class SecretScreen extends Screen {
     private boolean listeningPearlKey = false;
     private boolean listeningCartKey = false;
     private boolean listeningMaceKey = false;
+    private boolean listeningDTapKey = false;
+    private boolean listeningCatchKey = false;
+    private boolean listeningAggroKey = false;
     private boolean listeningNameKey = false;
     private boolean listeningFakeKey = false;
     private boolean listeningSkinKey = false;
+    private boolean draggingMaceHeight = false;
+    private boolean draggingDTapDelay = false;
+    private boolean draggingCatchDelay = false;
+    private boolean draggingAggroDelay = false;
     private long openTime = System.currentTimeMillis();
 
     private double scroll = 0;
@@ -134,6 +144,24 @@ public class SecretScreen extends Screen {
         return "auto mace".contains(q) || "automace".contains(q) || "mace".contains(q) || "keule".contains(q) || "smash".contains(q) || "anticheat".contains(q) || "slot switch".contains(q) || "delay".contains(q);
     }
 
+    private boolean dTapVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "dtap".contains(q) || "d-tap".contains(q) || "double tap".contains(q) || "doubletap".contains(q) || "crystal".contains(q) || "cpvp".contains(q) || "end crystal".contains(q) || "totem".contains(q) || "pop".contains(q);
+    }
+
+    private boolean pearlCatchVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "pearl catch".contains(q) || "pearlcatch".contains(q) || "catch".contains(q) || "wind pearl".contains(q) || "wind charge".contains(q) || "wind".contains(q) || "boost".contains(q) || "pearl".contains(q);
+    }
+
+    private boolean aggroPearlVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "aggro pearl".contains(q) || "aggropearl".contains(q) || "aggro".contains(q) || "counter pearl".contains(q) || "hunter".contains(q) || "pearl".contains(q);
+    }
+
     private boolean nameProtectVisible() {
         String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
         if (q.isEmpty()) return true;
@@ -162,6 +190,18 @@ public class SecretScreen extends Screen {
 
     private int getAutoMaceHeight() {
         return AutoMaceModule.expanded ? 240 : 46;
+    }
+
+    private int getDTapHeight() {
+        return DTapModule.expanded ? 164 : 46;
+    }
+
+    private int getPearlCatchHeight() {
+        return PearlCatchModule.expanded ? 190 : 46;
+    }
+
+    private int getAggroPearlHeight() {
+        return AggroPearlModule.expanded ? 164 : 46;
     }
 
     private int getNameProtectHeight() {
@@ -240,8 +280,11 @@ public class SecretScreen extends Screen {
         if (pearlVisible()) leftH += getPearlHeight() + 12;
         if (autoCartVisible()) leftH += getAutoCartHeight() + 12;
         if (autoMaceVisible()) leftH += getAutoMaceHeight() + 12;
+        if (dTapVisible()) leftH += getDTapHeight() + 12;
 
         int rightH = 0;
+        if (pearlCatchVisible()) rightH += getPearlCatchHeight() + 12;
+        if (aggroPearlVisible()) rightH += getAggroPearlHeight() + 12;
         if (nameProtectVisible()) rightH += getNameProtectHeight() + 12;
         if (fakeScoreboardVisible()) rightH += getFakeScoreboardHeight() + 12;
         if (skinProtectVisible()) rightH += getSkinProtectHeight() + 12;
@@ -510,10 +553,6 @@ public class SecretScreen extends Screen {
 
             text(context, "AutoCart", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
-            // Subtitle badge showing active mode
-            String modeBadge = AutoCartModule.mode.getDisplayName();
-            text(context, modeBadge, card1X + 68, leftY + 12, 0xFF8E95A4);
-
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
             String kbCart = listeningCartKey ? "..." : formatKey(AutoCartModule.keyBind);
@@ -557,10 +596,6 @@ public class SecretScreen extends Screen {
 
             text(context, "Auto Mace", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
-            // Subtitle badge showing active mode
-            String modeBadge = AutoMaceModule.mode.getDisplayName();
-            text(context, modeBadge, card1X + 74, leftY + 12, 0xFF8E95A4);
-
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
             String kbMace = listeningMaceKey ? "..." : formatKey(AutoMaceModule.keyBind);
@@ -582,9 +617,14 @@ public class SecretScreen extends Screen {
                 modeButton(context, "Bei Klick", btn2X, rowY, btnW, btnH, mouseX, mouseY, AutoMaceModule.mode == AutoMaceModule.MaceMode.ON_CLICK);
 
                 rowY += 26;
-                text(context, "Min. Höhe", card1X + 14, rowY + 4, 0xFFD4D8E0);
-                String heightLabel = AutoMaceModule.getHeightLabel();
-                button(context, heightLabel, card1X + cardW - 74, rowY, 62, 16, mouseX, mouseY);
+                text(context, "Min. Höhe: " + AutoMaceModule.getHeightLabel(), card1X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float hNorm = (float) ((AutoMaceModule.minFallDistance - 1.0) / 9.0);
+                int fill = Math.round(sw * Math.clamp(hNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
 
                 rowY += 26;
                 text(context, "Switch Delay", card1X + 14, rowY + 4, 0xFFD4D8E0);
@@ -609,7 +649,141 @@ public class SecretScreen extends Screen {
             leftY += amH + 12;
         }
 
+        // ==================== CARD 4: D-Tap ====================
+        if (dTapVisible()) {
+            int dtH = getDTapHeight();
+            box(context, card1X, leftY, cardW, dtH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, dtH, 0xFF292D36, 6);
+
+            text(context, "D-Tap", card1X + 12, leftY + 12, 0xFFE2E5ED);
+
+            text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
+
+            String kbDTap = listeningDTapKey ? "..." : formatKey(DTapModule.keyBind);
+            button(context, kbDTap, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, DTapModule.enabled, mouseX, mouseY, delta);
+
+            if (DTapModule.expanded) {
+                context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
+
+                int rowY = leftY + 54;
+                text(context, "Modus", card1X + 14, rowY + 5, 0xFFD4D8E0);
+
+                int btnW = 54;
+                int btnH = 18;
+                int btn3X = card1X + cardW - btnW - 14;
+                int btn2X = btn3X - btnW - 4;
+                int btn1X = btn2X - btnW - 4;
+
+                modeButton(context, "Taste", btn1X, rowY, btnW, btnH, mouseX, mouseY, DTapModule.mode == DTapModule.DTapMode.KEYBIND);
+                modeButton(context, "Klick", btn2X, rowY, btnW, btnH, mouseX, mouseY, DTapModule.mode == DTapModule.DTapMode.ON_CLICK);
+                modeButton(context, "Auto", btn3X, rowY, btnW, btnH, mouseX, mouseY, DTapModule.mode == DTapModule.DTapMode.AUTOMATIC);
+
+                rowY += 26;
+                text(context, "Tap Delay: " + DTapModule.tapDelay + (DTapModule.tapDelay == 1 ? " Tick" : " Ticks"), card1X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float tNorm = (float) ((DTapModule.tapDelay - 1) / 9.0);
+                int fill = Math.round(sw * Math.clamp(tNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+
+                rowY += 26;
+                text(context, "Switch Back", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card1X + cardW - 38, rowY + 2, DTapModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+            }
+            leftY += dtH + 12;
+        }
+
         int rightY = baseY;
+
+        // ==================== CARD: Pearl Catch ====================
+        if (pearlCatchVisible()) {
+            int pcH = getPearlCatchHeight();
+            box(context, card2X, rightY, cardW, pcH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, pcH, 0xFF292D36, 6);
+
+            text(context, "Pearl Catch", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
+
+            String kbCatch = listeningCatchKey ? "..." : formatKey(PearlCatchModule.keyBind);
+            button(context, kbCatch, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, PearlCatchModule.enabled, mouseX, mouseY, delta);
+
+            if (PearlCatchModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
+
+                int rowY = rightY + 54;
+                text(context, "Delay: " + PearlCatchModule.timingDelay + (PearlCatchModule.timingDelay == 1 ? " Tick" : " Ticks"), card2X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float tNorm = (float) ((PearlCatchModule.timingDelay - 1) / 4.0);
+                int fill = Math.round(sw * Math.clamp(tNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+
+                rowY += 26;
+                text(context, "Auto Aim (Himmel)", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, PearlCatchModule.autoAim, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Switch to Mace", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, PearlCatchModule.switchToMace, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Switch Back", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, PearlCatchModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                button(context, "Reset", card2X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+            }
+            rightY += pcH + 12;
+        }
+
+        // ==================== CARD: Aggro Pearl ====================
+        if (aggroPearlVisible()) {
+            int apH = getAggroPearlHeight();
+            box(context, card2X, rightY, cardW, apH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, apH, 0xFF292D36, 6);
+
+            text(context, "Aggro Pearl", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
+
+            String kbAggro = listeningAggroKey ? "..." : formatKey(AggroPearlModule.keyBind);
+            button(context, kbAggro, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, AggroPearlModule.enabled, mouseX, mouseY, delta);
+
+            if (AggroPearlModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
+
+                int rowY = rightY + 54;
+                text(context, "Throw Delay: " + AggroPearlModule.throwDelay + (AggroPearlModule.throwDelay == 1 ? " Tick" : " Ticks"), card2X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float tNorm = (float) (AggroPearlModule.throwDelay / 5.0);
+                int fill = Math.round(sw * Math.clamp(tNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+
+                rowY += 26;
+                text(context, "Auto Aim", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, AggroPearlModule.autoAim, mouseX, mouseY, delta);
+
+                rowY += 26;
+                text(context, "Switch Back", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, AggroPearlModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                button(context, "Reset", card2X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+            }
+            rightY += apH + 12;
+        }
 
         // ==================== CARD 4: Name Protect ====================
         if (nameProtectVisible()) {
@@ -866,6 +1040,9 @@ public class SecretScreen extends Screen {
                     listeningPearlKey = false;
                     listeningCartKey = false;
                     listeningMaceKey = false;
+                    listeningDTapKey = false;
+                    listeningCatchKey = false;
+                    listeningAggroKey = false;
                     listeningNameKey = false;
                     listeningFakeKey = false;
                     listeningSkinKey = false;
@@ -930,6 +1107,9 @@ public class SecretScreen extends Screen {
                 listeningCombo = false;
                 listeningCartKey = false;
                 listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
@@ -1001,6 +1181,9 @@ public class SecretScreen extends Screen {
                 listeningCombo = false;
                 listeningPearlKey = false;
                 listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
@@ -1085,6 +1268,9 @@ public class SecretScreen extends Screen {
                 listeningCombo = false;
                 listeningPearlKey = false;
                 listeningCartKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
@@ -1124,10 +1310,15 @@ public class SecretScreen extends Screen {
                 }
 
                 rowY += 26;
-                // Min. Höhe button (cycles 1.0 -> 1.5 -> 2.0 -> 2.5 -> 3.0 -> 4.0 -> 5.0 -> 8.0)
-                if (inside(mx, my, card1X + cardW - 74, rowY, 62, 16)) {
-                    AutoMaceModule.cycleHeight(true);
+                // Min. Höhe slider (1.0 to 10.0 blocks)
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingMaceHeight = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    AutoMaceModule.minFallDistance = Math.round((1.0 + fval * 9.0) * 10.0) / 10.0;
                     ClientSoundManager.playClick();
+                    BameClientConfig.save();
                     return true;
                 }
 
@@ -1180,7 +1371,272 @@ public class SecretScreen extends Screen {
             leftY += amH + 12;
         }
 
+        // ==================== Card 4: D-Tap (Double Tap CPvP) ====================
+        if (dTapVisible()) {
+            int dtH = getDTapHeight();
+            // Main toggle
+            if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
+                DTapModule.enabled = !DTapModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
+                listeningDTapKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                DTapModule.expanded = !DTapModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (DTapModule.expanded) {
+                int rowY = leftY + 54;
+                int btnW = 54;
+                int btnH = 18;
+                int btn3X = card1X + cardW - btnW - 14;
+                int btn2X = btn3X - btnW - 4;
+                int btn1X = btn2X - btnW - 4;
+
+                // Mode: Taste
+                if (inside(mx, my, btn1X, rowY, btnW, btnH)) {
+                    DTapModule.mode = DTapModule.DTapMode.KEYBIND;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Mode: Klick
+                if (inside(mx, my, btn2X, rowY, btnW, btnH)) {
+                    DTapModule.mode = DTapModule.DTapMode.ON_CLICK;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Mode: Auto
+                if (inside(mx, my, btn3X, rowY, btnW, btnH)) {
+                    DTapModule.mode = DTapModule.DTapMode.AUTOMATIC;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Tap Delay slider (1 to 10 ticks)
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingDTapDelay = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    DTapModule.tapDelay = Math.max(1, Math.min(10, Math.round(1 + fval * 9.0f)));
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Back toggle
+                if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                    DTapModule.switchBack = !DTapModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reset button
+                if (inside(mx, my, card1X + cardW - 58, rowY, 46, 16)) {
+                    DTapModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            leftY += dtH + 12;
+        }
+
         int rightY = baseY;
+
+        // ==================== Card: Pearl Catch ====================
+        if (pearlCatchVisible()) {
+            int pcH = getPearlCatchHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                PearlCatchModule.enabled = !PearlCatchModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningCatchKey = true;
+                listeningAggroKey = false;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
+                PearlCatchModule.expanded = !PearlCatchModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (PearlCatchModule.expanded) {
+                int rowY = rightY + 54;
+                // Delay slider (1 to 5 ticks)
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingCatchDelay = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    PearlCatchModule.timingDelay = Math.max(1, Math.min(5, Math.round(1 + fval * 4.0f)));
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Auto Aim toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    PearlCatchModule.autoAim = !PearlCatchModule.autoAim;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch to Mace toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    PearlCatchModule.switchToMace = !PearlCatchModule.switchToMace;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Back toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    PearlCatchModule.switchBack = !PearlCatchModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reset button
+                if (inside(mx, my, card2X + cardW - 58, rowY, 46, 16)) {
+                    PearlCatchModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            rightY += pcH + 12;
+        }
+
+        // ==================== Card: Aggro Pearl ====================
+        if (aggroPearlVisible()) {
+            int apH = getAggroPearlHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                AggroPearlModule.enabled = !AggroPearlModule.enabled;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningAggroKey = true;
+                listeningCatchKey = false;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
+                AggroPearlModule.expanded = !AggroPearlModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (AggroPearlModule.expanded) {
+                int rowY = rightY + 54;
+                // Throw Delay slider (0 to 5 ticks)
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingAggroDelay = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    AggroPearlModule.throwDelay = Math.max(0, Math.min(5, Math.round(fval * 5.0f)));
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Auto Aim toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    AggroPearlModule.autoAim = !AggroPearlModule.autoAim;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Back toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    AggroPearlModule.switchBack = !AggroPearlModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reset button
+                if (inside(mx, my, card2X + cardW - 58, rowY, 46, 16)) {
+                    AggroPearlModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            rightY += apH + 12;
+        }
 
         // ==================== Card 4: Name Protect ====================
         if (nameProtectVisible()) {
@@ -1200,6 +1656,9 @@ public class SecretScreen extends Screen {
                 listeningPearlKey = false;
                 listeningCartKey = false;
                 listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningFakeKey = false;
                 listeningSkinKey = false;
                 ClientSoundManager.playClick();
@@ -1253,6 +1712,9 @@ public class SecretScreen extends Screen {
                 listeningPearlKey = false;
                 listeningCartKey = false;
                 listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningNameKey = false;
                 listeningSkinKey = false;
                 ClientSoundManager.playClick();
@@ -1337,6 +1799,9 @@ public class SecretScreen extends Screen {
                 listeningPearlKey = false;
                 listeningCartKey = false;
                 listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
                 listeningNameKey = false;
                 listeningFakeKey = false;
                 ClientSoundManager.playClick();
@@ -1426,6 +1891,46 @@ public class SecretScreen extends Screen {
             dragScroll(click.y(), cy, ch);
             return true;
         }
+        if (draggingMaceHeight) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card1X = cx;
+            int sx = card1X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            AutoMaceModule.minFallDistance = Math.round((1.0 + fval * 9.0) * 10.0) / 10.0;
+            return true;
+        }
+        if (draggingDTapDelay) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card1X = cx;
+            int sx = card1X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            DTapModule.tapDelay = Math.max(1, Math.min(10, Math.round(1 + fval * 9.0f)));
+            return true;
+        }
+        if (draggingCatchDelay) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card2X = cx + cardW + gap;
+            int sx = card2X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            PearlCatchModule.timingDelay = Math.max(1, Math.min(5, Math.round(1 + fval * 4.0f)));
+            return true;
+        }
+        if (draggingAggroDelay) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card2X = cx + cardW + gap;
+            int sx = card2X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            AggroPearlModule.throwDelay = Math.max(0, Math.min(5, Math.round(fval * 5.0f)));
+            return true;
+        }
         if (skinPreviewWidget != null && inside(click.x(), click.y(), cx, cy, cw, ch) && inside(click.x(), click.y(), skinPreviewWidget.getX(), skinPreviewWidget.getY(), skinPreviewWidget.getWidth(), skinPreviewWidget.getHeight())) {
             skinPreviewWidget.mouseDragged(click, dx, dy);
             return true;
@@ -1436,12 +1941,44 @@ public class SecretScreen extends Screen {
     @Override
     public boolean mouseReleased(Click click) {
         scrollDragging = false;
+        if (draggingMaceHeight) {
+            draggingMaceHeight = false;
+            BameClientConfig.save();
+        }
+        if (draggingDTapDelay) {
+            draggingDTapDelay = false;
+            BameClientConfig.save();
+        }
+        if (draggingCatchDelay) {
+            draggingCatchDelay = false;
+            BameClientConfig.save();
+        }
+        if (draggingAggroDelay) {
+            draggingAggroDelay = false;
+            BameClientConfig.save();
+        }
         return super.mouseReleased(click);
     }
 
     @Override
     public boolean keyPressed(KeyInput input) {
         int key = input.key();
+
+        if (listeningAggroKey) {
+            AggroPearlModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningAggroKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningCatchKey) {
+            PearlCatchModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningCatchKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
 
         if (listeningPearlKey) {
             PearlPredictionModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
@@ -1462,6 +1999,14 @@ public class SecretScreen extends Screen {
         if (listeningMaceKey) {
             AutoMaceModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
             listeningMaceKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningDTapKey) {
+            DTapModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningDTapKey = false;
             ClientSoundManager.playClick();
             BameClientConfig.save();
             return true;
