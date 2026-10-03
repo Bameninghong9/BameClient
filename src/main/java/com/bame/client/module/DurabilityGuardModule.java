@@ -49,11 +49,12 @@ public class DurabilityGuardModule {
         if (client.player == null) return;
 
         long now = System.currentTimeMillis();
-        String toolName = stack.getName().getString();
+        String rawToolName = stack.getName().getString();
+        String toolName = CustomGuiUtils.normalizeFancyText(rawToolName);
 
         // 1. Text alert
         if (client.inGameHud != null) {
-            Text alertMsg = Text.literal("Durability Guard canceld (" + toolName + ")")
+            Text alertMsg = Text.literal("Durability Guard cancelled (" + toolName + ")")
                     .setStyle(CustomGuiUtils.SANS_STYLE.withColor(Formatting.RED));
 
             if (alertMode == 0 || alertMode == 2) {

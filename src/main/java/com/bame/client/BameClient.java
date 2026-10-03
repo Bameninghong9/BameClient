@@ -80,6 +80,7 @@ public class BameClient implements ClientModInitializer {
             BlockOutlineModule.onTick(client);
             FreelookModule.onTick(client);
             ItemSizeModule.onTick(client);
+            com.bame.client.module.HandPositionModule.onTick(client);
             DurabilityGuardModule.onTick(client);
             ZoomModule.onTick(client);
             com.bame.client.module.PearlPredictionModule.onTick(client);

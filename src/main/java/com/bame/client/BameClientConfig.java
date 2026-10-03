@@ -143,6 +143,15 @@ public class BameClientConfig {
                 if (props.containsKey("coordinatesOutlineColor")) CoordinatesModule.outlineColor = (int) Long.parseLong(props.getProperty("coordinatesOutlineColor"), 16);
                 if (props.containsKey("coordinatesCustomWidth")) CoordinatesModule.customWidth = Integer.parseInt(props.getProperty("coordinatesCustomWidth"));
                 if (props.containsKey("coordinatesCustomHeight")) CoordinatesModule.customHeight = Integer.parseInt(props.getProperty("coordinatesCustomHeight"));
+                if (props.containsKey("coordinatesExpanded")) CoordinatesModule.expanded = Boolean.parseBoolean(props.getProperty("coordinatesExpanded"));
+                if (props.containsKey("coordinatesLayoutMode")) CoordinatesModule.layoutMode = Integer.parseInt(props.getProperty("coordinatesLayoutMode"));
+                if (props.containsKey("coordinatesStyle")) CoordinatesModule.style = Integer.parseInt(props.getProperty("coordinatesStyle"));
+                if (props.containsKey("coordinatesShowX")) CoordinatesModule.showX = Boolean.parseBoolean(props.getProperty("coordinatesShowX"));
+                if (props.containsKey("coordinatesShowY")) CoordinatesModule.showY = Boolean.parseBoolean(props.getProperty("coordinatesShowY"));
+                if (props.containsKey("coordinatesShowZ")) CoordinatesModule.showZ = Boolean.parseBoolean(props.getProperty("coordinatesShowZ"));
+                if (props.containsKey("coordinatesDecimals")) CoordinatesModule.decimals = Boolean.parseBoolean(props.getProperty("coordinatesDecimals"));
+                if (props.containsKey("coordinatesShowNether")) CoordinatesModule.showNether = Boolean.parseBoolean(props.getProperty("coordinatesShowNether"));
+                if (props.containsKey("coordinatesShowDirection")) CoordinatesModule.showDirection = Boolean.parseBoolean(props.getProperty("coordinatesShowDirection"));
 
                 // Potions
                 if (props.containsKey("potionsEnabled")) PotionsModule.enabled = Boolean.parseBoolean(props.getProperty("potionsEnabled"));
@@ -403,6 +412,7 @@ public class BameClientConfig {
                 if (props.containsKey("keyBind")) LowShieldModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
                 if (props.containsKey("expanded")) LowShieldModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
                 if (props.containsKey("heightPercent")) LowShieldModule.heightPercent = Integer.parseInt(props.getProperty("heightPercent"));
+                if (props.containsKey("totemSizePercent")) LowShieldModule.totemSizePercent = Integer.parseInt(props.getProperty("totemSizePercent"));
             }
 
             // Combat - CustomHitboxes
@@ -609,6 +619,21 @@ public class BameClientConfig {
                 }
             }
 
+            // Visuals - HandPosition
+            Path handPosFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("hand_position.properties");
+            if (Files.exists(handPosFile)) {
+                Properties props = loadProps(handPosFile);
+                if (props.containsKey("enabled")) HandPositionModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) HandPositionModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) HandPositionModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("posX")) HandPositionModule.posX = Float.parseFloat(props.getProperty("posX"));
+                if (props.containsKey("posY")) HandPositionModule.posY = Float.parseFloat(props.getProperty("posY"));
+                if (props.containsKey("posZ")) HandPositionModule.posZ = Float.parseFloat(props.getProperty("posZ"));
+                if (props.containsKey("scale")) HandPositionModule.scale = Float.parseFloat(props.getProperty("scale"));
+                if (props.containsKey("applyToOffhand")) HandPositionModule.applyToOffhand = Boolean.parseBoolean(props.getProperty("applyToOffhand"));
+                if (props.containsKey("weaponsOnly")) HandPositionModule.weaponsOnly = Boolean.parseBoolean(props.getProperty("weaponsOnly"));
+            }
+
             // World - TimeChanger
             Path timeChangerFile = BASE_CONFIG_DIR.resolve("World").resolve("time_changer.properties");
             if (Files.exists(timeChangerFile)) {
@@ -766,6 +791,15 @@ public class BameClientConfig {
             showHudProps.setProperty("coordinatesOutlineColor", Integer.toHexString(CoordinatesModule.outlineColor));
             showHudProps.setProperty("coordinatesCustomWidth", String.valueOf(CoordinatesModule.customWidth));
             showHudProps.setProperty("coordinatesCustomHeight", String.valueOf(CoordinatesModule.customHeight));
+            showHudProps.setProperty("coordinatesExpanded", String.valueOf(CoordinatesModule.expanded));
+            showHudProps.setProperty("coordinatesLayoutMode", String.valueOf(CoordinatesModule.layoutMode));
+            showHudProps.setProperty("coordinatesStyle", String.valueOf(CoordinatesModule.style));
+            showHudProps.setProperty("coordinatesShowX", String.valueOf(CoordinatesModule.showX));
+            showHudProps.setProperty("coordinatesShowY", String.valueOf(CoordinatesModule.showY));
+            showHudProps.setProperty("coordinatesShowZ", String.valueOf(CoordinatesModule.showZ));
+            showHudProps.setProperty("coordinatesDecimals", String.valueOf(CoordinatesModule.decimals));
+            showHudProps.setProperty("coordinatesShowNether", String.valueOf(CoordinatesModule.showNether));
+            showHudProps.setProperty("coordinatesShowDirection", String.valueOf(CoordinatesModule.showDirection));
 
             // Potions
             showHudProps.setProperty("potionsEnabled", String.valueOf(PotionsModule.enabled));
@@ -999,6 +1033,7 @@ public class BameClientConfig {
             lsProps.setProperty("keyBind", String.valueOf(LowShieldModule.keyBind));
             lsProps.setProperty("expanded", String.valueOf(LowShieldModule.expanded));
             lsProps.setProperty("heightPercent", String.valueOf(LowShieldModule.heightPercent));
+            lsProps.setProperty("totemSizePercent", String.valueOf(LowShieldModule.totemSizePercent));
             saveProps(combatDir.resolve("low_shield.properties"), lsProps, "Caeser Client - LowShield");
 
             // Combat - CustomHitboxes
@@ -1140,6 +1175,20 @@ public class BameClientConfig {
             itemSizeProps.setProperty("scale", String.valueOf(ItemSizeModule.scale));
             itemSizeProps.setProperty("yOffset", String.valueOf(ItemSizeModule.yOffset));
             itemSizeProps.setProperty("selectedItems", String.join(",", ItemSizeModule.selectedItems));
+            saveProps(visualsDir.resolve("item_size.properties"), itemSizeProps, "Caeser Client - ItemSize");
+
+            // Visuals - HandPosition
+            Properties handPosProps = new Properties();
+            handPosProps.setProperty("enabled", String.valueOf(HandPositionModule.enabled));
+            handPosProps.setProperty("keyBind", String.valueOf(HandPositionModule.keyBind));
+            handPosProps.setProperty("expanded", String.valueOf(HandPositionModule.expanded));
+            handPosProps.setProperty("posX", String.valueOf(HandPositionModule.posX));
+            handPosProps.setProperty("posY", String.valueOf(HandPositionModule.posY));
+            handPosProps.setProperty("posZ", String.valueOf(HandPositionModule.posZ));
+            handPosProps.setProperty("scale", String.valueOf(HandPositionModule.scale));
+            handPosProps.setProperty("applyToOffhand", String.valueOf(HandPositionModule.applyToOffhand));
+            handPosProps.setProperty("weaponsOnly", String.valueOf(HandPositionModule.weaponsOnly));
+            saveProps(visualsDir.resolve("hand_position.properties"), handPosProps, "Caeser Client - HandPosition");
             // World - TimeChanger
             Properties timeChangerProps = new Properties();
             timeChangerProps.setProperty("enabled", String.valueOf(TimeChangerModule.enabled));
@@ -1299,6 +1348,15 @@ public class BameClientConfig {
             if (props.containsKey("coordinatesHudY")) CoordinatesModule.hudY = Integer.parseInt(props.getProperty("coordinatesHudY"));
             if (props.containsKey("coordinatesScale")) CoordinatesModule.scale = Float.parseFloat(props.getProperty("coordinatesScale"));
             if (props.containsKey("coordinatesBgMode")) CoordinatesModule.bgMode = Integer.parseInt(props.getProperty("coordinatesBgMode"));
+            if (props.containsKey("coordinatesExpanded")) CoordinatesModule.expanded = Boolean.parseBoolean(props.getProperty("coordinatesExpanded"));
+            if (props.containsKey("coordinatesLayoutMode")) CoordinatesModule.layoutMode = Integer.parseInt(props.getProperty("coordinatesLayoutMode"));
+            if (props.containsKey("coordinatesStyle")) CoordinatesModule.style = Integer.parseInt(props.getProperty("coordinatesStyle"));
+            if (props.containsKey("coordinatesShowX")) CoordinatesModule.showX = Boolean.parseBoolean(props.getProperty("coordinatesShowX"));
+            if (props.containsKey("coordinatesShowY")) CoordinatesModule.showY = Boolean.parseBoolean(props.getProperty("coordinatesShowY"));
+            if (props.containsKey("coordinatesShowZ")) CoordinatesModule.showZ = Boolean.parseBoolean(props.getProperty("coordinatesShowZ"));
+            if (props.containsKey("coordinatesDecimals")) CoordinatesModule.decimals = Boolean.parseBoolean(props.getProperty("coordinatesDecimals"));
+            if (props.containsKey("coordinatesShowNether")) CoordinatesModule.showNether = Boolean.parseBoolean(props.getProperty("coordinatesShowNether"));
+            if (props.containsKey("coordinatesShowDirection")) CoordinatesModule.showDirection = Boolean.parseBoolean(props.getProperty("coordinatesShowDirection"));
 
             if (props.containsKey("potionsEnabled")) PotionsModule.enabled = Boolean.parseBoolean(props.getProperty("potionsEnabled"));
             if (props.containsKey("potionsHudX")) PotionsModule.hudX = Integer.parseInt(props.getProperty("potionsHudX"));

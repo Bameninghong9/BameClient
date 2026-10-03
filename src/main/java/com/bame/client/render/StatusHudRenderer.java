@@ -213,18 +213,174 @@ public class StatusHudRenderer implements HudRenderCallback {
         return ClockModule.customHeight > 0 ? Math.max(18, ClockModule.customHeight) : 18;
     }
 
+    public static List<String> getCoordinatesLines(MinecraftClient client) {
+        if (client == null) client = MinecraftClient.getInstance();
+        boolean hasPlayer = client.player != null;
+        boolean showX = CoordinatesModule.showX;
+        boolean showY = CoordinatesModule.showY;
+        boolean showZ = CoordinatesModule.showZ;
+
+        String xVal, yVal, zVal;
+        if (CoordinatesModule.decimals) {
+            double px = hasPlayer ? client.player.getX() : 0.0;
+            double py = hasPlayer ? client.player.getY() : 64.0;
+            double pz = hasPlayer ? client.player.getZ() : 0.0;
+            xVal = String.format(java.util.Locale.ROOT, "%.1f", px);
+            yVal = String.format(java.util.Locale.ROOT, "%.1f", py);
+            zVal = String.format(java.util.Locale.ROOT, "%.1f", pz);
+        } else {
+            int px = hasPlayer ? client.player.getBlockX() : 0;
+            int py = hasPlayer ? client.player.getBlockY() : 64;
+            int pz = hasPlayer ? client.player.getBlockZ() : 0;
+            xVal = String.valueOf(px);
+            yVal = String.valueOf(py);
+            zVal = String.valueOf(pz);
+        }
+
+        int style = CoordinatesModule.style;
+        List<String> lines = new ArrayList<>();
+
+        if (CoordinatesModule.layoutMode == 1) {
+            // Vertical (untereinander)
+            if (showX) {
+                lines.add(switch (style) {
+                    case 1 -> xVal;
+                    case 2 -> "X " + xVal;
+                    case 3 -> "[X: " + xVal + "]";
+                    default -> "X: " + xVal;
+                });
+            }
+            if (showY) {
+                lines.add(switch (style) {
+                    case 1 -> yVal;
+                    case 2 -> "Y " + yVal;
+                    case 3 -> "[Y: " + yVal + "]";
+                    default -> "Y: " + yVal;
+                });
+            }
+            if (showZ) {
+                lines.add(switch (style) {
+                    case 1 -> zVal;
+                    case 2 -> "Z " + zVal;
+                    case 3 -> "[Z: " + zVal + "]";
+                    default -> "Z: " + zVal;
+                });
+            }
+
+            if (CoordinatesModule.showNether && hasPlayer && client.world != null) {
+                var dim = client.world.getRegistryKey();
+                if (dim == net.minecraft.world.World.OVERWORLD) {
+                    lines.add("Nether: " + (client.player.getBlockX() / 8) + ", " + (client.player.getBlockZ() / 8));
+                } else if (dim == net.minecraft.world.World.NETHER) {
+                    lines.add("Overworld: " + (client.player.getBlockX() * 8) + ", " + (client.player.getBlockZ() * 8));
+                }
+            }
+
+            if (CoordinatesModule.showDirection && hasPlayer) {
+                var dir = client.player.getHorizontalFacing();
+                String dirName = switch (dir) {
+                    case NORTH -> "North (-Z)";
+                    case SOUTH -> "South (+Z)";
+                    case WEST -> "West (-X)";
+                    case EAST -> "East (+X)";
+                    default -> dir.name();
+                };
+                lines.add("Facing: " + dirName);
+            }
+
+            if (lines.isEmpty()) {
+                lines.add("--");
+            }
+            return lines;
+        } else {
+            // Horizontal (nebeneinander)
+            List<String> items = new ArrayList<>();
+            if (style == 2) {
+                StringBuilder sb = new StringBuilder();
+                if (showX) sb.append('X');
+                if (showY) sb.append('Y');
+                if (showZ) sb.append('Z');
+                if (sb.length() > 0) sb.append(": ");
+                boolean first = true;
+                if (showX) { sb.append(xVal); first = false; }
+                if (showY) { if (!first) sb.append(" "); sb.append(yVal); first = false; }
+                if (showZ) { if (!first) sb.append(" "); sb.append(zVal); }
+                items.add(sb.length() > 0 ? sb.toString() : "--");
+            } else if (style == 3) {
+                List<String> raw = new ArrayList<>();
+                if (showX) raw.add(xVal);
+                if (showY) raw.add(yVal);
+                if (showZ) raw.add(zVal);
+                items.add(raw.isEmpty() ? "[--]" : "[" + String.join(", ", raw) + "]");
+            } else if (style == 1) {
+                List<String> raw = new ArrayList<>();
+                if (showX) raw.add(xVal);
+                if (showY) raw.add(yVal);
+                if (showZ) raw.add(zVal);
+                items.add(raw.isEmpty() ? "--" : String.join("   ", raw));
+            } else {
+                List<String> raw = new ArrayList<>();
+                if (showX) raw.add("X: " + xVal);
+                if (showY) raw.add("Y: " + yVal);
+                if (showZ) raw.add("Z: " + zVal);
+                items.add(raw.isEmpty() ? "--" : String.join("   ", raw));
+            }
+
+            StringBuilder horizLine = new StringBuilder(items.get(0));
+
+            if (CoordinatesModule.showNether && hasPlayer && client.world != null) {
+                var dim = client.world.getRegistryKey();
+                if (dim == net.minecraft.world.World.OVERWORLD) {
+                    horizLine.append("  [N: ").append(client.player.getBlockX() / 8).append(", ").append(client.player.getBlockZ() / 8).append("]");
+                } else if (dim == net.minecraft.world.World.NETHER) {
+                    horizLine.append("  [OW: ").append(client.player.getBlockX() * 8).append(", ").append(client.player.getBlockZ() * 8).append("]");
+                }
+            }
+
+            if (CoordinatesModule.showDirection && hasPlayer) {
+                var dir = client.player.getHorizontalFacing();
+                String dirName = switch (dir) {
+                    case NORTH -> "North";
+                    case SOUTH -> "South";
+                    case WEST -> "West";
+                    case EAST -> "East";
+                    default -> dir.name();
+                };
+                horizLine.append("  (").append(dirName).append(")");
+            }
+
+            lines.add(horizLine.toString());
+            return lines;
+        }
+    }
+
     public static String getCoordinatesString(MinecraftClient client) {
-        if (client.player == null) return "XYZ: 0 64 0";
-        return String.format(java.util.Locale.ROOT, "XYZ: %d %d %d", client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ());
+        List<String> lines = getCoordinatesLines(client);
+        return String.join("   ", lines);
     }
 
     public static int getCoordinatesWidth(MinecraftClient client) {
-        String text = getCoordinatesString(client);
-        int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
-        return CoordinatesModule.customWidth > 0 ? Math.max(nw, CoordinatesModule.customWidth) : nw;
+        if (client == null) client = MinecraftClient.getInstance();
+        List<String> lines = getCoordinatesLines(client);
+        int maxW = 0;
+        for (String line : lines) {
+            int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(line));
+            if (nw > maxW) maxW = nw;
+        }
+        int naturalW = maxW + 16;
+        return CoordinatesModule.customWidth > 0 ? Math.max(naturalW, CoordinatesModule.customWidth) : naturalW;
     }
+
     public static int getCoordinatesHeight() {
-        return CoordinatesModule.customHeight > 0 ? Math.max(18, CoordinatesModule.customHeight) : 18;
+        return getCoordinatesHeight(MinecraftClient.getInstance());
+    }
+
+    public static int getCoordinatesHeight(MinecraftClient client) {
+        if (client == null) client = MinecraftClient.getInstance();
+        List<String> lines = getCoordinatesLines(client);
+        int count = lines.size();
+        int naturalH = (count <= 1) ? 18 : (8 + count * 11);
+        return CoordinatesModule.customHeight > 0 ? Math.max(naturalH, CoordinatesModule.customHeight) : naturalH;
     }
 
     public static int getReachDisplayWidth(MinecraftClient client) {
@@ -363,8 +519,36 @@ public class StatusHudRenderer implements HudRenderCallback {
 
     public static void renderCoordinates(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String text = getCoordinatesString(client);
-        renderPill(c, x, y, scale, text, CoordinatesModule.bgMode, CoordinatesModule.outlineColor, CoordinatesModule.customWidth, CoordinatesModule.customHeight);
+        List<String> lines = getCoordinatesLines(client);
+        int maxW = 0;
+        for (String line : lines) {
+            int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(line));
+            if (nw > maxW) maxW = nw;
+        }
+        int naturalW = maxW + 16;
+        int count = lines.size();
+        int naturalH = (count <= 1) ? 18 : (8 + count * 11);
+        int w = CoordinatesModule.customWidth > 0 ? Math.max(naturalW, CoordinatesModule.customWidth) : naturalW;
+        int h = CoordinatesModule.customHeight > 0 ? Math.max(naturalH, CoordinatesModule.customHeight) : naturalH;
+
+        c.getMatrices().pushMatrix();
+        c.getMatrices().translate((float) x, (float) y);
+        c.getMatrices().scale(scale, scale);
+
+        drawBoxBg(c, 0, 0, w, h, CoordinatesModule.bgMode, CoordinatesModule.outlineColor);
+
+        boolean shadow = (CoordinatesModule.bgMode == 0 || CoordinatesModule.bgMode == 3);
+        int textBlockHeight = (count <= 1) ? 8 : ((count - 1) * 11 + 8);
+        int startY = (h - textBlockHeight) / 2;
+        int blockX = (w - maxW) / 2;
+
+        for (int i = 0; i < count; i++) {
+            String line = lines.get(i);
+            int lineY = startY + i * 11;
+            c.drawText(client.textRenderer, CustomGuiUtils.getFontText(line), blockX, lineY, 0xFFFFFFFF, shadow);
+        }
+
+        c.getMatrices().popMatrix();
     }
 
     public static void drawSparkle(DrawContext c, int x, int y, int color) {

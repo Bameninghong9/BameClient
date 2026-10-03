@@ -10,6 +10,7 @@ public class LowShieldModule {
     public static boolean expanded = false;
 
     public static int heightPercent = 50; // 1 to 100%
+    public static int totemSizePercent = 50; // 10 to 100%
 
     private static boolean wasKeyBindPressed = false;
 
@@ -25,5 +26,6 @@ public class LowShieldModule {
 
     public static void resetToDefault() {
         heightPercent = 50;
+        totemSizePercent = 50;
     }
 }

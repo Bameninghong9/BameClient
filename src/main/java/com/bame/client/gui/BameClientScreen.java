@@ -33,6 +33,7 @@ import com.bame.client.module.ItemSizeModule;
 import com.bame.client.module.DurabilityGuardModule;
 import com.bame.client.module.TimeChangerModule;
 import com.bame.client.module.SkinProtectModule;
+import com.bame.client.module.HandPositionModule;
 import com.bame.client.render.CustomCrosshairRenderer;
 
 import net.minecraft.client.gui.DrawContext;
@@ -62,9 +63,9 @@ public class BameClientScreen extends Screen {
     private static final String[] CATEGORIES={"Combat","Movement","Visuals","Misc","World"};
     public static String selected="World";
     private boolean expanded,listening,scrollDragging,draggingWidth,fullbrightExpanded,draggingFullbright,listeningFullbright,listeningMenuBind,listeningZoom,listeningShowHud,listeningSpotify,listeningScoreboard,listeningCrosshair,listeningInvMove;
-    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger;
-    private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingHitboxAlpha,draggingHitboxWidth,draggingBlockOutlineWidth,draggingBlockOutlineOpacity;
-    private boolean draggingFreelookSensitivity,draggingItemScale,draggingItemYOffset,itemScrollDragging,draggingSoundVolume,draggingHoverVolume;
+    private boolean listeningAutoClicker,listeningHitColor,listeningReachDisplay,listeningLowShield,listeningHitboxes,listeningNoFog,listeningAutoTool,listeningBlockOutline,listeningFreelook,listeningItemSize,listeningDurabilityGuard,listeningTimeChanger,listeningHandPosition;
+    private boolean draggingCps,draggingAutoClickerDelay,draggingHitColorAlpha,draggingLowShieldHeight,draggingLowShieldTotem,draggingHitboxAlpha,draggingHitboxWidth,draggingBlockOutlineWidth,draggingBlockOutlineOpacity;
+    private boolean draggingFreelookSensitivity,draggingItemScale,draggingItemYOffset,itemScrollDragging,draggingSoundVolume,draggingHoverVolume,draggingHandX,draggingHandY,draggingHandZ,draggingHandScale;
     private boolean crosshairColorPickerOpen = false, hitColorColorPickerOpen = false, hitboxColorPickerOpen = false, blockOutlineColorPickerOpen = false;
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
@@ -272,7 +273,7 @@ public class BameClientScreen extends Screen {
     }
     private boolean lowShieldVisible() {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
-        if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q);
+        if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q) || "totem".contains(q);
         return selected.equals("Combat");
     }
     private boolean customHitboxesVisible() {
@@ -318,6 +319,14 @@ public class BameClientScreen extends Screen {
     private int getTimeChangerHeight() {
         return TimeChangerModule.expanded ? 104 : 46;
     }
+    private boolean handPositionVisible() {
+        String q = search.getText().toLowerCase(java.util.Locale.ROOT);
+        if (!q.isEmpty()) return "handposition".contains(q) || "hand position".contains(q) || "item position".contains(q) || "hand".contains(q) || "position".contains(q) || "offset".contains(q) || "viewmodel".contains(q) || "doom".contains(q) || "waffe".contains(q) || "schwert".contains(q);
+        return selected.equals("Visuals");
+    }
+    private int getHandPositionHeight() {
+        return HandPositionModule.expanded ? 258 : 46;
+    }
 
     private int getFreelookHeight() {
         return FreelookModule.expanded ? 156 : 46;
@@ -351,7 +360,7 @@ public class BameClientScreen extends Screen {
 
     private int getShowHudHeight() {
         if (!ShowHudModule.expanded) return 46;
-        int extra = (ServerInfoModule.enabled ? 24 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + 28 + 10;
+        int extra = (ServerInfoModule.enabled ? 24 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + (CoordinatesModule.expanded ? 8 * 26 : 0) + 28 + 10;
         return 46 + 8 + 10 * 26 + extra;
     }
     private int getScoreboardHeight() {
@@ -376,7 +385,7 @@ public class BameClientScreen extends Screen {
         return ReachDisplayModule.expanded ? 124 : 46;
     }
     private int getLowShieldHeight() {
-        return LowShieldModule.expanded ? 104 : 46;
+        return LowShieldModule.expanded ? 130 : 46;
     }
     private int getCustomHitboxesHeight() {
         return CustomHitboxesModule.expanded ? 234 : 46;
@@ -409,6 +418,7 @@ public class BameClientScreen extends Screen {
         if (autoToolVisible()) leftY += getAutoToolHeight() + 12;
         if (blockOutlineVisible()) leftY += getBlockOutlineHeight() + 12;
         if (timeChangerVisible()) leftY += getTimeChangerHeight() + 12;
+        if (handPositionVisible()) leftY += getHandPositionHeight() + 12;
 
         if (noFogVisible()) rightY += getNoFogHeight() + 12;
         if (fullbrightVisible()) rightY += (fullbrightExpanded?92:46) + 12;
@@ -693,6 +703,10 @@ public class BameClientScreen extends Screen {
                 renderTimeChangerModule(c, mx, my, delta, cx, leftY, halfW);
                 leftY += getTimeChangerHeight() + 12;
             }
+            if (handPositionVisible()) {
+                renderHandPositionModule(c, mx, my, delta, cx, leftY, halfW);
+                leftY += getHandPositionHeight() + 12;
+            }
             if (noFogVisible()) {
                 renderNoFogModule(c, mx, my, delta, cx + halfW + gap, rightY, halfW);
                 rightY += getNoFogHeight() + 12;
@@ -846,9 +860,55 @@ public class BameClientScreen extends Screen {
         curY += 26;
 
         // 2. Coordinates
-        text(c, "Coordinates", x + 14, curY + 5, 0xFFD4D8E0);
+        boolean coordHover = inside(mx, my, x + 8, curY, w - 50, 22);
+        if (coordHover) {
+            CustomGuiUtils.fillUltraRounded(c, x + 8, curY, w - 50, 22, 0x14FFFFFF, 4);
+        }
+        text(c, (CoordinatesModule.expanded ? "- " : "+ ") + "Coordinates", x + 14, curY + 5, CoordinatesModule.expanded ? GuiTheme.accent() : 0xFFD4D8E0);
         toggle(c, x + w - 38, curY + 3, CoordinatesModule.enabled, mx, my, delta);
         curY += 26;
+
+        if (CoordinatesModule.expanded) {
+            // Sub 1: Layout
+            text(c, "Layout", x + 24, curY + 4, 0xFFB8BCC6);
+            button(c, CoordinatesModule.getLayoutName(), x + w - 76, curY, 64, 16, mx, my);
+            curY += 26;
+
+            // Sub 2: Style
+            text(c, "Style", x + 24, curY + 4, 0xFFB8BCC6);
+            button(c, CoordinatesModule.getStyleName(), x + w - 76, curY, 64, 16, mx, my);
+            curY += 26;
+
+            // Sub 3: Show X
+            text(c, "Show X", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.showX, mx, my, delta);
+            curY += 26;
+
+            // Sub 4: Show Y
+            text(c, "Show Y", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.showY, mx, my, delta);
+            curY += 26;
+
+            // Sub 5: Show Z
+            text(c, "Show Z", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.showZ, mx, my, delta);
+            curY += 26;
+
+            // Sub 6: Decimals (.0)
+            text(c, "Decimals (.0)", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.decimals, mx, my, delta);
+            curY += 26;
+
+            // Sub 7: Nether Coords
+            text(c, "Nether Coords", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.showNether, mx, my, delta);
+            curY += 26;
+
+            // Sub 8: Direction
+            text(c, "Direction", x + 24, curY + 5, 0xFFB8BCC6);
+            toggle(c, x + w - 38, curY + 3, CoordinatesModule.showDirection, mx, my, delta);
+            curY += 26;
+        }
 
         // 3. Potions
         text(c, "Potions", x + 14, curY + 5, 0xFFD4D8E0);
@@ -1294,15 +1354,25 @@ public class BameClientScreen extends Screen {
         c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
 
         int curY = y + 54;
-        // Height Slider (1% to 100%)
-        text(c, "Height: " + LowShieldModule.heightPercent + "%", x + 14, curY + 4, 0xFFD4D8E0);
         int sx = x + 84;
         int sw = w - 98;
+
+        // Shield Height Slider (1% to 100%)
+        text(c, "Shield: " + LowShieldModule.heightPercent + "%", x + 14, curY + 4, 0xFFD4D8E0);
         CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
         float hNorm = (LowShieldModule.heightPercent - 1) / 99.0f;
         int fill = Math.round(sw * Math.clamp(hNorm, 0f, 1f));
         if (fill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, fill, 4, GuiTheme.accent(), 2);
         CustomGuiUtils.fillUltraRounded(c, sx + fill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Totem Size Slider (10% to 100%)
+        text(c, "Totem: " + LowShieldModule.totemSizePercent + "%", x + 14, curY + 4, 0xFFD4D8E0);
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float tNorm = (LowShieldModule.totemSizePercent - 10) / 90.0f;
+        int tfill = Math.round(sw * Math.clamp(tNorm, 0f, 1f));
+        if (tfill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, tfill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + tfill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
         curY += 26;
 
         // Reset button
@@ -1531,6 +1601,88 @@ public class BameClientScreen extends Screen {
         curY += 26;
 
         // Row 2: Reset button
+        button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderHandPositionModule(DrawContext c, int mx, int my, float delta, int x, int yOffset, int w) {
+        int y = baseY() + yOffset;
+        int h = getHandPositionHeight();
+        box(c, x, y, w, h, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
+
+        text(c, "Hand Position", x + 12, y + 12, 0xFFE2E5ED);
+
+        text(c, "KeyBind:", x + 12, y + 29, 0xFF8E95A4);
+        String kb = listeningHandPosition ? "..." : formatKey(HandPositionModule.keyBind);
+        button(c, kb, x + 60, y + 25, 48, 16, mx, my);
+        toggle(c, x + w - 38, y + 12, HandPositionModule.enabled, mx, my, delta);
+
+        if (!HandPositionModule.expanded) return;
+
+        c.fill(x + 8, y + 46, x + w - 8, y + 47, 0xFF292D36);
+
+        int curY = y + 54;
+
+        // Presets row: Default, Lowered, Doom, Small
+        int pBtnW = (w - 24 - 9) / 4;
+        String[] pNames = {"Default", "Lowered", "Doom", "Small"};
+        for (int i = 0; i < 4; i++) {
+            button(c, pNames[i], x + 12 + i * (pBtnW + 3), curY, pBtnW, 16, mx, my);
+        }
+        curY += 26;
+
+        // X Offset slider (-0.80 to +0.80)
+        String xStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posX);
+        text(c, "X: " + xStr, x + 14, curY + 4, 0xFFD4D8E0);
+        int sx = x + 84;
+        int sw = w - 98;
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float xNorm = (HandPositionModule.posX - (-0.80f)) / 1.60f;
+        int xFill = Math.round(sw * Math.clamp(xNorm, 0f, 1f));
+        if (xFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, xFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + xFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Y Offset slider (-0.80 to +0.80)
+        String yStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posY);
+        text(c, "Y: " + yStr, x + 14, curY + 4, 0xFFD4D8E0);
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float yNorm = (HandPositionModule.posY - (-0.80f)) / 1.60f;
+        int yFill = Math.round(sw * Math.clamp(yNorm, 0f, 1f));
+        if (yFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, yFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + yFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Z Offset slider (-0.80 to +0.80)
+        String zStr = String.format(java.util.Locale.US, "%.2f", HandPositionModule.posZ);
+        text(c, "Z: " + zStr, x + 14, curY + 4, 0xFFD4D8E0);
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float zNorm = (HandPositionModule.posZ - (-0.80f)) / 1.60f;
+        int zFill = Math.round(sw * Math.clamp(zNorm, 0f, 1f));
+        if (zFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, zFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + zFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Scale slider (0.30 to 1.50)
+        int scalePct = Math.round(HandPositionModule.scale * 100);
+        text(c, "Scale: " + scalePct + "%", x + 14, curY + 4, 0xFFD4D8E0);
+        CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sw, 4, 0xFF303442, 2);
+        float sNorm = (HandPositionModule.scale - 0.30f) / 1.20f;
+        int sFill = Math.round(sw * Math.clamp(sNorm, 0f, 1f));
+        if (sFill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sFill, 4, GuiTheme.accent(), 2);
+        CustomGuiUtils.fillUltraRounded(c, sx + sFill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        // Apply to Offhand toggle
+        text(c, "Apply to Offhand", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, HandPositionModule.applyToOffhand, mx, my, delta);
+        curY += 26;
+
+        // Weapons Only toggle
+        text(c, "Weapons Only", x + 14, curY + 4, 0xFFD4D8E0);
+        toggle(c, x + w - 38, curY + 2, HandPositionModule.weaponsOnly, mx, my, delta);
+        curY += 26;
+
+        // Reset button
         button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
@@ -2470,7 +2622,79 @@ public class BameClientScreen extends Screen {
                         BameClientConfig.save();
                         return true;
                     }
+                    if (inside(mx, my, cx + 8, curY, halfW - 50, 22)) {
+                        CoordinatesModule.expanded = !CoordinatesModule.expanded;
+                        BameClientConfig.save();
+                        layout();
+                        return true;
+                    }
                     curY += 26;
+
+                    if (CoordinatesModule.expanded) {
+                        // Sub 1: Layout
+                        if (inside(mx, my, cx + halfW - 76, curY, 64, 16)) {
+                            CoordinatesModule.cycleLayout();
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 2: Style
+                        if (inside(mx, my, cx + halfW - 76, curY, 64, 16)) {
+                            CoordinatesModule.cycleStyle();
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 3: Show X
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.showX = !CoordinatesModule.showX;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 4: Show Y
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.showY = !CoordinatesModule.showY;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 5: Show Z
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.showZ = !CoordinatesModule.showZ;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 6: Decimals
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.decimals = !CoordinatesModule.decimals;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 7: Nether Coords
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.showNether = !CoordinatesModule.showNether;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+
+                        // Sub 8: Direction
+                        if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
+                            CoordinatesModule.showDirection = !CoordinatesModule.showDirection;
+                            BameClientConfig.save();
+                            return true;
+                        }
+                        curY += 26;
+                    }
 
                     // 3. Potions
                     if (inside(mx, my, cx + halfW - 38, curY + 3, 26, 14)) {
@@ -2993,6 +3217,112 @@ public class BameClientScreen extends Screen {
                 leftY += getTimeChangerHeight() + 12;
             }
 
+            if (handPositionVisible()) {
+                int myY = baseY() + leftY;
+                // Toggle
+                if (inside(mx, my, cx + halfW - 38, myY + 12, 26, 14)) {
+                    HandPositionModule.enabled = !HandPositionModule.enabled;
+                    com.bame.client.sound.ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                // Keybind
+                if (inside(mx, my, cx + 60, myY + 25, 48, 16)) {
+                    listeningHandPosition = true;
+                    return true;
+                }
+                // Card header expand / collapse
+                if (inside(mx, my, cx, myY, halfW, 46)) {
+                    HandPositionModule.expanded = !HandPositionModule.expanded;
+                    com.bame.client.sound.ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    layout();
+                    return true;
+                }
+                if (HandPositionModule.expanded) {
+                    int curY = myY + 54;
+                    // Presets
+                    int pBtnW = (halfW - 24 - 9) / 4;
+                    for (int i = 0; i < 4; i++) {
+                        if (inside(mx, my, cx + 12 + i * (pBtnW + 3), curY, pBtnW, 16)) {
+                            HandPositionModule.applyPreset(i);
+                            com.bame.client.sound.ClientSoundManager.playClick();
+                            BameClientConfig.save();
+                            return true;
+                        }
+                    }
+                    curY += 26;
+
+                    // X Slider
+                    int sx = cx + 84;
+                    int sw = halfW - 98;
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHandX = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        HandPositionModule.posX = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Y Slider
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHandY = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        HandPositionModule.posY = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Z Slider
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHandZ = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        HandPositionModule.posZ = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Scale Slider
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingHandScale = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        HandPositionModule.scale = Math.round((0.30f + fval * 1.20f) * 100f) / 100f;
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Apply to Offhand toggle
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        HandPositionModule.applyToOffhand = !HandPositionModule.applyToOffhand;
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Weapons only toggle
+                    if (inside(mx, my, cx + halfW - 38, curY + 2, 26, 14)) {
+                        HandPositionModule.weaponsOnly = !HandPositionModule.weaponsOnly;
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Reset button
+                    if (inside(mx, my, cx + halfW - 58, curY, 46, 16)) {
+                        resetHandPosition();
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        return true;
+                    }
+                }
+                leftY += getHandPositionHeight() + 12;
+            }
+
             if (noFogVisible()) {
                 int myY = baseY() + rightY;
                 int nfX = cx + halfW + gap;
@@ -3335,6 +3665,16 @@ public class BameClientScreen extends Screen {
                         draggingLowShieldHeight = true;
                         float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
                         LowShieldModule.heightPercent = Math.max(1, Math.round(1 + fval * 99));
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 26;
+
+                    // Totem Slider (10 to 100%)
+                    if (inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                        draggingLowShieldTotem = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        LowShieldModule.totemSizePercent = Math.max(10, Math.round(10 + fval * 90));
                         BameClientConfig.save();
                         return true;
                     }
@@ -3780,6 +4120,15 @@ public class BameClientScreen extends Screen {
     private void resetShowHud() {
         ClockModule.enabled = false;
         CoordinatesModule.enabled = false;
+        CoordinatesModule.expanded = false;
+        CoordinatesModule.layoutMode = 0;
+        CoordinatesModule.style = 0;
+        CoordinatesModule.showX = true;
+        CoordinatesModule.showY = true;
+        CoordinatesModule.showZ = true;
+        CoordinatesModule.decimals = false;
+        CoordinatesModule.showNether = false;
+        CoordinatesModule.showDirection = false;
         PotionsModule.enabled = false;
         TargetHudModule.enabled = false;
         TargetHudModule.expanded = false;
@@ -3823,7 +4172,12 @@ public class BameClientScreen extends Screen {
         BameClientConfig.save();
         layout();
     }
-    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; unfocus(); layout(); }
+    private void resetHandPosition() {
+        HandPositionModule.resetToDefault();
+        BameClientConfig.save();
+        layout();
+    }
+    private void select(String category) { com.bame.client.sound.ClientSoundManager.playClick(); itemModalOpen=false; picker.release(); themeSettings.close(); selected=category; BameClientConfig.save(); scroll=0; listening=false; listeningZoom=false; listeningShowHud=false; listeningFullbright=false; listeningSpotify=false; listeningScoreboard=false; listeningCrosshair=false; listeningInvMove=false; listeningAutoClicker=false; listeningHitColor=false; listeningReachDisplay=false; listeningLowShield=false; listeningHitboxes=false; listeningNoFog=false; listeningAutoTool=false; listeningBlockOutline=false; listeningFreelook=false; listeningItemSize=false; listeningDurabilityGuard=false; listeningTimeChanger=false; listeningHandPosition=false; unfocus(); layout(); }
     private void setCorner(boolean first) {
         if(client.player==null || client.world==null) return;
         BlockPos p = null;
@@ -3924,6 +4278,15 @@ public class BameClientScreen extends Screen {
             int sw = halfW - 98;
             float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
             LowShieldModule.heightPercent = Math.max(1, Math.round(1 + fval * 99));
+            return true;
+        }
+        if(draggingLowShieldTotem) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + halfW + gap + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            LowShieldModule.totemSizePercent = Math.max(10, Math.round(10 + fval * 90));
             return true;
         }
         if(draggingHitboxAlpha) {
@@ -4028,6 +4391,42 @@ public class BameClientScreen extends Screen {
             BameClientConfig.hoverVolume = Math.round(fval * 100f) / 100f;
             return true;
         }
+        if (draggingHandX) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            HandPositionModule.posX = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+            return true;
+        }
+        if (draggingHandY) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            HandPositionModule.posY = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+            return true;
+        }
+        if (draggingHandZ) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            HandPositionModule.posZ = Math.round((-0.80f + fval * 1.60f) * 100f) / 100f;
+            return true;
+        }
+        if (draggingHandScale) {
+            int gap = 16;
+            int halfW = (cw - gap) / 2;
+            int sx = cx + 84;
+            int sw = halfW - 98;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            HandPositionModule.scale = Math.round((0.30f + fval * 1.20f) * 100f) / 100f;
+            return true;
+        }
         if(picker.dragging()) { picker.update(click.x(),click.y()); return true; }
         return super.mouseDragged(click,dx,dy);
     }
@@ -4040,8 +4439,8 @@ public class BameClientScreen extends Screen {
         }
         cpDrag = -1;
         itemScrollDragging = false;
-        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight||draggingHitboxAlpha||draggingHitboxWidth||draggingBlockOutlineWidth||draggingBlockOutlineOpacity||draggingFreelookSensitivity||draggingItemScale||draggingItemYOffset||draggingSoundVolume||draggingHoverVolume;
-        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; draggingHitboxAlpha=false; draggingHitboxWidth=false; draggingBlockOutlineWidth=false; draggingBlockOutlineOpacity=false; draggingFreelookSensitivity=false; draggingItemScale=false; draggingItemYOffset=false; draggingSoundVolume=false; draggingHoverVolume=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
+        boolean handled=scrollDragging||picker.dragging()||themeSettings.dragging()||draggingWidth||draggingFullbright||draggingCps||draggingAutoClickerDelay||draggingHitColorAlpha||draggingLowShieldHeight||draggingLowShieldTotem||draggingHitboxAlpha||draggingHitboxWidth||draggingBlockOutlineWidth||draggingBlockOutlineOpacity||draggingFreelookSensitivity||draggingItemScale||draggingItemYOffset||draggingSoundVolume||draggingHoverVolume||draggingHandX||draggingHandY||draggingHandZ||draggingHandScale;
+        scrollDragging=false; draggingWidth=false; draggingFullbright=false; draggingCps=false; draggingAutoClickerDelay=false; draggingHitColorAlpha=false; draggingLowShieldHeight=false; draggingLowShieldTotem=false; draggingHitboxAlpha=false; draggingHitboxWidth=false; draggingBlockOutlineWidth=false; draggingBlockOutlineOpacity=false; draggingFreelookSensitivity=false; draggingItemScale=false; draggingItemYOffset=false; draggingSoundVolume=false; draggingHoverVolume=false; draggingHandX=false; draggingHandY=false; draggingHandZ=false; draggingHandScale=false; com.bame.client.BameClientConfig.save(); picker.release(); themeSettings.release();
         return handled||super.mouseReleased(click);
     }
     @Override public boolean mouseScrolled(double mx,double my,double horizontal,double vertical) {
@@ -4095,7 +4494,7 @@ public class BameClientScreen extends Screen {
             cpDrag = -1;
             return true;
         }
-        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger) themeSettings.close();
+        if(input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && !listening && !listeningFullbright && !listeningMenuBind && !listeningZoom && !listeningShowHud && !listeningSpotify && !listeningScoreboard && !listeningCrosshair && !listeningInvMove && !listeningAutoClicker && !listeningHitColor && !listeningReachDisplay && !listeningLowShield && !listeningHitboxes && !listeningNoFog && !listeningAutoTool && !listeningBlockOutline && !listeningFreelook && !listeningItemSize && !listeningDurabilityGuard && !listeningTimeChanger && !listeningHandPosition) themeSettings.close();
         if(listening) { AutoAreaMinerModule.keyBind=input.key()==GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listening=false; BameClientConfig.save(); return true; }
         if(listeningMenuBind) { com.bame.client.BameClientConfig.menuBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningMenuBind=false; com.bame.client.BameClientConfig.save(); return true; }
         if(listeningFullbright) { com.bame.client.module.FullbrightModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningFullbright=false; BameClientConfig.save(); return true; }
@@ -4117,6 +4516,7 @@ public class BameClientScreen extends Screen {
         if(listeningItemSize) { ItemSizeModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningItemSize=false; BameClientConfig.save(); return true; }
         if(listeningDurabilityGuard) { DurabilityGuardModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningDurabilityGuard=false; BameClientConfig.save(); return true; }
         if(listeningTimeChanger) { TimeChangerModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningTimeChanger=false; BameClientConfig.save(); return true; }
+        if(listeningHandPosition) { HandPositionModule.keyBind=input.key()==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?-1:input.key(); listeningHandPosition=false; BameClientConfig.save(); return true; }
         if (isSecretComboPressed(input)) {
             com.bame.client.BameClientConfig.secretUnlocked = !com.bame.client.BameClientConfig.secretUnlocked;
             com.bame.client.sound.ClientSoundManager.playClick();

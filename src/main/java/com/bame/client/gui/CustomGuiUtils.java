@@ -288,6 +288,101 @@ public class CustomGuiUtils {
         if (TEXT_CACHE.size() > 1000) {
             TEXT_CACHE.clear();
         }
-        return TEXT_CACHE.computeIfAbsent(text, t -> Text.literal(t).setStyle(SANS_STYLE));
+        return TEXT_CACHE.computeIfAbsent(text, t -> Text.literal(normalizeFancyText(t)).setStyle(SANS_STYLE));
+    }
+
+    public static String normalizeFancyText(String input) {
+        if (input == null || input.isEmpty()) return input;
+        String normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFKC);
+
+        boolean hasSmallCaps = false;
+        for (int i = 0; i < normalized.length(); i++) {
+            if (isSmallCap(normalized.charAt(i))) {
+                hasSmallCaps = true;
+                break;
+            }
+        }
+        if (!hasSmallCaps) return normalized;
+
+        StringBuilder sb = new StringBuilder(normalized.length());
+        int start = 0;
+        int len = normalized.length();
+        while (start < len) {
+            int end = start;
+            while (end < len && !Character.isWhitespace(normalized.charAt(end))) {
+                end++;
+            }
+            String word = normalized.substring(start, end);
+            boolean wordHasSmallCap = false;
+            for (int i = 0; i < word.length(); i++) {
+                if (isSmallCap(word.charAt(i))) {
+                    wordHasSmallCap = true;
+                    break;
+                }
+            }
+            for (int i = 0; i < word.length(); i++) {
+                char c = word.charAt(i);
+                if (isSmallCap(c)) {
+                    sb.append(mapSmallCap(c));
+                } else if (wordHasSmallCap && Character.isLowerCase(c)) {
+                    sb.append(Character.toUpperCase(c));
+                } else {
+                    sb.append(c);
+                }
+            }
+            while (end < len && Character.isWhitespace(normalized.charAt(end))) {
+                sb.append(normalized.charAt(end));
+                end++;
+            }
+            start = end;
+        }
+        return sb.toString();
+    }
+
+    private static boolean isSmallCap(char c) {
+        return switch (c) {
+            case '\u1D00', '\u1D01', '\u1D02', '\u1D03', '\u0299', '\u1D04', '\u1D05', '\u1D06',
+                 '\u1D07', '\u1D08', '\uA730', '\u0262', '\u029B', '\u029C', '\u026A', '\u1D0A',
+                 '\u1D0B', '\u029F', '\u1D0C', '\u1D0D', '\u0274', '\u1D0E', '\u1D0F', '\u1D10',
+                 '\u1D11', '\u1D12', '\u1D13', '\u1D14', '\u0276', '\u1D18', '\uA7AF', '\u0280',
+                 '\u0281', '\u1D19', '\u1D1A', '\uA731', '\u0455', '\u1D1B', '\u1D1C', '\u1D1D',
+                 '\u1D1E', '\u1D20', '\u1D21', '\u1D22', '\u028F', '\u0445',
+                 '\u1D26', '\u1D27', '\u1D28', '\u1D29', '\u1D2B' -> true;
+            default -> false;
+        };
+    }
+
+    private static String mapSmallCap(char c) {
+        return switch (c) {
+            case '\u1D00' -> "A";
+            case '\u1D01', '\u1D02' -> "AE";
+            case '\u1D03', '\u0299' -> "B";
+            case '\u1D04' -> "C";
+            case '\u1D05', '\u1D06' -> "D";
+            case '\u1D07', '\u1D08' -> "E";
+            case '\uA730' -> "F";
+            case '\u0262', '\u029B', '\u1D26' -> "G";
+            case '\u029C' -> "H";
+            case '\u026A' -> "I";
+            case '\u1D0A' -> "J";
+            case '\u1D0B' -> "K";
+            case '\u029F', '\u1D0C', '\u1D27' -> "L";
+            case '\u1D0D' -> "M";
+            case '\u0274', '\u1D0E' -> "N";
+            case '\u1D0F', '\u1D10', '\u1D11', '\u1D12', '\u1D13' -> "O";
+            case '\u1D14', '\u0276' -> "OE";
+            case '\u1D18', '\u1D28', '\u1D29' -> "P";
+            case '\uA7AF' -> "Q";
+            case '\u0280', '\u0281', '\u1D19', '\u1D1A', '\u1D2B' -> "R";
+            case '\uA731', '\u0455' -> "S";
+            case '\u1D1B' -> "T";
+            case '\u1D1C', '\u1D1D', '\u1D1E' -> "U";
+            case '\u1D20' -> "V";
+            case '\u1D21' -> "W";
+            case '\u0445' -> "X";
+            case '\u028F' -> "Y";
+            case '\u1D22' -> "Z";
+            default -> String.valueOf(c);
+        };
     }
 }
