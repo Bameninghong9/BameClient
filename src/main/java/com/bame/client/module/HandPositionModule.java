@@ -27,6 +27,7 @@ public class HandPositionModule {
 
     public static boolean applyToOffhand = false;
     public static boolean weaponsOnly = false;
+    public static boolean miningAnimation = true;
 
     private static boolean wasKeyBindPressed = false;
 
@@ -95,5 +96,6 @@ public class HandPositionModule {
         swingStyle = 0;
         applyToOffhand = false;
         weaponsOnly = false;
+        miningAnimation = true;
     }
 }

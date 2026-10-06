@@ -36,8 +36,14 @@ final class ThreeByThreeMiner {
         recoveryPanel=null; resumePhase=null; resumePosition=null; returningToLane=false;
         index=breakTicks=blockedTicks=settleTicks=moveTicks=0;
     }
+    public static boolean isMining() {
+        return breaking != null;
+    }
     private static void release(MinecraftClient c) {
-        if(moving && c.options!=null) c.options.forwardKey.setPressed(false);
+        if(moving && c.options!=null) {
+            c.options.forwardKey.setPressed(false);
+            c.options.sprintKey.setPressed(false);
+        }
         moving=false;
     }
     private static void stop(MinecraftClient c,String reason) {
@@ -105,7 +111,7 @@ final class ThreeByThreeMiner {
         }
         if(settleTicks>0) { release(c); settleTicks--; return; }
         if(breaking!=null && c.world.getBlockState(pos(breaking)).isAir()) {
-            release(c); c.interactionManager.cancelBlockBreaking(); breaking=null; breakTicks=0; settleTicks=4; return;
+            release(c); c.interactionManager.cancelBlockBreaking(); breaking=null; breakTicks=0; settleTicks=3; return;
         }
         release(c);
         if(!c.player.isOnGround()) return;
@@ -221,7 +227,7 @@ final class ThreeByThreeMiner {
         walk(c,route.getFirst().to()); return false;
     }
     private static boolean at(MinecraftClient c,Cell p) {
-        return feet(c).y()==p.y() && Math.hypot(c.player.getX()-p.x()-0.5,c.player.getZ()-p.z()-0.5)<0.12;
+        return feet(c).y()==p.y() && Math.hypot(c.player.getX()-p.x()-0.5,c.player.getZ()-p.z()-0.5)<0.18;
     }
     private static boolean walk(MinecraftClient c,Cell target) {
         if(at(c,target)) { moveGoal=null; moveTicks=0; return true; }
@@ -234,8 +240,14 @@ final class ThreeByThreeMiner {
         else if(++moveTicks>60) { stop(c,"Kein Fortschritt auf der geplanten Bahn."); return false; }
         float yaw=(float)Math.toDegrees(Math.atan2(dz,dx))-90;
         float diff=MathHelper.wrapDegrees(yaw-c.player.getYaw());
-        c.player.setYaw(c.player.getYaw()+diff*0.4f); c.player.setPitch(c.player.getPitch()*0.6f);
-        if(Math.abs(diff)<8) { c.options.forwardKey.setPressed(true); moving=true; }
+        LegitMinerAim.rotateTowards(c, yaw, 0.0f, 14.0f);
+        if(Math.abs(diff)<25) {
+            c.options.forwardKey.setPressed(true);
+            if(c.player.getHungerManager().getFoodLevel()>6) {
+                c.options.sprintKey.setPressed(true);
+            }
+            moving=true;
+        }
         return false;
     }
     private static boolean panel(MinecraftClient c,Cell center,Axis normal,boolean down) {
@@ -292,25 +304,18 @@ final class ThreeByThreeMiner {
             Vec3d end=center.add(d.getOffsetX()*0.499,d.getOffsetY()*0.499,d.getOffsetZ()*0.499);
             var h=c.world.raycast(new RaycastContext(eye,end,RaycastContext.ShapeType.OUTLINE,RaycastContext.FluidHandling.NONE,c.player));
             if(h.getType()==HitResult.Type.BLOCK && h.getBlockPos().equals(pos(p)) && h.getSide()==d
-                && eye.distanceTo(h.getPos())<c.player.getBlockInteractionRange()-0.05) return h;
+                && eye.distanceTo(h.getPos())<c.player.getBlockInteractionRange()-0.15) return h;
         }
         return null;
     }
     private static void mine(MinecraftClient c,Cell p,BlockHitResult visible,Axis normal,boolean down) {
-        if(!p.equals(breaking)) { breaking=p; breakTicks=0; c.interactionManager.cancelBlockBreaking(); }
-        Vec3d delta=visible.getPos().subtract(c.player.getEyePos());
-        double horizontal=Math.hypot(delta.x,delta.z);
-        float yaw=horizontal<0.05?c.player.getYaw():(float)Math.toDegrees(Math.atan2(delta.z,delta.x))-90;
-        float pitch=(float)-Math.toDegrees(Math.atan2(delta.y,horizontal));
-        c.player.setYaw(c.player.getYaw()+MathHelper.wrapDegrees(yaw-c.player.getYaw())*0.4f);
-        c.player.setPitch(c.player.getPitch()+(pitch-c.player.getPitch())*0.4f);
-        Vec3d eye=c.player.getEyePos();
-        var actual=c.world.raycast(new RaycastContext(eye,eye.add(c.player.getRotationVec(1).multiply(c.player.getBlockInteractionRange())),
-            RaycastContext.ShapeType.OUTLINE,RaycastContext.FluidHandling.NONE,c.player));
-        if(actual.getType()==HitResult.Type.BLOCK && actual.getBlockPos().equals(pos(p))
-            && actual.getSide()==visible.getSide() && allowed(c,p,normal,down)) {
-            c.interactionManager.updateBlockBreakingProgress(pos(p),actual.getSide()); c.player.swingHand(Hand.MAIN_HAND);
-        } else c.interactionManager.cancelBlockBreaking();
+        if(!p.equals(breaking)) {
+            if(c.interactionManager!=null) c.interactionManager.cancelBlockBreaking();
+            breaking=p;
+            breakTicks=0;
+        }
+        Direction face = visible != null ? visible.getSide() : null;
+        LegitMinerAim.legitMineTick(c, pos(p), face);
         if(++breakTicks>600) stop(c,"Block seit 30 Sekunden nicht abgebaut.");
     }
 }

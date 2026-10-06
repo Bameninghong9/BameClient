@@ -321,11 +321,11 @@ public class BameClientScreen extends Screen {
     }
     private boolean handPositionVisible() {
         String q = search.getText().toLowerCase(java.util.Locale.ROOT);
-        if (!q.isEmpty()) return "handposition".contains(q) || "hand position".contains(q) || "item position".contains(q) || "hand".contains(q) || "position".contains(q) || "offset".contains(q) || "viewmodel".contains(q) || "doom".contains(q) || "waffe".contains(q) || "schwert".contains(q);
+        if (!q.isEmpty()) return "handposition".contains(q) || "hand position".contains(q) || "item position".contains(q) || "hand".contains(q) || "position".contains(q) || "offset".contains(q) || "viewmodel".contains(q) || "doom".contains(q) || "waffe".contains(q) || "schwert".contains(q) || "mining".contains(q) || "abbau".contains(q) || "anim".contains(q) || "animation".contains(q);
         return selected.equals("Visuals");
     }
     private int getHandPositionHeight() {
-        return HandPositionModule.expanded ? 234 : 46;
+        return HandPositionModule.expanded ? 254 : 46;
     }
 
     private int getFreelookHeight() {
@@ -1731,10 +1731,15 @@ public class BameClientScreen extends Screen {
         toggle(c, c2X + colW - 28, curY, HandPositionModule.applyToOffhand, mx, my, delta);
         curY += 23;
 
-        // Row 8: Weapons Only Toggle (Left) | Reset Button (Right)
+        // Row 8: Weapons Only Toggle (Left) | Mining Anim Toggle (Right)
         text(c, "Weapons Only", c1X, curY + 2, 0xFFD4D8E0);
         toggle(c, c1X + colW - 28, curY, HandPositionModule.weaponsOnly, mx, my, delta);
 
+        text(c, "Mining Anim", c2X, curY + 2, 0xFFD4D8E0);
+        toggle(c, c2X + colW - 28, curY, HandPositionModule.miningAnimation, mx, my, delta);
+        curY += 21;
+
+        // Row 9: Reset Button (Right)
         button(c, "Reset", c2X + colW - 46, curY, 46, 16, mx, my);
     }
 
@@ -3392,13 +3397,22 @@ public class BameClientScreen extends Screen {
                     }
                     curY += 23;
 
-                    // Row 8: Weapons Only Toggle (Left) | Reset Button (Right)
+                    // Row 8: Weapons Only Toggle (Left) | Mining Anim Toggle (Right)
                     if (inside(mx, my, c1X + colW - 28, curY, 26, 14)) {
                         HandPositionModule.weaponsOnly = !HandPositionModule.weaponsOnly;
                         com.bame.client.sound.ClientSoundManager.playClick();
                         BameClientConfig.save();
                         return true;
                     }
+                    if (inside(mx, my, c2X + colW - 28, curY, 26, 14)) {
+                        HandPositionModule.miningAnimation = !HandPositionModule.miningAnimation;
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    curY += 21;
+
+                    // Row 9: Reset Button (Right)
                     if (inside(mx, my, c2X + colW - 46, curY, 46, 16)) {
                         resetHandPosition();
                         com.bame.client.sound.ClientSoundManager.playClick();

@@ -636,6 +636,7 @@ public class BameClientConfig {
                 if (props.containsKey("swingStyle")) HandPositionModule.swingStyle = Integer.parseInt(props.getProperty("swingStyle"));
                 if (props.containsKey("applyToOffhand")) HandPositionModule.applyToOffhand = Boolean.parseBoolean(props.getProperty("applyToOffhand"));
                 if (props.containsKey("weaponsOnly")) HandPositionModule.weaponsOnly = Boolean.parseBoolean(props.getProperty("weaponsOnly"));
+                if (props.containsKey("miningAnimation")) HandPositionModule.miningAnimation = Boolean.parseBoolean(props.getProperty("miningAnimation"));
             }
 
             // World - TimeChanger
@@ -1196,6 +1197,7 @@ public class BameClientConfig {
             handPosProps.setProperty("swingStyle", String.valueOf(HandPositionModule.swingStyle));
             handPosProps.setProperty("applyToOffhand", String.valueOf(HandPositionModule.applyToOffhand));
             handPosProps.setProperty("weaponsOnly", String.valueOf(HandPositionModule.weaponsOnly));
+            handPosProps.setProperty("miningAnimation", String.valueOf(HandPositionModule.miningAnimation));
             saveProps(visualsDir.resolve("hand_position.properties"), handPosProps, "Caeser Client - HandPosition");
             // World - TimeChanger
             Properties timeChangerProps = new Properties();

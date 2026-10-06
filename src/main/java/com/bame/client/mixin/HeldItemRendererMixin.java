@@ -1,6 +1,7 @@
 package com.bame.client.mixin;
 
 import com.bame.client.module.LowShieldModule;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.item.HeldItemRenderer;
@@ -8,6 +9,7 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.HitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -71,8 +73,40 @@ public class HeldItemRendererMixin {
         }
     }
 
+    private static boolean isMiningBlock() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return false;
+        if (client.interactionManager != null && client.interactionManager.isBreakingBlock()) return true;
+        if (com.bame.client.module.AutoAreaMinerModule.enabled) return true;
+        if (client.options != null && client.options.attackKey.isPressed()
+                && client.crosshairTarget != null && client.crosshairTarget.getType() == HitResult.Type.BLOCK) {
+            return true;
+        }
+        return false;
+    }
+
+    @Inject(method = "applySwingOffset", at = @At("HEAD"), cancellable = true)
+    private void onApplySwingOffset(MatrixStack matrices, net.minecraft.util.Arm arm, float swingProgress, CallbackInfo ci) {
+        if (com.bame.client.module.HandPositionModule.enabled && !com.bame.client.module.HandPositionModule.miningAnimation && isMiningBlock()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "shouldSkipHandAnimationOnSwap", at = @At("HEAD"), cancellable = true)
+    private void onShouldSkipHandAnimationOnSwap(ItemStack from, ItemStack to, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        if (com.bame.client.module.HandPositionModule.enabled && !com.bame.client.module.HandPositionModule.miningAnimation) {
+            if (from != null && to != null && from.isOf(to.getItem())) {
+                cir.setReturnValue(true);
+            }
+        }
+    }
+
     @Inject(method = "swingArm", at = @At("HEAD"), cancellable = true)
     private void onSwingArm(float swingProgress, MatrixStack matrices, int i, net.minecraft.util.Arm arm, CallbackInfo ci) {
+        if (com.bame.client.module.HandPositionModule.enabled && !com.bame.client.module.HandPositionModule.miningAnimation && isMiningBlock()) {
+            ci.cancel();
+            return;
+        }
         if (com.bame.client.module.HandPositionModule.enabled && com.bame.client.module.HandPositionModule.swingStyle != 0) {
             int style = com.bame.client.module.HandPositionModule.swingStyle;
             float sin = net.minecraft.util.math.MathHelper.sin(swingProgress * (float) Math.PI);

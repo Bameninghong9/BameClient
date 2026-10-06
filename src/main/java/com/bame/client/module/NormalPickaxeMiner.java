@@ -13,24 +13,28 @@ import static com.bame.client.module.LayerMiningPlanner.*;
 /** Executes top-down mining of the marked bounds; mines reachable blocks first and pathfinds when needed. */
 final class NormalPickaxeMiner {
     private static Bounds bounds;
-    private static int top, bottom, ticks, jumpCooldown, idleTicks;
+    private static int top, bottom, ticks, jumpCooldown, idleTicks, settleTicks;
     private static boolean moving, jumping;
     private static Cell column, breaking;
     private static Step step;
     private static double bestDistance;
     private static final Set<Cell> excluded = new HashSet<>();
 
+    public static boolean isMining() {
+        return breaking != null;
+    }
+
     static void reset(MinecraftClient c) {
         release(c);
         if (bounds != null && c.interactionManager != null) c.interactionManager.cancelBlockBreaking();
         bounds = null; step = null; breaking = null; column = null;
-        excluded.clear(); ticks = idleTicks = jumpCooldown = 0;
+        excluded.clear(); ticks = idleTicks = jumpCooldown = settleTicks = 0;
     }
 
     static void pause(MinecraftClient c) {
         release(c);
         if (c.interactionManager != null) c.interactionManager.cancelBlockBreaking();
-        step = null; breaking = null; ticks = 0;
+        step = null; breaking = null; ticks = settleTicks = 0;
     }
 
     private static BlockPos pos(Cell p) { return new BlockPos(p.x(), p.y(), p.z()); }
@@ -90,6 +94,19 @@ final class NormalPickaxeMiner {
         }
         if (c.currentScreen != null) {
             pause(c);
+            return;
+        }
+        if (settleTicks > 0) {
+            release(c);
+            settleTicks--;
+            return;
+        }
+        if (breaking != null && c.world.getBlockState(pos(breaking)).isAir()) {
+            release(c);
+            if (c.interactionManager != null) c.interactionManager.cancelBlockBreaking();
+            breaking = null;
+            ticks = 0;
+            settleTicks = 2;
             return;
         }
         if (step != null) {
@@ -248,9 +265,8 @@ final class NormalPickaxeMiner {
         if (distance < 0.08) return;
         float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90;
         float difference = MathHelper.wrapDegrees(yaw - c.player.getYaw());
-        c.player.setYaw(c.player.getYaw() + difference * 0.4f);
-        c.player.setPitch(c.player.getPitch() * 0.6f);
-        if (Math.abs(difference) < 12) {
+        LegitMinerAim.rotateTowards(c, yaw, 0.0f, 14.0f);
+        if (Math.abs(difference) < 20) {
             c.options.forwardKey.setPressed(true);
             moving = true;
             if (step.to().y() > step.from().y() && c.player.isOnGround() && jumpCooldown == 0) {
@@ -281,7 +297,7 @@ final class NormalPickaxeMiner {
             }
             var result = c.world.raycast(new RaycastContext(eye, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, c.player));
             if (result.getType() == HitResult.Type.BLOCK && result.getBlockPos().equals(pos(p))
-                && eye.distanceTo(result.getPos()) < c.player.getBlockInteractionRange() - 0.05) {
+                && eye.distanceTo(result.getPos()) < c.player.getBlockInteractionRange() - 0.15) {
                 return result;
             }
         }
@@ -296,14 +312,8 @@ final class NormalPickaxeMiner {
             breaking = p;
             ticks = 0;
         }
-        Vec3d delta = visible.getPos().subtract(c.player.getEyePos());
-        double horizontal = Math.hypot(delta.x, delta.z);
-        float yaw = horizontal < 0.05 ? c.player.getYaw() : (float) Math.toDegrees(Math.atan2(delta.z, delta.x)) - 90;
-        float pitch = (float) -Math.toDegrees(Math.atan2(delta.y, horizontal));
-        c.player.setYaw(yaw);
-        c.player.setPitch(pitch);
-        c.interactionManager.updateBlockBreakingProgress(pos(p), visible.getSide());
-        c.player.swingHand(Hand.MAIN_HAND);
+        Direction face = visible.getSide();
+        LegitMinerAim.legitMineTick(c, pos(p), face);
         if (++ticks > 600) stop(c, "Block konnte seit 30 Sekunden nicht abgebaut werden.");
         return true;
     }

@@ -28,11 +28,14 @@ public class AutoAreaMinerModule {
         wasKeyBindPressed = pressed;
 
         if (!enabled) {
-            NormalPickaxeMiner.reset(client);
-            ThreeByThreeMiner.reset(client);
-            wasEnabled = false;
+            if (wasEnabled) {
+                NormalPickaxeMiner.reset(client);
+                ThreeByThreeMiner.reset(client);
+                wasEnabled = false;
+            }
             return;
         }
+        wasEnabled = true;
 
         if (corner1 == null || corner2 == null) {
             if (client.player != null) {
