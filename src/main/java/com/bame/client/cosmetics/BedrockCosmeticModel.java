@@ -198,15 +198,21 @@ public class BedrockCosmeticModel {
                 }
             }
 
-            // Build hierarchy
+            // Build hierarchy (excluding mannequin dummy bones)
+            java.util.Set<String> dummyBones = java.util.Set.of(
+                "bb_main", "effect", "bipedhead", "armorhead", "bipedbody", "armorbody",
+                "bipedrightarm", "armorrightarm", "bipedleftarm", "armorleftarm",
+                "bipedrightleg", "armorrightleg", "armorrightboot",
+                "bipedleftleg", "armorleftleg", "armorleftboot"
+            );
             for (ModelBone b : model.bonesByName.values()) {
+                if (dummyBones.contains(b.name.toLowerCase(java.util.Locale.ROOT))) {
+                    continue;
+                }
                 if (b.parent == null || !model.bonesByName.containsKey(b.parent) ||
                     "armorBody".equals(b.parent) || "bipedBody".equals(b.parent) ||
                     "armorHead".equals(b.parent) || "bipedHead".equals(b.parent)) {
-                    if (!"bipedBody".equals(b.name) && !"armorBody".equals(b.name) &&
-                        !"bipedHead".equals(b.name) && !"armorHead".equals(b.name)) {
-                        model.rootBones.add(b);
-                    }
+                    model.rootBones.add(b);
                 } else {
                     model.bonesByName.get(b.parent).children.add(b);
                 }

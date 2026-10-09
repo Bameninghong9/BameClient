@@ -1,5 +1,6 @@
 package com.bame.client.mixin;
 
+import com.bame.client.cosmetics.CaeserSkinManager;
 import com.bame.client.module.SkinProtectModule;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.client.MinecraftClient;
@@ -17,10 +18,15 @@ public abstract class PlayerListEntryMixin {
 
     @Inject(method = "getSkinTextures", at = @At("HEAD"), cancellable = true)
     private void onGetSkinTextures(CallbackInfoReturnable<SkinTextures> cir) {
-        if (SkinProtectModule.enabled) {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player != null && this.getProfile() != null && mc.player.getUuid().equals(this.getProfile().id())) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player != null && this.getProfile() != null && mc.player.getUuid().equals(this.getProfile().id())) {
+            if (SkinProtectModule.enabled) {
                 cir.setReturnValue(SkinProtectModule.getCurrentSkin());
+            } else if (CaeserSkinManager.hasActiveOverride()) {
+                SkinTextures custom = CaeserSkinManager.getActiveSkinTextures();
+                if (custom != null) {
+                    cir.setReturnValue(custom);
+                }
             }
         }
     }

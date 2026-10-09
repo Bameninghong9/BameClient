@@ -1,5 +1,6 @@
 package com.bame.client.mixin;
 
+import com.bame.client.cosmetics.CaeserSkinManager;
 import com.bame.client.module.SkinProtectModule;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
@@ -13,11 +14,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class AbstractClientPlayerEntityMixin {
     @Inject(method = "getSkin", at = @At("HEAD"), cancellable = true)
     private void onGetSkin(CallbackInfoReturnable<SkinTextures> cir) {
-        if (SkinProtectModule.enabled) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player != null) {
             AbstractClientPlayerEntity self = (AbstractClientPlayerEntity) (Object) this;
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player != null && self.getUuid().equals(mc.player.getUuid())) {
-                cir.setReturnValue(SkinProtectModule.getCurrentSkin());
+            if (self.getUuid().equals(mc.player.getUuid())) {
+                if (SkinProtectModule.enabled) {
+                    cir.setReturnValue(SkinProtectModule.getCurrentSkin());
+                } else if (CaeserSkinManager.hasActiveOverride()) {
+                    SkinTextures custom = CaeserSkinManager.getActiveSkinTextures();
+                    if (custom != null) {
+                        cir.setReturnValue(custom);
+                    }
+                }
             }
         }
     }

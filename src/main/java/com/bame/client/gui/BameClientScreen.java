@@ -334,20 +334,38 @@ public class BameClientScreen extends Screen {
     }
 
     private void geometry() {
-        pw = Math.min(width - 40, Math.max(660, (int) (width * 0.74)));
-        ph = Math.min(height - 40, Math.max(400, (int) (height * 0.68)));
-        px = (width - pw) / 2;
-        py = (height - ph) / 2;
-        sidebar = 68;
-        cx = px + sidebar + 10;
-        cy = py + 42;
-        cw = pw - sidebar - 20;
-        ch = ph - 54;
-        if (search != null) {
-            search.setX(cx + cw - 128);
-            search.setY(py + 9);
-            search.setWidth(120);
-            search.setHeight(20);
+        if (currentView == ViewMode.COSMETICS) {
+            pw = Math.min(width - 32, Math.max(760, (int) (width * 0.86)));
+            ph = Math.min(height - 32, Math.max(460, (int) (height * 0.82)));
+            px = (width - pw) / 2;
+            py = (height - ph) / 2;
+            sidebar = 112; // Dedicated wide category sidebar for cosmetics
+            cx = px + sidebar + 12;
+            cy = py + 42;
+            cw = pw - sidebar - 24;
+            ch = ph - 54;
+            if (search != null) {
+                search.setX(cx + 4);
+                search.setY(py + 9);
+                search.setWidth(130);
+                search.setHeight(18);
+            }
+        } else {
+            pw = Math.min(width - 40, Math.max(660, (int) (width * 0.74)));
+            ph = Math.min(height - 40, Math.max(400, (int) (height * 0.68)));
+            px = (width - pw) / 2;
+            py = (height - ph) / 2;
+            sidebar = 68;
+            cx = px + sidebar + 10;
+            cy = py + 42;
+            cw = pw - sidebar - 20;
+            ch = ph - 54;
+            if (search != null) {
+                search.setX(cx + cw - 128);
+                search.setY(py + 9);
+                search.setWidth(120);
+                search.setHeight(20);
+            }
         }
         updateLeftSkinGeometry();
     }
@@ -751,48 +769,98 @@ public class BameClientScreen extends Screen {
 
         CustomGuiUtils.drawUltraRoundedOutline(c, px, py, pw, ph, 0xFF242834, 8.0f);
 
-        // Left Vertical Sidebar (width 68, matching Bild 4)
+        // Left Vertical Sidebar
         c.fill(px + sidebar - 1, py, px + sidebar, py + ph, 0xFF232530);
-
-        int sbBtnW = 58;
-        int sbBtnH = 46;
-        int sbBtnX = px + 5;
         int accent = GuiTheme.accent();
 
-        // Tab 1: [C] MODS
-        boolean activeMods = (currentView == ViewMode.MODS);
-        boolean hoverMods = inside(mx, my, sbBtnX, py + 10, sbBtnW, sbBtnH);
-        if (activeMods || hoverMods) {
-            CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? accent : 0xFF3A3F50, 4.0f);
-        }
-        int modsIconCol = activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF9CA3AF);
-        CustomGuiUtils.drawCLogo(c, sbBtnX + 20, py + 14, 18, modsIconCol);
-        int twMods = textRenderer.getWidth(CustomGuiUtils.getFontText("MODS"));
-        c.drawText(textRenderer, CustomGuiUtils.getFontText("MODS"), sbBtnX + (sbBtnW - twMods) / 2, py + 38, activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF8E95A4), false);
+        if (currentView == ViewMode.COSMETICS) {
+            // Dedicated Clean Cosmetics Sidebar (Matching NoRisk Client Structure)
+            CustomGuiUtils.drawShirtIcon(c, px + 12, py + 14, accent);
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), px + 34, py + 18, 0xFFFFFFFF, false);
 
-        // Tab 2: 👕 COSMETICS
-        boolean activeCos = (currentView == ViewMode.COSMETICS);
-        boolean hoverCos = inside(mx, my, sbBtnX, py + 62, sbBtnW, sbBtnH);
-        if (activeCos || hoverCos) {
-            CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? accent : 0xFF3A3F50, 4.0f);
-        }
-        int cosIconCol = activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF9CA3AF);
-        CustomGuiUtils.drawShirtIcon(c, sbBtnX + 20, py + 66, cosIconCol);
-        int twCos = textRenderer.getWidth(CustomGuiUtils.getFontText("COSMETICS"));
-        c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), sbBtnX + (sbBtnW - twCos) / 2, py + 90, activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF8E95A4), false);
+            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES"};
+            String[] cosLabels = {"All", "Wings", "Head", "Accessories"};
+            String[] cosIcons = {"✦", "🪽", "👑", "🐾"};
+            int catBtnW = sidebar - 16;
+            int catBtnH = 26;
+            int startCatY = py + 48;
 
-        // Tab 3 (Bottom): ⌂ HUB
-        int hubBtnH = 32;
-        int hubBtnY = py + ph - 42;
-        boolean hoverHub = inside(mx, my, sbBtnX, hubBtnY, sbBtnW, hubBtnH);
-        if (hoverHub) {
-            CustomGuiUtils.fillUltraRounded(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF20232E, 4.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF3A3F50, 4.0f);
+            for (int i = 0; i < cosCats.length; i++) {
+                int by = startCatY + i * (catBtnH + 6);
+                boolean active = cosCats[i].equalsIgnoreCase(CosmeticsTab.subCategory);
+                boolean hover = inside(mx, my, px + 8, by, catBtnW, catBtnH);
+
+                int btnBg = active ? GuiTheme.alpha(accent, 45) : (hover ? 0xFF1E212D : 0x00000000);
+                int btnBorder = active ? accent : (hover ? 0xFF353C4E : 0x00000000);
+                if (active || hover) {
+                    CustomGuiUtils.fillUltraRounded(c, px + 8, by, catBtnW, catBtnH, btnBg, 4.0f);
+                    CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, by, catBtnW, catBtnH, btnBorder, 4.0f);
+                }
+
+                String display = cosIcons[i] + " " + cosLabels[i];
+                int col = active ? 0xFFFFFFFF : (hover ? 0xFFE2E8F0 : 0xFF8E95A4);
+                c.drawText(textRenderer, CustomGuiUtils.getFontText(display), px + 16, by + 8, col, false);
+            }
+
+            // Bottom: [← Back]
+            int backBtnH = 26;
+            int backBtnY = py + ph - 36;
+            boolean hoverBack = inside(mx, my, px + 8, backBtnY, catBtnW, backBtnH);
+            CustomGuiUtils.fillUltraRounded(c, px + 8, backBtnY, catBtnW, backBtnH, hoverBack ? 0xFF242838 : 0xFF161822, 4.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, backBtnY, catBtnW, backBtnH, hoverBack ? accent : 0xFF2A2F40, 4.0f);
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("← Back"), px + 18, backBtnY + 8, hoverBack ? 0xFFFFFFFF : 0xFF9CA3AF, false);
+        } else {
+            int sbBtnW = 58;
+            int sbBtnH = 46;
+            int sbBtnX = px + 5;
+
+            // Tab 1: [C] MODS
+            boolean activeMods = (currentView == ViewMode.MODS);
+            boolean hoverMods = inside(mx, my, sbBtnX, py + 10, sbBtnW, sbBtnH);
+            if (activeMods || hoverMods) {
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? accent : 0xFF3A3F50, 4.0f);
+            }
+            int modsIconCol = activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF9CA3AF);
+            CustomGuiUtils.drawCLogo(c, sbBtnX + 20, py + 14, 18, modsIconCol);
+            int twMods = textRenderer.getWidth(CustomGuiUtils.getFontText("MODS"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("MODS"), sbBtnX + (sbBtnW - twMods) / 2, py + 38, activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF8E95A4), false);
+
+            // Tab 2: 👕 COSMETICS
+            boolean activeCos = (currentView == ViewMode.COSMETICS && !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory));
+            boolean hoverCos = inside(mx, my, sbBtnX, py + 62, sbBtnW, sbBtnH);
+            if (activeCos || hoverCos) {
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? accent : 0xFF3A3F50, 4.0f);
+            }
+            int cosIconCol = activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF9CA3AF);
+            CustomGuiUtils.drawShirtIcon(c, sbBtnX + 20, py + 66, cosIconCol);
+            int twCos = textRenderer.getWidth(CustomGuiUtils.getFontText("COSMETICS"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), sbBtnX + (sbBtnW - twCos) / 2, py + 90, activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF8E95A4), false);
+
+            // Tab 3: 👤 SKINS
+            boolean activeSkins = (currentView == ViewMode.COSMETICS && "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory));
+            boolean hoverSkins = inside(mx, my, sbBtnX, py + 114, sbBtnW, sbBtnH);
+            if (activeSkins || hoverSkins) {
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 114, sbBtnW, sbBtnH, activeSkins ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 114, sbBtnW, sbBtnH, activeSkins ? accent : 0xFF3A3F50, 4.0f);
+            }
+            int skinsIconCol = activeSkins ? accent : (hoverSkins ? 0xFFFFFFFF : 0xFF9CA3AF);
+            CustomGuiUtils.drawSkinIcon(c, sbBtnX + 20, py + 118, skinsIconCol);
+            int twSkins = textRenderer.getWidth(CustomGuiUtils.getFontText("SKINS"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("SKINS"), sbBtnX + (sbBtnW - twSkins) / 2, py + 142, activeSkins ? accent : (hoverSkins ? 0xFFFFFFFF : 0xFF8E95A4), false);
+
+            // Tab 3 (Bottom): ⌂ HUB
+            int hubBtnH = 32;
+            int hubBtnY = py + ph - 42;
+            boolean hoverHub = inside(mx, my, sbBtnX, hubBtnY, sbBtnW, hubBtnH);
+            if (hoverHub) {
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF3A3F50, 4.0f);
+            }
+            int twHub = textRenderer.getWidth(CustomGuiUtils.getFontText("HUB"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("HUB"), sbBtnX + (sbBtnW - twHub) / 2, hubBtnY + 12, hoverHub ? 0xFFFFFFFF : 0xFF8E95A4, false);
         }
-        int twHub = textRenderer.getWidth(CustomGuiUtils.getFontText("HUB"));
-        c.drawText(textRenderer, CustomGuiUtils.getFontText("HUB"), sbBtnX + (sbBtnW - twHub) / 2, hubBtnY + 12, hoverHub ? 0xFFFFFFFF : 0xFF8E95A4, false);
 
         // Content Area rendering by ViewMode:
         if (currentView == ViewMode.MODS) {
@@ -865,7 +933,46 @@ public class BameClientScreen extends Screen {
 
 
         } else if (currentView == ViewMode.COSMETICS) {
-            c.enableScissor(cx - 4, py + 8, cx + cw + 4, py + ph - 8);
+            // Top Bar: Search Input (Left) + Category indicator (Middle) + Unequip All Button (Right)
+            int searchBoxX = cx;
+            int searchBoxY = py + 8;
+            int searchBoxW = 160;
+            int searchBoxH = 20;
+            CustomGuiUtils.fillUltraRounded(c, searchBoxX, searchBoxY, searchBoxW, searchBoxH, 0xFF141722, 3.5f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, searchBoxX, searchBoxY, searchBoxW, searchBoxH, 0xFF282F40, 3.5f);
+            CustomGuiUtils.drawSearchIcon(c, searchBoxX + 6, searchBoxY + 6, 0xFF8E95A4);
+            search.setX(searchBoxX + 20);
+            search.setY(searchBoxY + 1);
+            search.setWidth(searchBoxW - 26);
+            search.setHeight(18);
+            search.render(c, mx, my, delta);
+
+            // Active Category Label
+            String catTitle = switch (CosmeticsTab.subCategory) {
+                case "WINGS" -> "WINGS";
+                case "HEAD" -> "HEAD";
+                case "ACCESSORIES" -> "ACCESSORIES";
+                case "SKINS" -> "SKINS";
+                default -> "ALL COSMETICS";
+            };
+            text(c, catTitle, searchBoxX + searchBoxW + 16, py + 14, 0xFF94A3B8);
+
+            // Top-Right: Quick Unequip All Button
+            int unequipW = 110;
+            int unequipH = 20;
+            int unequipX = cx + cw - unequipW;
+            int unequipY = py + 8;
+            boolean hoverUnequip = inside(mx, my, unequipX, unequipY, unequipW, unequipH);
+            CustomGuiUtils.fillUltraRounded(c, unequipX, unequipY, unequipW, unequipH, hoverUnequip ? 0xFF351C24 : 0xFF17151D, 4.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, unequipX, unequipY, unequipW, unequipH, hoverUnequip ? 0xFFF43F5E : 0xFF2D2430, 4.0f);
+            int twUnequip = textRenderer.getWidth(CustomGuiUtils.getFontText("✕ Unequip All"));
+            text(c, "✕ Unequip All", unequipX + (unequipW - twUnequip) / 2, unequipY + 6, hoverUnequip ? 0xFFFCA5A5 : 0xFFCBD5E1);
+
+            // Divider line below top bar
+            c.fill(cx, py + 34, cx + cw, py + 35, 0xFF222530);
+
+            // Content Area (Cards + Preview)
+            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, py + ph - 16);
             int columnWidth = getColumnWidth();
             int leftX = getContentLeftX();
             int rightX = getContentRightX();
@@ -876,6 +983,13 @@ public class BameClientScreen extends Screen {
                 cosTab.render(this, c, mx, my, delta, leftX, rightX, columnWidth, tracker, q);
             }
             c.disableScissor();
+
+            // Scrollbar
+            if (maxScroll() > 0) {
+                int sbX = cx + cw + 2;
+                box(c, sbX, cy, 3, ch - 8, 0xFF232631);
+                box(c, sbX, thumbY(), 3, thumbHeight(), scrollDragging ? 0xFFFFFFFF : accent);
+            }
 
         } else if (currentView == ViewMode.THEME) {
             c.enableScissor(cx - 4, py + 8, cx + cw + 4, py + ph - 8);
@@ -894,6 +1008,10 @@ public class BameClientScreen extends Screen {
 
         if (itemModalOpen) {
             renderItemModal(c, mx, my, delta);
+        }
+
+        if (currentView == ViewMode.COSMETICS && CosmeticsTab.customSkinModalOpen) {
+            CosmeticsTab.renderCustomSkinModal(this, c, mx, my, delta);
         }
 
         com.bame.client.notification.NotificationManager.render(c, delta);
@@ -1298,9 +1416,9 @@ public class BameClientScreen extends Screen {
                 if (inside(mx, my, bx, rowY, iconSize, iconSize)) {
                     com.bame.client.sound.ClientSoundManager.playClick();
                     switch (i) {
-                        case 0 -> { currentView = ViewMode.THEME; layout(); }
-                        case 1 -> { currentView = ViewMode.COSMETICS; layout(); }
-                        case 2 -> { currentView = ViewMode.MODS; layout(); }
+                        case 0 -> { currentView = ViewMode.THEME; geometry(); layout(); }
+                        case 1 -> { currentView = ViewMode.COSMETICS; geometry(); layout(); }
+                        case 2 -> { currentView = ViewMode.MODS; geometry(); layout(); }
                         case 3 -> openHudEditor();
                         case 4 -> {
                             if (BameClientConfig.secretUnlocked) {
@@ -1453,6 +1571,84 @@ public class BameClientScreen extends Screen {
             return true;
         }
 
+        if (currentView == ViewMode.COSMETICS) {
+            if (CosmeticsTab.customSkinModalOpen) {
+                return CosmeticsTab.handleModalClick(this, localClick, twice);
+            }
+            // Dedicated Sidebar Categories Clicks
+            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES"};
+            int catBtnW = sidebar - 16;
+            int catBtnH = 26;
+            int startCatY = py + 48;
+            for (int i = 0; i < cosCats.length; i++) {
+                int by = startCatY + i * (catBtnH + 6);
+                if (inside(mx, my, px + 8, by, catBtnW, catBtnH)) {
+                    CosmeticsTab.subCategory = cosCats[i];
+                    scroll = 0;
+                    com.bame.client.sound.ClientSoundManager.playClick();
+                    layout();
+                    return true;
+                }
+            }
+
+            // Dedicated Back Button
+            int backBtnH = 26;
+            int backBtnY = py + ph - 36;
+            if (inside(mx, my, px + 8, backBtnY, catBtnW, backBtnH)) {
+                currentView = ViewMode.MODS;
+                scroll = 0;
+                com.bame.client.sound.ClientSoundManager.playClick();
+                geometry();
+                layout();
+                return true;
+            }
+
+            // Top-Right: Quick Unequip All Button Click
+            int unequipW = 110;
+            int unequipH = 20;
+            int unequipX = cx + cw - unequipW;
+            int unequipY = py + 8;
+            if (inside(mx, my, unequipX, unequipY, unequipW, unequipH)) {
+                com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
+                com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
+                com.bame.client.cosmetics.CosmeticsConfig.accessories.clear();
+                com.bame.client.cosmetics.CosmeticsConfig.setPet("none", "");
+                CosmeticsTab.resetPreview();
+                com.bame.client.sound.ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Scrollbar dragging
+            if (maxScroll() > 0 && inside(mx, my, cx + cw - 2, cy, 14, ch)) {
+                unfocus();
+                scrollDragging = true;
+                scrollGrab = (inside(mx, my, cx + cw - 2, thumbY(), 14, thumbHeight())) ? my - thumbY() : thumbHeight() / 2.0;
+                dragScroll(my);
+                return true;
+            }
+
+            // Search box
+            unfocus();
+            if (search.mouseClicked(localClick, twice)) {
+                setFocused(search);
+                return true;
+            }
+
+            // Content Area Clicks
+            ClientTab cosTab = tabs.get("Cosmetics");
+            if (cosTab != null) {
+                int columnWidth = getColumnWidth();
+                int leftX = getContentLeftX();
+                int rightX = getContentRightX();
+                String q = search.getText().trim();
+                ColumnTracker tracker = new ColumnTracker(baseY());
+                if (cosTab.mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // Left vertical sidebar clicks (sidebar = 68, matching Bild 4)
         int sbBtnW = 58;
         int sbBtnH = 46;
@@ -1461,14 +1657,27 @@ public class BameClientScreen extends Screen {
             if (currentView != ViewMode.MODS) {
                 currentView = ViewMode.MODS;
                 com.bame.client.sound.ClientSoundManager.playClick();
+                geometry();
                 layout();
             }
             return true;
         }
         if (inside(mx, my, sbBtnX, py + 62, sbBtnW, sbBtnH)) {
-            if (currentView != ViewMode.COSMETICS) {
+            if (currentView != ViewMode.COSMETICS || "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
                 currentView = ViewMode.COSMETICS;
+                CosmeticsTab.subCategory = "ALL";
                 com.bame.client.sound.ClientSoundManager.playClick();
+                geometry();
+                layout();
+            }
+            return true;
+        }
+        if (inside(mx, my, sbBtnX, py + 114, sbBtnW, sbBtnH)) {
+            if (currentView != ViewMode.COSMETICS || !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
+                currentView = ViewMode.COSMETICS;
+                CosmeticsTab.subCategory = "SKINS";
+                com.bame.client.sound.ClientSoundManager.playClick();
+                geometry();
                 layout();
             }
             return true;
@@ -1476,6 +1685,7 @@ public class BameClientScreen extends Screen {
         if (inside(mx, my, sbBtnX, py + ph - 42, sbBtnW, 34)) {
             currentView = ViewMode.HUB;
             com.bame.client.sound.ClientSoundManager.playClick();
+            geometry();
             layout();
             return true;
         }
@@ -1529,18 +1739,6 @@ public class BameClientScreen extends Screen {
                     if (activeTab.mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
                         return true;
                     }
-                }
-            }
-        } else if (currentView == ViewMode.COSMETICS) {
-            ClientTab cosTab = tabs.get("Cosmetics");
-            if (cosTab != null) {
-                int columnWidth = getColumnWidth();
-                int leftX = getContentLeftX();
-                int rightX = getContentRightX();
-                String q = search.getText().trim();
-                ColumnTracker tracker = new ColumnTracker(baseY());
-                if (cosTab.mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
-                    return true;
                 }
             }
         } else if (currentView == ViewMode.THEME) {
@@ -1699,16 +1897,23 @@ public class BameClientScreen extends Screen {
             return true;
         }
 
-        String q = search.getText().trim();
-        if (q.isEmpty()) {
-            ClientTab activeTab = tabs.get(selected);
-            if (activeTab != null && activeTab.mouseDragged(this, localClick, dx, dy)) {
+        if (currentView == ViewMode.COSMETICS) {
+            ClientTab cosTab = tabs.get("Cosmetics");
+            if (cosTab != null && cosTab.mouseDragged(this, localClick, dx, dy)) {
                 return true;
             }
         } else {
-            for (ClientTab tab : tabs.values()) {
-                if (tab.mouseDragged(this, localClick, dx, dy)) {
+            String q = search.getText().trim();
+            if (q.isEmpty()) {
+                ClientTab activeTab = tabs.get(selected);
+                if (activeTab != null && activeTab.mouseDragged(this, localClick, dx, dy)) {
                     return true;
+                }
+            } else {
+                for (ClientTab tab : tabs.values()) {
+                    if (tab.mouseDragged(this, localClick, dx, dy)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -1765,7 +1970,7 @@ public class BameClientScreen extends Screen {
             return true;
         }
         if (inside(lmx, lmy, cx, cy, cw + 14, ch) && !themeSettings.dragging()) {
-            ClientTab currentTab = tabs.get(selected);
+            ClientTab currentTab = (currentView == ViewMode.COSMETICS) ? tabs.get("Cosmetics") : tabs.get(selected);
             if (currentTab != null && currentTab.mouseScrolled(lmx, lmy, horizontal, vertical)) {
                 return true;
             }
@@ -1778,6 +1983,11 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (currentView == ViewMode.COSMETICS && CosmeticsTab.customSkinModalOpen) {
+            if (CosmeticsTab.handleModalKeyPressed(this, input)) {
+                return true;
+            }
+        }
         if (itemModalOpen) {
             if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
                 applyModalSave();
@@ -1829,6 +2039,11 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput input) {
+        if (currentView == ViewMode.COSMETICS && CosmeticsTab.customSkinModalOpen) {
+            if (CosmeticsTab.handleModalCharTyped(this, input)) {
+                return true;
+            }
+        }
         if (itemModalOpen && itemSearchWidget != null && itemSearchWidget.isFocused()) {
             return itemSearchWidget.charTyped(input);
         }

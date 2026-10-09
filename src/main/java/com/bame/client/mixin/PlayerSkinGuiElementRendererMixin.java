@@ -28,6 +28,8 @@ public abstract class PlayerSkinGuiElementRendererMixin extends SpecialGuiElemen
         String cardCosmetic = CosmeticsTab.CARD_MODEL_MAP.get(state.playerModel());
         if (cardCosmetic != null) {
             CaeserCosmeticsRenderer.renderCardCosmeticStandalone(matrices, this.vertexConsumers, cardCosmetic, 15728880);
+        } else if (CosmeticsTab.isSkinCardModel(state.playerModel())) {
+            // It's a skin preview card: do not render cosmetics on it, just show the clean skin!
         } else {
             String w = CosmeticsTab.previewWings != null ? CosmeticsTab.previewWings : CosmeticsConfig.wings;
             String h = CosmeticsTab.previewHead != null ? CosmeticsTab.previewHead : CosmeticsConfig.head;

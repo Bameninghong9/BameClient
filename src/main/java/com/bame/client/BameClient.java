@@ -36,11 +36,16 @@ public class BameClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Initializing BameClient!");
         BameClientConfig.load();
+        com.bame.client.cosmetics.CosmeticsConfig.load();
         if (SpotifyHudModule.enabled) {
             com.bame.client.spotify.SpotifyService.start();
         }
         HitColorModule.apply();
         com.bame.client.wallpaper.WallpaperManager.getWallpaperDir();
+        com.bame.client.cosmetics.CaeserSkinManager.reloadFromLauncher();
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
+        });
         try {
             net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT, DurabilityGuardModule.ALARM_ID, DurabilityGuardModule.ALARM_SOUND);
         } catch (Exception ignored) {}
@@ -81,6 +86,7 @@ public class BameClient implements ClientModInitializer {
 
         // Client Tick Events
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            com.bame.client.cosmetics.CaeserSkinManager.checkPeriodicSync();
             AutoAreaMinerModule.onTick(client);
             FullbrightModule.onTick(client);
 

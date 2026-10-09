@@ -271,6 +271,10 @@ public class CustomGuiUtils {
     public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, 18, 18, color); }
     public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, 14, 14, color); }
     public static void drawShirtIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "shirt", x, y, 18, 18, color); }
+    public static void drawSkinIcon(DrawContext c, int x, int y, int color) {
+        fillUltraRounded(c, x + 5, y + 1, 8, 8, color, 4.0f);
+        fillUltraRounded(c, x + 2, y + 10, 14, 7, color, 3.5f);
+    }
     public static void drawCameraIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "camera", x, y, 18, 18, color); }
     public static void drawEmoteIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "hud", x, y, 18, 18, color); }
     public static void drawCrownIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "crown", x, y, 18, 18, color); }
