@@ -77,6 +77,7 @@ public class DTapModule {
                 triggerDTap(client);
             } else {
                 enabled = !enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("D-Tap", enabled);
                 BameClientConfig.save();
             }
         }

@@ -64,6 +64,7 @@ public class NoFogModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("No Fog", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

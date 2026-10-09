@@ -23,10 +23,25 @@ public final class GuiTheme {
         new Preset("Crimson",0xFA335F,0xFF7868,0xD80008,0x23070D)
     };
     public static Preset current() {
-        for(var p:PRESETS) if(p.name().equals(BameClientConfig.theme)) return p;
+        for(var p:PRESETS) if(p.name().equalsIgnoreCase(BameClientConfig.theme)) return p;
         return PRESETS[1];
     }
     public static int accent() { return BameClientConfig.customMainColor ? BameClientConfig.mainColor : 0xFF000000 | current().primary(); }
     public static int alpha(int color,int alpha) { return (alpha<<24)|(color&0xFFFFFF); }
     public static int surface() { return 0xFF12151B; }
+
+    public static int blend(int baseColor, int overlayColor, float factor) {
+        factor = Math.clamp(factor, 0.0f, 1.0f);
+        int a = (baseColor >> 24) & 0xFF;
+        int r1 = (baseColor >> 16) & 0xFF;
+        int g1 = (baseColor >> 8) & 0xFF;
+        int b1 = baseColor & 0xFF;
+        int r2 = (overlayColor >> 16) & 0xFF;
+        int g2 = (overlayColor >> 8) & 0xFF;
+        int b2 = overlayColor & 0xFF;
+        int r = Math.round(r1 + (r2 - r1) * factor);
+        int g = Math.round(g1 + (g2 - g1) * factor);
+        int b = Math.round(b1 + (b2 - b1) * factor);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
 }

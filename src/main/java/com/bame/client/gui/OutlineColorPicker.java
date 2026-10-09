@@ -5,18 +5,18 @@ import net.minecraft.client.gui.DrawContext;
 import java.awt.Color;
 
 /** Sleek HSV + Alpha color picker with clean handles and crisp rendering. */
-final class OutlineColorPicker {
+public final class OutlineColorPicker {
     private float hue, saturation, value, alpha;
     private int drag = -1;
     int x, y, width;
     private final java.util.function.IntSupplier getter;
     private final java.util.function.IntConsumer setter;
 
-    OutlineColorPicker() {
+    public OutlineColorPicker() {
         this(() -> BameClientConfig.outlineColor, c -> BameClientConfig.outlineColor = c);
     }
 
-    OutlineColorPicker(java.util.function.IntSupplier getter, java.util.function.IntConsumer setter) {
+    public OutlineColorPicker(java.util.function.IntSupplier getter, java.util.function.IntConsumer setter) {
         this.getter = getter;
         this.setter = setter;
         syncFromGetter();
@@ -31,13 +31,13 @@ final class OutlineColorPicker {
         alpha = ((c >>> 24) & 255) / 255f;
     }
 
-    void layout(int x, int y, int width) {
+    public void layout(int x, int y, int width) {
         this.x = x;
         this.y = y;
         this.width = width;
     }
 
-    void render(DrawContext c) {
+    public void render(DrawContext c) {
         if (drag < 0) {
             syncFromGetter();
         }
@@ -103,7 +103,7 @@ final class OutlineColorPicker {
         c.fill(left, top, left + w, top + h, 0xFFFFFFFF);
     }
 
-    boolean click(double mx, double my) {
+    public boolean click(double mx, double my) {
         if (mx < x - 6 || mx > x + width + 6) return false;
         if (my >= y && my < y + 34) drag = 0;
         else if (my >= y + 36 && my < y + 48) drag = 1;
@@ -114,11 +114,11 @@ final class OutlineColorPicker {
         return true;
     }
 
-    boolean dragging() {
+    public boolean dragging() {
         return drag >= 0;
     }
 
-    void update(double mx, double my) {
+    public void update(double mx, double my) {
         float t = (float) Math.clamp((mx - x) / (float)(width - 1), 0.0, 1.0);
         if (drag == 0) {
             saturation = t;
@@ -131,7 +131,7 @@ final class OutlineColorPicker {
         setter.accept(newColor);
     }
 
-    void release() {
+    public void release() {
         if (drag >= 0) {
             drag = -1;
             BameClientConfig.save();

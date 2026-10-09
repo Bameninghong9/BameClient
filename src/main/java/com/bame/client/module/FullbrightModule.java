@@ -13,6 +13,7 @@ public class FullbrightModule {
             && net.minecraft.client.util.InputUtil.isKeyPressed(client.getWindow(),keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Fullbright", enabled);
             com.bame.client.BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

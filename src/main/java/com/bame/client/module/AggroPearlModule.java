@@ -61,6 +61,7 @@ public class AggroPearlModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Aggro Pearl", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

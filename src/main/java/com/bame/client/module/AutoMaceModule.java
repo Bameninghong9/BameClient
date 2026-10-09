@@ -89,6 +89,7 @@ public class AutoMaceModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Auto Mace", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

@@ -10,6 +10,8 @@ import com.bame.client.module.NameProtectModule;
 import com.bame.client.module.PearlCatchModule;
 import com.bame.client.module.PearlPredictionModule;
 import com.bame.client.module.SkinProtectModule;
+import com.bame.client.module.TriggerbotModule;
+import com.bame.client.module.ShieldBreakerModule;
 import com.bame.client.render.BlurRenderer;
 import com.bame.client.sound.ClientSoundManager;
 import com.bame.client.wallpaper.WallpaperManager;
@@ -38,10 +40,15 @@ public class SecretScreen extends Screen {
     private boolean listeningNameKey = false;
     private boolean listeningFakeKey = false;
     private boolean listeningSkinKey = false;
+    private boolean listeningTriggerbotKey = false;
+    private boolean listeningShieldBreakerKey = false;
     private boolean draggingMaceHeight = false;
     private boolean draggingDTapDelay = false;
     private boolean draggingCatchDelay = false;
     private boolean draggingAggroDelay = false;
+    private boolean draggingTriggerbotCooldown = false;
+    private boolean draggingTriggerbotRange = false;
+    private boolean draggingShieldBreakerRange = false;
     private long openTime = System.currentTimeMillis();
 
     private double scroll = 0;
@@ -59,15 +66,118 @@ public class SecretScreen extends Screen {
     private CustomTextFieldWidget skinSearchWidget;
     private PlayerSkinWidget skinPreviewWidget;
 
+    private int pw, ph, px, py;
+    private PlayerSkinWidget leftSkinWidget;
+
     public SecretScreen(Screen parent) {
         super(Text.literal("Secret Menu"));
         this.parent = parent;
     }
 
+    private void geometry() {
+        if (BameClientConfig.threeDGui) {
+            int minLeftSpace = Math.min(230, (int) (width * 0.28));
+            pw = Math.clamp((int) (width * 0.64), 540, 680);
+            pw = Math.min(pw, width - minLeftSpace - 24);
+            pw = Math.min(pw, width - 40);
+            ph = Math.clamp((int) (height * 0.68), 340, 420);
+            ph = Math.min(ph, height - 40);
+            px = width - pw - Math.max(16, (int) (width * 0.025));
+        } else {
+            pw = Math.clamp(width - 40, 600, 680);
+            ph = Math.clamp(height - 40, 320, 390);
+            px = (width - pw) / 2;
+        }
+        py = (height - ph) / 2;
+        updateLeftSkinGeometry();
+    }
+
+    private void initLeftSkinWidget() {
+        if (client == null || client.getLoadedEntityModels() == null) return;
+        int leftW = Math.max(100, px - 20);
+        int skinW = Math.clamp(leftW, 130, 200);
+        int skinH = Math.clamp(ph - 50, 220, 290);
+        int skinX = Math.max(10, (px - skinW) / 2);
+        int skinY = py + (ph - skinH) / 2 + 16;
+
+        leftSkinWidget = new PlayerSkinWidget(skinW, skinH, client.getLoadedEntityModels(), () -> {
+            if (SkinProtectModule.enabled) {
+                return SkinProtectModule.getCurrentSkin();
+            }
+            return (client.player != null) ? client.player.getSkin() : net.minecraft.client.util.DefaultSkinHelper.getSteve();
+        });
+        leftSkinWidget.setPosition(skinX, skinY);
+        setSkinWidgetInitialRotation(leftSkinWidget, -22.0f);
+    }
+
+    private void updateLeftSkinGeometry() {
+        if (!BameClientConfig.threeDGui) return;
+        if (leftSkinWidget == null) {
+            initLeftSkinWidget();
+            return;
+        }
+        int leftW = Math.max(100, px - 20);
+        int skinW = Math.clamp(leftW, 130, 200);
+        int skinH = Math.clamp(ph - 50, 220, 290);
+        int skinX = Math.max(10, (px - skinW) / 2);
+        int skinY = py + (ph - skinH) / 2 + 16;
+        leftSkinWidget.setDimensionsAndPosition(skinW, skinH, skinX, skinY);
+    }
+
+    private void setSkinWidgetInitialRotation(PlayerSkinWidget widget, float yRot) {
+        if (widget == null) return;
+        try {
+            for (java.lang.reflect.Field f : PlayerSkinWidget.class.getDeclaredFields()) {
+                if (f.getType() == float.class && (f.getName().equals("yRotation") || f.getName().contains("yRot"))) {
+                    f.setAccessible(true);
+                    f.setFloat(widget, yRot);
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void renderLeftSkin(DrawContext c, int mx, int my, float delta, float p) {
+        if (!BameClientConfig.threeDGui || px < 100) return;
+        if (leftSkinWidget == null) initLeftSkinWidget();
+        if (leftSkinWidget == null) return;
+
+        int leftCenterX = px / 2;
+
+        // Player Name Badge (NameProtect integration: alias when enabled, own name when disabled)
+        String displayName = (client != null && client.player != null) ? client.player.getName().getString() : "Player";
+        if (NameProtectModule.enabled) {
+            displayName = NameProtectModule.getProtectedName(displayName);
+        }
+        int nameW = textRenderer.getWidth(CustomGuiUtils.getFontText(displayName));
+        int badgeW = nameW + 16;
+        int badgeH = 15;
+        int badgeX = leftCenterX - badgeW / 2;
+        int badgeY = py + 12;
+        CustomGuiUtils.fillUltraRounded(c, badgeX, badgeY, badgeW, badgeH, 0xD0131722, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(c, badgeX, badgeY, badgeW, badgeH, GuiTheme.alpha(GuiTheme.accent(), 110), 4);
+        c.drawText(textRenderer, CustomGuiUtils.getFontText(displayName), badgeX + 8, badgeY + 4, GuiTheme.accent(), false);
+
+        // Pedestal & Drop Shadow under feet
+        int skinW = leftSkinWidget.getWidth();
+        int skinH = leftSkinWidget.getHeight();
+        int pedW = Math.min(130, (int) (skinW * 0.72));
+        int pedX = leftCenterX - pedW / 2;
+        int pedY = leftSkinWidget.getY() + skinH - 14;
+
+        CustomGuiUtils.fillUltraRounded(c, pedX - 10, pedY + 2, pedW + 24, 10, 0x45000000, 4);
+        CustomGuiUtils.fillUltraRounded(c, pedX, pedY, pedW, 6, 0x30000000 | (GuiTheme.accent() & 0x00FFFFFF), 3);
+        CustomGuiUtils.drawUltraRoundedOutline(c, pedX, pedY, pedW, 6, GuiTheme.alpha(GuiTheme.accent(), 85), 3);
+
+        // 3D Player Model
+        leftSkinWidget.render(c, mx, my, delta);
+    }
+
     @Override
     protected void init() {
         super.init();
-        int pw = Math.clamp(width - 40, 600, 680);
+        geometry();
+        initLeftSkinWidget();
         int gap = 14;
         int cardW = (pw - 28 - gap) / 2;
         int labelW = 44;
@@ -180,6 +290,18 @@ public class SecretScreen extends Screen {
         return "skinprotect".contains(q) || "skin protect".contains(q) || "skin".contains(q) || "protect".contains(q);
     }
 
+    private boolean triggerbotVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "triggerbot".contains(q) || "trigger bot".contains(q) || "trigger".contains(q) || "autoclick".contains(q) || "cooldown".contains(q) || "cps".contains(q) || "combat".contains(q);
+    }
+
+    private boolean shieldBreakerVisible() {
+        String q = searchField != null ? searchField.getText().trim().toLowerCase(Locale.ROOT) : "";
+        if (q.isEmpty()) return true;
+        return "shield breaker".contains(q) || "shieldbreaker".contains(q) || "shield".contains(q) || "schild".contains(q) || "axe".contains(q) || "axt".contains(q) || "breaker".contains(q);
+    }
+
     private int getPearlHeight() {
         return PearlPredictionModule.expanded ? 168 : 46;
     }
@@ -194,6 +316,11 @@ public class SecretScreen extends Screen {
 
     private int getDTapHeight() {
         return DTapModule.expanded ? 164 : 46;
+    }
+
+    private int getTriggerbotHeight() {
+        if (!TriggerbotModule.expanded) return 46;
+        return TriggerbotModule.showDetails ? 316 : 206;
     }
 
     private int getPearlCatchHeight() {
@@ -214,6 +341,10 @@ public class SecretScreen extends Screen {
 
     private int getSkinProtectHeight() {
         return SkinProtectModule.expanded ? 275 : 46;
+    }
+
+    private int getShieldBreakerHeight() {
+        return ShieldBreakerModule.expanded ? 186 : 46;
     }
 
     private void resetFakeScoreboard() {
@@ -281,6 +412,7 @@ public class SecretScreen extends Screen {
         if (autoCartVisible()) leftH += getAutoCartHeight() + 12;
         if (autoMaceVisible()) leftH += getAutoMaceHeight() + 12;
         if (dTapVisible()) leftH += getDTapHeight() + 12;
+        if (triggerbotVisible()) leftH += getTriggerbotHeight() + 12;
 
         int rightH = 0;
         if (pearlCatchVisible()) rightH += getPearlCatchHeight() + 12;
@@ -288,6 +420,7 @@ public class SecretScreen extends Screen {
         if (nameProtectVisible()) rightH += getNameProtectHeight() + 12;
         if (fakeScoreboardVisible()) rightH += getFakeScoreboardHeight() + 12;
         if (skinProtectVisible()) rightH += getSkinProtectHeight() + 12;
+        if (shieldBreakerVisible()) rightH += getShieldBreakerHeight() + 12;
 
         return Math.max(leftH, rightH);
     }
@@ -329,6 +462,13 @@ public class SecretScreen extends Screen {
 
     private void box(DrawContext c, int x, int y, int w, int h, int color) {
         CustomGuiUtils.fillUltraRounded(c, x, y, w, h, color, 6);
+    }
+
+    private void card(DrawContext c, int x, int y, int w, int h, boolean enabled) {
+        int bg = enabled ? 0xFF161822 : 0xFF12141C;
+        CustomGuiUtils.fillUltraRounded(c, x, y, w, h, bg, 6.0f);
+        int border = enabled ? GuiTheme.alpha(GuiTheme.accent(), 175) : 0xFF232733;
+        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, border, 6.0f);
     }
 
     private boolean inside(double mx, double my, int x, int y, int w, int h) {
@@ -415,28 +555,45 @@ public class SecretScreen extends Screen {
 
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        if (BameClientConfig.frostedBlur) {
+        if (BameClientConfig.frostedBlur && !BameClientConfig.threeDGui) {
             applyBlur(context);
-        } else {
-            context.fill(0, 0, this.width, this.height, 0x99000000);
         }
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
-
-        int pw = Math.clamp(width - 40, 600, 680);
-        int ph = Math.clamp(height - 40, 320, 390);
-        int px = (width - pw) / 2;
-        int py = (height - ph) / 2;
-
+        geometry();
         float progress = Math.min(1.0f, (System.currentTimeMillis() - openTime) / 300.0f);
         float p = 1.0f - (float) Math.pow(1.0f - progress, 4);
 
+        ThreeDGuiManager.setupFrame(px, py, pw, ph, width, height, mouseX, mouseY, delta);
+        double[] localM = ThreeDGuiManager.screenToLocal(mouseX, mouseY);
+        int lmx = (int) Math.round(localM[0]);
+        int lmy = (int) Math.round(localM[1]);
+
+        int dimAlpha;
+        if (BameClientConfig.threeDGui) {
+            dimAlpha = (int) ((BameClientConfig.seeThrough ? 0x30 : 0x48) * p);
+        } else {
+            dimAlpha = (int) ((BameClientConfig.seeThrough ? 0x44 : 0x78) * p);
+        }
+        if (dimAlpha > 0) {
+            context.fill(0, 0, width, height, (dimAlpha << 24) | 0x000000);
+        }
+
+        if (BameClientConfig.threeDGui) {
+            renderLeftSkin(context, mouseX, mouseY, delta, p);
+            ThreeDGuiManager.apply3D(context);
+        }
+
+        mouseX = lmx;
+        mouseY = lmy;
+
+
+
         // Window background
-        int bg = GuiTheme.alpha(GuiTheme.current().background(), BameClientConfig.seeThrough ? 205 : 255);
-        box(context, px, py, pw, ph, bg);
+        int bg = BameClientConfig.seeThrough ? 0xD810121A : 0xF710121A;
+        CustomGuiUtils.fillUltraRounded(context, px, py, pw, ph, bg, 10.0f);
 
         // Custom Wallpaper
         if (BameClientConfig.customWallpaper) {
@@ -444,10 +601,15 @@ public class SecretScreen extends Screen {
         }
 
         // Window outline
-        CustomGuiUtils.drawUltraRoundedOutline(context, px, py, pw, ph, 0xFF292D36, 8.0f);
+        CustomGuiUtils.drawUltraRoundedOutline(context, px, py, pw, ph, 0xFF242834, 10.0f);
+        CustomGuiUtils.drawUltraRoundedOutline(context, px + 1, py + 1, pw - 2, ph - 2, 0x1AFFFFFF, 9.0f);
+        if (BameClientConfig.threeDGui) {
+            context.fill(px + 12, py, px + pw - 12, py + 1, 0x30FFFFFF);
+            context.fill(px + pw / 4, py, px + (pw * 3) / 4, py + 1, GuiTheme.alpha(GuiTheme.accent(), 85));
+        }
 
         // Ambient lighting
-        if (BameClientConfig.ambientBackground) {
+        if (!BameClientConfig.threeDGui && BameClientConfig.ambientBackground) {
             ambient.render(context, px + 1, py + 1, pw - 2, ph - 2);
         }
 
@@ -485,7 +647,7 @@ public class SecretScreen extends Screen {
         }
 
         // Header separator
-        context.fill(px + 10, py + 42, px + pw - 10, py + 43, 0xFF292D36);
+        context.fill(px + 10, py + 42, px + pw - 10, py + 43, 0xFF222632);
 
         // Viewport dimensions
         int cx = px + 14;
@@ -503,15 +665,17 @@ public class SecretScreen extends Screen {
         int card2X = card1X + cardW + gap;
 
         // Content clipping
-        context.enableScissor(cx, cy, cx + cw, cy + ch);
+        boolean needScissor = maxScroll(ch) > 0;
+        if (needScissor) {
+            context.enableScissor(cx - 4, py + 44, cx + cw + 8, py + ph - 8);
+        }
 
         int leftY = baseY;
 
         // ==================== CARD 1: Pearl Prediction ====================
         if (pearlVisible()) {
             int c1H = getPearlHeight();
-            box(context, card1X, leftY, cardW, c1H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, c1H, 0xFF292D36, 6);
+            card(context, card1X, leftY, cardW, c1H, PearlPredictionModule.enabled);
 
             text(context, "Pearl Prediction", card1X + 12, leftY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
@@ -548,8 +712,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 2: AutoCart ====================
         if (autoCartVisible()) {
             int acH = getAutoCartHeight();
-            box(context, card1X, leftY, cardW, acH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, acH, 0xFF292D36, 6);
+            card(context, card1X, leftY, cardW, acH, AutoCartModule.enabled);
 
             text(context, "AutoCart", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
@@ -591,8 +754,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 3: Auto Mace ====================
         if (autoMaceVisible()) {
             int amH = getAutoMaceHeight();
-            box(context, card1X, leftY, cardW, amH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, amH, 0xFF292D36, 6);
+            card(context, card1X, leftY, cardW, amH, AutoMaceModule.enabled);
 
             text(context, "Auto Mace", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
@@ -652,8 +814,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 4: D-Tap ====================
         if (dTapVisible()) {
             int dtH = getDTapHeight();
-            box(context, card1X, leftY, cardW, dtH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card1X, leftY, cardW, dtH, 0xFF292D36, 6);
+            card(context, card1X, leftY, cardW, dtH, DTapModule.enabled);
 
             text(context, "D-Tap", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
@@ -699,13 +860,117 @@ public class SecretScreen extends Screen {
             leftY += dtH + 12;
         }
 
+        // ==================== CARD 5: Triggerbot ====================
+        if (triggerbotVisible()) {
+            int tbH = getTriggerbotHeight();
+            card(context, card1X, leftY, cardW, tbH, TriggerbotModule.enabled);
+
+            text(context, "Triggerbot", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
+
+            String kbTb = listeningTriggerbotKey ? "..." : formatKey(TriggerbotModule.keyBind);
+            button(context, kbTb, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card1X + cardW - 38, leftY + 12, TriggerbotModule.enabled, mouseX, mouseY, delta);
+
+            if (TriggerbotModule.expanded) {
+                context.fill(card1X + 8, leftY + 46, card1X + cardW - 8, leftY + 47, 0xFF292D36);
+
+                // --- 1-Klick Profile ---
+                int rowY = leftY + 52;
+                text(context, "Profile (1-Klick)", card1X + 14, rowY + 1, 0xFF8E95A4);
+
+                int btnW = (cardW - 28 - 6) / 2;
+                int btnH = 17;
+                int b1X = card1X + 14;
+                int b2X = b1X + btnW + 6;
+
+                int activePreset = TriggerbotModule.getActivePreset();
+                rowY += 14;
+                modeButton(context, "1.9+ PvP", b1X, rowY, btnW, btnH, mouseX, mouseY, activePreset == 0);
+                modeButton(context, "Legit (LMB)", b2X, rowY, btnW, btnH, mouseX, mouseY, activePreset == 1);
+
+                rowY += 21;
+                modeButton(context, "1.8 CPS", b1X, rowY, btnW, btnH, mouseX, mouseY, activePreset == 2);
+                modeButton(context, "Test-Modus", b2X, rowY, btnW, btnH, mouseX, mouseY, activePreset == 3);
+
+                // --- Kern-Schalter: Auslöser ---
+                rowY += 23;
+                text(context, "Auslöser", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                int optW = 76;
+                int optH = 16;
+                int opt2X = card1X + cardW - optW - 14;
+                int opt1X = opt2X - optW - 4;
+                modeButton(context, "Auto", opt1X, rowY, optW, optH, mouseX, mouseY, !TriggerbotModule.holdAttackKey);
+                modeButton(context, "Halten (LMB)", opt2X, rowY, optW, optH, mouseX, mouseY, TriggerbotModule.holdAttackKey);
+
+                // --- Kern-Schalter: Ziel ---
+                rowY += 22;
+                text(context, "Ziel", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                modeButton(context, "Spieler", opt1X, rowY, optW, optH, mouseX, mouseY, TriggerbotModule.playersOnly);
+                modeButton(context, "Alle (Mobs)", opt2X, rowY, optW, optH, mouseX, mouseY, !TriggerbotModule.playersOnly);
+
+                // --- Reichweite Slider ---
+                rowY += 22;
+                String rLabel = String.format(java.util.Locale.ROOT, "%.1f", TriggerbotModule.range);
+                text(context, "Reichweite: " + rLabel, card1X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float rNorm = (float) ((TriggerbotModule.range - 2.5) / 2.0);
+                int fill = Math.round(sw * Math.clamp(rNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+
+                // --- Details Button ---
+                rowY += 22;
+                String detLabel = TriggerbotModule.showDetails ? "Weniger Optionen ▲" : "Feintuning / Details ▼";
+                button(context, detLabel, card1X + 14, rowY, cardW - 28, 16, mouseX, mouseY);
+
+                // --- Details Content ---
+                if (TriggerbotModule.showDetails) {
+                    rowY += 22;
+                    text(context, "Modus", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                    modeButton(context, "Cooldown", opt1X, rowY, optW, optH, mouseX, mouseY, TriggerbotModule.mode == 0);
+                    modeButton(context, "CPS", opt2X, rowY, optW, optH, mouseX, mouseY, TriggerbotModule.mode == 1);
+
+                    rowY += 22;
+                    if (TriggerbotModule.mode == 0) {
+                        text(context, "Charge: " + Math.round(TriggerbotModule.cooldownThreshold * 100) + "%", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                        CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                        float cNorm = (TriggerbotModule.cooldownThreshold - 0.8f) / 0.2f;
+                        int cFill = Math.round(sw * Math.clamp(cNorm, 0f, 1f));
+                        if (cFill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, cFill, 4, GuiTheme.accent(), 2);
+                        CustomGuiUtils.fillUltraRounded(context, sx + cFill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+                    } else {
+                        text(context, "CPS: " + TriggerbotModule.cps, card1X + 14, rowY + 4, 0xFFD4D8E0);
+                        CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                        float cNorm = (TriggerbotModule.cps - 1) / 19.0f;
+                        int cFill = Math.round(sw * Math.clamp(cNorm, 0f, 1f));
+                        if (cFill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, cFill, 4, GuiTheme.accent(), 2);
+                        CustomGuiUtils.fillUltraRounded(context, sx + cFill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+                    }
+
+                    rowY += 22;
+                    text(context, "Nur mit Waffen", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                    toggle(context, card1X + cardW - 38, rowY + 2, TriggerbotModule.weaponOnly, mouseX, mouseY, delta);
+
+                    rowY += 22;
+                    text(context, "Human Jitter", card1X + 14, rowY + 4, 0xFFD4D8E0);
+                    toggle(context, card1X + cardW - 38, rowY + 2, TriggerbotModule.randomJitter, mouseX, mouseY, delta);
+
+                    rowY += 22;
+                    button(context, "Reset", card1X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+                }
+            }
+            leftY += tbH + 12;
+        }
+
         int rightY = baseY;
 
         // ==================== CARD: Pearl Catch ====================
         if (pearlCatchVisible()) {
             int pcH = getPearlCatchHeight();
-            box(context, card2X, rightY, cardW, pcH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, pcH, 0xFF292D36, 6);
+            card(context, card2X, rightY, cardW, pcH, PearlCatchModule.enabled);
 
             text(context, "Pearl Catch", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
@@ -748,8 +1013,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD: Aggro Pearl ====================
         if (aggroPearlVisible()) {
             int apH = getAggroPearlHeight();
-            box(context, card2X, rightY, cardW, apH, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, apH, 0xFF292D36, 6);
+            card(context, card2X, rightY, cardW, apH, AggroPearlModule.enabled);
 
             text(context, "Aggro Pearl", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
@@ -788,8 +1052,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 4: Name Protect ====================
         if (nameProtectVisible()) {
             int c2H = getNameProtectHeight();
-            box(context, card2X, rightY, cardW, c2H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c2H, 0xFF292D36, 6);
+            card(context, card2X, rightY, cardW, c2H, NameProtectModule.enabled);
 
             text(context, "Name Protect", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
@@ -828,8 +1091,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 4: Fake Scoreboard ====================
         if (fakeScoreboardVisible()) {
             int c3H = getFakeScoreboardHeight();
-            box(context, card2X, rightY, cardW, c3H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c3H, 0xFF292D36, 6);
+            card(context, card2X, rightY, cardW, c3H, FakeScoreboardModule.enabled);
 
             text(context, "Fake Scoreboard", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
@@ -922,8 +1184,7 @@ public class SecretScreen extends Screen {
         // ==================== CARD 5: SkinProtect ====================
         if (skinProtectVisible()) {
             int c4H = getSkinProtectHeight();
-            box(context, card2X, rightY, cardW, c4H, GuiTheme.alpha(GuiTheme.surface(), BameClientConfig.seeThrough ? 210 : 255));
-            CustomGuiUtils.drawUltraRoundedOutline(context, card2X, rightY, cardW, c4H, 0xFF292D36, 6);
+            card(context, card2X, rightY, cardW, c4H, SkinProtectModule.enabled);
 
             text(context, "SkinProtect", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
@@ -992,26 +1253,92 @@ public class SecretScreen extends Screen {
             if (skinSearchWidget != null) skinSearchWidget.visible = skinSearchWidget.active = false;
         }
 
+        // ==================== CARD 6: Shield Breaker ====================
+        if (shieldBreakerVisible()) {
+            int sbH = getShieldBreakerHeight();
+            card(context, card2X, rightY, cardW, sbH, ShieldBreakerModule.enabled);
+
+            text(context, "Shield Breaker", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
+
+            String kbSb = listeningShieldBreakerKey ? "..." : formatKey(ShieldBreakerModule.keyBind);
+            button(context, kbSb, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            toggle(context, card2X + cardW - 38, rightY + 12, ShieldBreakerModule.enabled, mouseX, mouseY, delta);
+
+            if (ShieldBreakerModule.expanded) {
+                context.fill(card2X + 8, rightY + 46, card2X + cardW - 8, rightY + 47, 0xFF292D36);
+
+                int rowY = rightY + 54;
+                text(context, "Modus", card2X + 14, rowY + 5, 0xFFD4D8E0);
+
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card2X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                modeButton(context, "Automatisch", btn1X, rowY, btnW, btnH, mouseX, mouseY, ShieldBreakerModule.mode == 0);
+                modeButton(context, "Bei Klick", btn2X, rowY, btnW, btnH, mouseX, mouseY, ShieldBreakerModule.mode == 1);
+
+                rowY += 26;
+                String rLabel = String.format(java.util.Locale.ROOT, "%.1f Blöcke", ShieldBreakerModule.reach);
+                text(context, "Reichweite: " + rLabel, card2X + 14, rowY + 4, 0xFFD4D8E0);
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, sw, 4, 0xFF303442, 2);
+                float rNorm = (float) ((ShieldBreakerModule.reach - 2.5) / 2.0);
+                int fill = Math.round(sw * Math.clamp(rNorm, 0f, 1f));
+                if (fill > 0) CustomGuiUtils.fillUltraRounded(context, sx, rowY + 6, fill, 4, GuiTheme.accent(), 2);
+                CustomGuiUtils.fillUltraRounded(context, sx + fill - 3, rowY + 4, 7, 8, 0xFFFFFFFF, 4);
+
+                rowY += 26;
+                text(context, "Switch Delay", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                String delayLabel = ShieldBreakerModule.switchDelay + (ShieldBreakerModule.switchDelay == 1 ? " Tick" : " Ticks");
+                button(context, delayLabel, card2X + cardW - 64, rowY, 52, 16, mouseX, mouseY);
+
+                rowY += 26;
+                text(context, "Switch Back", card2X + 14, rowY + 4, 0xFFD4D8E0);
+                toggle(context, card2X + cardW - 38, rowY + 2, ShieldBreakerModule.switchBack, mouseX, mouseY, delta);
+
+                rowY += 26;
+                button(context, "Reset", card2X + cardW - 58, rowY, 46, 16, mouseX, mouseY);
+            }
+            rightY += sbH + 12;
+        }
+
         // Close scissor
-        context.disableScissor();
+        if (needScissor) {
+            context.disableScissor();
+        }
 
         // Scrollbar
         if (maxScroll(ch) > 0) {
-            int sbX = px + pw - 9;
+            int sbX = cx + cw + 4;
             CustomGuiUtils.fillUltraRounded(context, sbX, cy, 4, ch, 0x33000000, 2);
             CustomGuiUtils.fillUltraRounded(context, sbX, thumbY(cy, ch), 4, thumbHeight(ch), scrollDragging ? GuiTheme.accent() : 0x88A0AAB8, 2);
         }
+
+        if (BameClientConfig.threeDGui) {
+            ThreeDGuiManager.pop3D(context);
+        }
+
+        com.bame.client.notification.NotificationManager.render(context, delta);
     }
 
     @Override
     public boolean mouseClicked(Click click, boolean twice) {
+        geometry();
+        if (BameClientConfig.threeDGui && leftSkinWidget != null) {
+            if (inside(click.x(), click.y(), leftSkinWidget.getX(), leftSkinWidget.getY(), leftSkinWidget.getWidth(), leftSkinWidget.getHeight())) {
+                return true;
+            }
+        }
+
+        if (BameClientConfig.threeDGui) {
+            double[] localM = ThreeDGuiManager.screenToLocal(click.x(), click.y());
+            click = new Click(localM[0], localM[1], click.buttonInfo());
+        }
         double mx = click.x();
         double my = click.y();
-
-        int pw = Math.clamp(width - 40, 600, 680);
-        int ph = Math.clamp(height - 40, 320, 390);
-        int px = (width - pw) / 2;
-        int py = (height - ph) / 2;
 
         String badge = "SECRET MENU";
         int badgeW = textRenderer.getWidth(CustomGuiUtils.getFontText(badge)) + 12;
@@ -1068,10 +1395,10 @@ public class SecretScreen extends Screen {
         int ch = ph - 56;
 
         // Scrollbar dragging start
-        if (maxScroll(ch) > 0 && inside(mx, my, px + pw - 14, cy, 12, ch)) {
+        if (maxScroll(ch) > 0 && (inside(mx, my, cx + cw - 2, cy, 14, ch) || inside(mx, my, px + pw - 14, cy, 12, ch))) {
             unfocus();
             scrollDragging = true;
-            scrollGrab = inside(mx, my, px + pw - 14, thumbY(cy, ch), 12, thumbHeight(ch)) ? my - thumbY(cy, ch) : thumbHeight(ch) / 2.0;
+            scrollGrab = (inside(mx, my, cx + cw - 2, thumbY(cy, ch), 14, thumbHeight(ch)) || inside(mx, my, px + pw - 14, thumbY(cy, ch), 12, thumbHeight(ch))) ? my - thumbY(cy, ch) : thumbHeight(ch) / 2.0;
             dragScroll(my, cy, ch);
             return true;
         }
@@ -1096,6 +1423,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
                 PearlPredictionModule.enabled = !PearlPredictionModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Pearl Prediction", PearlPredictionModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1170,6 +1498,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
                 AutoCartModule.enabled = !AutoCartModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Auto Cart", AutoCartModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1257,6 +1586,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
                 AutoMaceModule.enabled = !AutoMaceModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Auto Mace", AutoMaceModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1377,6 +1707,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
                 DTapModule.enabled = !DTapModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("D-Tap", DTapModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1471,6 +1802,196 @@ public class SecretScreen extends Screen {
             leftY += dtH + 12;
         }
 
+        // ==================== Card 5: Triggerbot ====================
+        if (triggerbotVisible()) {
+            int tbH = getTriggerbotHeight();
+            // Main toggle
+            if (inside(mx, my, card1X + cardW - 38, leftY + 12, 26, 14)) {
+                TriggerbotModule.enabled = !TriggerbotModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Triggerbot", TriggerbotModule.enabled);
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card1X + 60, leftY + 25, 48, 16)) {
+                listeningTriggerbotKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                listeningShieldBreakerKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card1X, leftY, cardW, 46)) {
+                TriggerbotModule.expanded = !TriggerbotModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (TriggerbotModule.expanded) {
+                // Profile row 1 & 2:
+                int btnW = (cardW - 28 - 6) / 2;
+                int btnH = 17;
+                int b1X = card1X + 14;
+                int b2X = b1X + btnW + 6;
+
+                int rowY = leftY + 52 + 14;
+                // Preset 0: 1.9+ PvP
+                if (inside(mx, my, b1X, rowY, btnW, btnH)) {
+                    TriggerbotModule.applyPreset(0);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+                // Preset 1: Legit (LMB)
+                if (inside(mx, my, b2X, rowY, btnW, btnH)) {
+                    TriggerbotModule.applyPreset(1);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+
+                rowY += 21;
+                // Preset 2: 1.8 CPS
+                if (inside(mx, my, b1X, rowY, btnW, btnH)) {
+                    TriggerbotModule.applyPreset(2);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+                // Preset 3: Test-Modus
+                if (inside(mx, my, b2X, rowY, btnW, btnH)) {
+                    TriggerbotModule.applyPreset(3);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+
+                // Auslöser
+                rowY += 23;
+                int optW = 76;
+                int optH = 16;
+                int opt2X = card1X + cardW - optW - 14;
+                int opt1X = opt2X - optW - 4;
+                if (inside(mx, my, opt1X, rowY, optW, optH)) {
+                    TriggerbotModule.holdAttackKey = false;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, opt2X, rowY, optW, optH)) {
+                    TriggerbotModule.holdAttackKey = true;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Ziel
+                rowY += 22;
+                if (inside(mx, my, opt1X, rowY, optW, optH)) {
+                    TriggerbotModule.playersOnly = true;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (inside(mx, my, opt2X, rowY, optW, optH)) {
+                    TriggerbotModule.playersOnly = false;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Reichweite slider (2.5 to 4.5 blocks)
+                rowY += 22;
+                int sx = card1X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingTriggerbotRange = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    TriggerbotModule.range = Math.round((2.5 + fval * 2.0) * 10.0) / 10.0;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Details / Feintuning Toggle Button
+                rowY += 22;
+                if (inside(mx, my, card1X + 14, rowY, cardW - 28, 16)) {
+                    TriggerbotModule.showDetails = !TriggerbotModule.showDetails;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                if (TriggerbotModule.showDetails) {
+                    // Modus: Cooldown / CPS
+                    rowY += 22;
+                    if (inside(mx, my, opt1X, rowY, optW, optH)) {
+                        TriggerbotModule.mode = 0;
+                        ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+                    if (inside(mx, my, opt2X, rowY, optW, optH)) {
+                        TriggerbotModule.mode = 1;
+                        ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+
+                    // Charge / CPS slider
+                    rowY += 22;
+                    if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                        draggingTriggerbotCooldown = true;
+                        float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                        if (TriggerbotModule.mode == 0) {
+                            TriggerbotModule.cooldownThreshold = Math.round((0.8f + fval * 0.2f) * 100.0f) / 100.0f;
+                        } else {
+                            TriggerbotModule.cps = Math.max(1, Math.min(20, Math.round(1 + fval * 19.0f)));
+                        }
+                        ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+
+                    // Nur Waffen toggle
+                    rowY += 22;
+                    if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                        TriggerbotModule.weaponOnly = !TriggerbotModule.weaponOnly;
+                        ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+
+                    // Human Jitter toggle
+                    rowY += 22;
+                    if (inside(mx, my, card1X + cardW - 38, rowY + 2, 26, 14)) {
+                        TriggerbotModule.randomJitter = !TriggerbotModule.randomJitter;
+                        ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        return true;
+                    }
+
+                    // Reset button
+                    rowY += 22;
+                    if (inside(mx, my, card1X + cardW - 58, rowY, 46, 16)) {
+                        TriggerbotModule.resetToDefault();
+                        ClientSoundManager.playClick();
+                        return true;
+                    }
+                }
+            }
+            leftY += tbH + 12;
+        }
+
         int rightY = baseY;
 
         // ==================== Card: Pearl Catch ====================
@@ -1479,6 +2000,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
                 PearlCatchModule.enabled = !PearlCatchModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Pearl Catch", PearlCatchModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1566,6 +2088,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
                 AggroPearlModule.enabled = !AggroPearlModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Aggro Pearl", AggroPearlModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1644,6 +2167,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
                 NameProtectModule.enabled = !NameProtectModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Name Protect", NameProtectModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1700,6 +2224,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
                 FakeScoreboardModule.enabled = !FakeScoreboardModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Fake Scoreboard", FakeScoreboardModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1787,6 +2312,7 @@ public class SecretScreen extends Screen {
             // Main toggle
             if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
                 SkinProtectModule.enabled = !SkinProtectModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Skin Protect", SkinProtectModule.enabled);
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
@@ -1858,18 +2384,123 @@ public class SecretScreen extends Screen {
             rightY += c4H + 12;
         }
 
+        // ==================== Card 6: Shield Breaker ====================
+        if (shieldBreakerVisible()) {
+            int sbH = getShieldBreakerHeight();
+            // Main toggle
+            if (inside(mx, my, card2X + cardW - 38, rightY + 12, 26, 14)) {
+                ShieldBreakerModule.enabled = !ShieldBreakerModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Shield Breaker", ShieldBreakerModule.enabled);
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            // Keybind button
+            if (inside(mx, my, card2X + 60, rightY + 25, 48, 16)) {
+                listeningShieldBreakerKey = true;
+                listeningCombo = false;
+                listeningPearlKey = false;
+                listeningCartKey = false;
+                listeningMaceKey = false;
+                listeningDTapKey = false;
+                listeningCatchKey = false;
+                listeningAggroKey = false;
+                listeningNameKey = false;
+                listeningFakeKey = false;
+                listeningSkinKey = false;
+                listeningTriggerbotKey = false;
+                ClientSoundManager.playClick();
+                return true;
+            }
+
+            // Header expand click
+            if (inside(mx, my, card2X, rightY, cardW, 46)) {
+                ShieldBreakerModule.expanded = !ShieldBreakerModule.expanded;
+                ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+
+            if (ShieldBreakerModule.expanded) {
+                int rowY = rightY + 54;
+                int btnW = 74;
+                int btnH = 18;
+                int btn2X = card2X + cardW - btnW - 14;
+                int btn1X = btn2X - btnW - 6;
+
+                // Mode: Automatisch
+                if (inside(mx, my, btn1X, rowY, btnW, btnH)) {
+                    ShieldBreakerModule.mode = 0;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                // Mode: Bei Klick
+                if (inside(mx, my, btn2X, rowY, btnW, btnH)) {
+                    ShieldBreakerModule.mode = 1;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reichweite slider (2.5 to 4.5 blocks)
+                int sx = card2X + cardW - 100 - 14;
+                int sw = 100;
+                if (inside(mx, my, sx - 4, rowY + 2, sw + 8, 14)) {
+                    draggingShieldBreakerRange = true;
+                    float fval = (float) Math.clamp((mx - sx) / (double) sw, 0.0, 1.0);
+                    ShieldBreakerModule.reach = Math.round((2.5 + fval * 2.0) * 10.0) / 10.0;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Delay button (cycles 1 -> 2 -> 3 -> 1 tick)
+                if (inside(mx, my, card2X + cardW - 64, rowY, 52, 16)) {
+                    if (ShieldBreakerModule.switchDelay == 1) ShieldBreakerModule.switchDelay = 2;
+                    else if (ShieldBreakerModule.switchDelay == 2) ShieldBreakerModule.switchDelay = 3;
+                    else ShieldBreakerModule.switchDelay = 1;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Switch Back toggle
+                if (inside(mx, my, card2X + cardW - 38, rowY + 2, 26, 14)) {
+                    ShieldBreakerModule.switchBack = !ShieldBreakerModule.switchBack;
+                    ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    return true;
+                }
+
+                rowY += 26;
+                // Reset button
+                if (inside(mx, my, card2X + cardW - 58, rowY, 46, 16)) {
+                    ShieldBreakerModule.resetToDefault();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            rightY += sbH + 12;
+        }
+
         unfocus();
         return super.mouseClicked(click, twice);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-        int pw = Math.clamp(width - 40, 600, 680);
-        int ph = Math.clamp(height - 40, 320, 390);
-        int px = (width - pw) / 2;
-        int py = (height - ph) / 2;
+        geometry();
+        double[] localM = ThreeDGuiManager.screenToLocal(mouseX, mouseY);
+        double mx = localM[0];
+        double my = localM[1];
         int ch = ph - 56;
-        if (inside(mouseX, mouseY, px, py, pw, ph)) {
+        if (inside(mx, my, px, py, pw, ph)) {
             scroll = Math.clamp(scroll - vertical * 26, 0, maxScroll(ch));
             return true;
         }
@@ -1878,10 +2509,19 @@ public class SecretScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double dx, double dy) {
-        int pw = Math.clamp(width - 40, 600, 680);
-        int ph = Math.clamp(height - 40, 320, 390);
-        int px = (width - pw) / 2;
-        int py = (height - ph) / 2;
+        geometry();
+        if (BameClientConfig.threeDGui && leftSkinWidget != null) {
+            if (inside(click.x(), click.y(), leftSkinWidget.getX(), leftSkinWidget.getY(), leftSkinWidget.getWidth(), leftSkinWidget.getHeight())) {
+                leftSkinWidget.mouseDragged(click, dx, dy);
+                return true;
+            }
+        }
+
+        if (BameClientConfig.threeDGui) {
+            double[] localM = ThreeDGuiManager.screenToLocal(click.x(), click.y());
+            click = new Click(localM[0], localM[1], click.buttonInfo());
+        }
+
         int cx = px + 14;
         int cy = py + 48;
         int cw = pw - 28;
@@ -1931,6 +2571,40 @@ public class SecretScreen extends Screen {
             AggroPearlModule.throwDelay = Math.max(0, Math.min(5, Math.round(fval * 5.0f)));
             return true;
         }
+        if (draggingTriggerbotCooldown) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card1X = cx;
+            int sx = card1X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            if (TriggerbotModule.mode == 0) {
+                TriggerbotModule.cooldownThreshold = Math.round((0.8f + fval * 0.2f) * 100.0f) / 100.0f;
+            } else {
+                TriggerbotModule.cps = Math.max(1, Math.min(20, Math.round(1 + fval * 19.0f)));
+            }
+            return true;
+        }
+        if (draggingTriggerbotRange) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card1X = cx;
+            int sx = card1X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            TriggerbotModule.range = Math.round((2.5 + fval * 2.0) * 10.0) / 10.0;
+            return true;
+        }
+        if (draggingShieldBreakerRange) {
+            int gap = 14;
+            int cardW = (cw - gap) / 2;
+            int card2X = cx + cardW + gap;
+            int sx = card2X + cardW - 100 - 14;
+            int sw = 100;
+            float fval = (float) Math.clamp(((click.x() - sx) / (double) sw), 0.0, 1.0);
+            ShieldBreakerModule.reach = Math.round((2.5 + fval * 2.0) * 10.0) / 10.0;
+            return true;
+        }
         if (skinPreviewWidget != null && inside(click.x(), click.y(), cx, cy, cw, ch) && inside(click.x(), click.y(), skinPreviewWidget.getX(), skinPreviewWidget.getY(), skinPreviewWidget.getWidth(), skinPreviewWidget.getHeight())) {
             skinPreviewWidget.mouseDragged(click, dx, dy);
             return true;
@@ -1957,12 +2631,40 @@ public class SecretScreen extends Screen {
             draggingAggroDelay = false;
             BameClientConfig.save();
         }
+        if (draggingTriggerbotCooldown) {
+            draggingTriggerbotCooldown = false;
+            BameClientConfig.save();
+        }
+        if (draggingTriggerbotRange) {
+            draggingTriggerbotRange = false;
+            BameClientConfig.save();
+        }
+        if (draggingShieldBreakerRange) {
+            draggingShieldBreakerRange = false;
+            BameClientConfig.save();
+        }
         return super.mouseReleased(click);
     }
 
     @Override
     public boolean keyPressed(KeyInput input) {
         int key = input.key();
+
+        if (listeningTriggerbotKey) {
+            TriggerbotModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningTriggerbotKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
+
+        if (listeningShieldBreakerKey) {
+            ShieldBreakerModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningShieldBreakerKey = false;
+            ClientSoundManager.playClick();
+            BameClientConfig.save();
+            return true;
+        }
 
         if (listeningAggroKey) {
             AggroPearlModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;

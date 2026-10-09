@@ -35,7 +35,8 @@
     "ClientWorldPropertiesMixin",
     "DefaultSkinHelperAccessor",
     "AbstractClientPlayerEntityMixin",
-    "PlayerListEntryMixin"
+    "PlayerListEntryMixin",
+    "PlayerSkinGuiElementRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

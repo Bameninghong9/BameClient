@@ -97,6 +97,7 @@ public class CustomHitboxesModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             toggleHitboxes();
+            com.bame.client.notification.NotificationManager.showModuleToggle("Hitboxes", isF3BActive());
         }
         wasKeyBindPressed = pressed;
     }

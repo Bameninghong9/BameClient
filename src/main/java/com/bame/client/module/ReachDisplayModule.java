@@ -64,6 +64,7 @@ public class ReachDisplayModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Reach Display", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

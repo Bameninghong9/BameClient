@@ -16,7 +16,7 @@ public class BameClientConfig {
     public static boolean fullbrightEnabled = false;
     public static float fullbrightIntensity = 1.0f;
     public static String theme = "Ultraviolet";
-    public static boolean seeThrough = false, frostedBlur = true, ambientBackground = true;
+    public static boolean seeThrough = false, frostedBlur = true, ambientBackground = false;
 
     // Custom Wallpaper
     public static boolean customWallpaper = false;
@@ -47,6 +47,8 @@ public class BameClientConfig {
     public static boolean hoverSound = true;
     public static int hoverStyle = 0; // 0=Soft Tick, 1=Pop, 2=Subtle, 3=Breeze
     public static float hoverVolume = 1.00f;
+    public static boolean notifications = true;
+    public static boolean threeDGui = true;
 
     public static void load() {
         Path visualsDir = BASE_CONFIG_DIR.resolve("Visuals");
@@ -518,6 +520,37 @@ public class BameClientConfig {
                 if (props.containsKey("switchBack")) AggroPearlModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
             }
 
+            // Combat - Triggerbot
+            Path triggerbotFile = BASE_CONFIG_DIR.resolve("Combat").resolve("triggerbot.properties");
+            if (Files.exists(triggerbotFile)) {
+                Properties props = loadProps(triggerbotFile);
+                if (props.containsKey("enabled")) TriggerbotModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) TriggerbotModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) TriggerbotModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("showDetails")) TriggerbotModule.showDetails = Boolean.parseBoolean(props.getProperty("showDetails"));
+                if (props.containsKey("mode")) TriggerbotModule.mode = Integer.parseInt(props.getProperty("mode"));
+                if (props.containsKey("cooldownThreshold")) TriggerbotModule.cooldownThreshold = Float.parseFloat(props.getProperty("cooldownThreshold"));
+                if (props.containsKey("cps")) TriggerbotModule.cps = Integer.parseInt(props.getProperty("cps"));
+                if (props.containsKey("playersOnly")) TriggerbotModule.playersOnly = Boolean.parseBoolean(props.getProperty("playersOnly"));
+                if (props.containsKey("weaponOnly")) TriggerbotModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
+                if (props.containsKey("holdAttackKey")) TriggerbotModule.holdAttackKey = Boolean.parseBoolean(props.getProperty("holdAttackKey"));
+                if (props.containsKey("range")) TriggerbotModule.range = Double.parseDouble(props.getProperty("range"));
+                if (props.containsKey("randomJitter")) TriggerbotModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
+            }
+
+            // Combat - ShieldBreaker
+            Path shieldBreakerFile = BASE_CONFIG_DIR.resolve("Combat").resolve("shield_breaker.properties");
+            if (Files.exists(shieldBreakerFile)) {
+                Properties props = loadProps(shieldBreakerFile);
+                if (props.containsKey("enabled")) ShieldBreakerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) ShieldBreakerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) ShieldBreakerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("mode")) ShieldBreakerModule.mode = Integer.parseInt(props.getProperty("mode"));
+                if (props.containsKey("switchBack")) ShieldBreakerModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+                if (props.containsKey("switchDelay")) ShieldBreakerModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
+                if (props.containsKey("reach")) ShieldBreakerModule.reach = Double.parseDouble(props.getProperty("reach"));
+            }
+
             // World - NoFog
             Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
             if (Files.exists(noFogFile)) {
@@ -715,6 +748,8 @@ public class BameClientConfig {
                 if (props.containsKey("hoverSound")) hoverSound = Boolean.parseBoolean(props.getProperty("hoverSound"));
                 if (props.containsKey("hoverStyle")) hoverStyle = Integer.parseInt(props.getProperty("hoverStyle"));
                 if (props.containsKey("hoverVolume")) hoverVolume = Float.parseFloat(props.getProperty("hoverVolume"));
+                if (props.containsKey("notifications")) notifications = Boolean.parseBoolean(props.getProperty("notifications"));
+                if (props.containsKey("threeDGui")) threeDGui = Boolean.parseBoolean(props.getProperty("threeDGui"));
                 if (props.containsKey("secretRequireShift")) secretRequireShift = Boolean.parseBoolean(props.getProperty("secretRequireShift"));
                 if (props.containsKey("secretRequireCtrl")) secretRequireCtrl = Boolean.parseBoolean(props.getProperty("secretRequireCtrl"));
                 if (props.containsKey("secretRequireAlt")) secretRequireAlt = Boolean.parseBoolean(props.getProperty("secretRequireAlt"));
@@ -1118,6 +1153,33 @@ public class BameClientConfig {
             aggroPearlProps.setProperty("switchBack", String.valueOf(AggroPearlModule.switchBack));
             saveProps(combatDir.resolve("aggro_pearl.properties"), aggroPearlProps, "Caeser Client - AggroPearl");
 
+            // Combat - Triggerbot
+            Properties triggerbotProps = new Properties();
+            triggerbotProps.setProperty("enabled", String.valueOf(TriggerbotModule.enabled));
+            triggerbotProps.setProperty("keyBind", String.valueOf(TriggerbotModule.keyBind));
+            triggerbotProps.setProperty("expanded", String.valueOf(TriggerbotModule.expanded));
+            triggerbotProps.setProperty("showDetails", String.valueOf(TriggerbotModule.showDetails));
+            triggerbotProps.setProperty("mode", String.valueOf(TriggerbotModule.mode));
+            triggerbotProps.setProperty("cooldownThreshold", String.valueOf(TriggerbotModule.cooldownThreshold));
+            triggerbotProps.setProperty("cps", String.valueOf(TriggerbotModule.cps));
+            triggerbotProps.setProperty("playersOnly", String.valueOf(TriggerbotModule.playersOnly));
+            triggerbotProps.setProperty("weaponOnly", String.valueOf(TriggerbotModule.weaponOnly));
+            triggerbotProps.setProperty("holdAttackKey", String.valueOf(TriggerbotModule.holdAttackKey));
+            triggerbotProps.setProperty("range", String.valueOf(TriggerbotModule.range));
+            triggerbotProps.setProperty("randomJitter", String.valueOf(TriggerbotModule.randomJitter));
+            saveProps(combatDir.resolve("triggerbot.properties"), triggerbotProps, "Caeser Client - Triggerbot");
+
+            // Combat - ShieldBreaker
+            Properties shieldBreakerProps = new Properties();
+            shieldBreakerProps.setProperty("enabled", String.valueOf(ShieldBreakerModule.enabled));
+            shieldBreakerProps.setProperty("keyBind", String.valueOf(ShieldBreakerModule.keyBind));
+            shieldBreakerProps.setProperty("expanded", String.valueOf(ShieldBreakerModule.expanded));
+            shieldBreakerProps.setProperty("mode", String.valueOf(ShieldBreakerModule.mode));
+            shieldBreakerProps.setProperty("switchBack", String.valueOf(ShieldBreakerModule.switchBack));
+            shieldBreakerProps.setProperty("switchDelay", String.valueOf(ShieldBreakerModule.switchDelay));
+            shieldBreakerProps.setProperty("reach", String.valueOf(ShieldBreakerModule.reach));
+            saveProps(combatDir.resolve("shield_breaker.properties"), shieldBreakerProps, "Caeser Client - ShieldBreaker");
+
             // World - NoFog
             Properties noFogProps = new Properties();
             noFogProps.setProperty("enabled", String.valueOf(NoFogModule.enabled));
@@ -1256,6 +1318,8 @@ public class BameClientConfig {
             settingsProps.setProperty("hoverSound", String.valueOf(hoverSound));
             settingsProps.setProperty("hoverStyle", String.valueOf(hoverStyle));
             settingsProps.setProperty("hoverVolume", String.valueOf(hoverVolume));
+            settingsProps.setProperty("notifications", String.valueOf(notifications));
+            settingsProps.setProperty("threeDGui", String.valueOf(threeDGui));
             settingsProps.setProperty("secretRequireShift", String.valueOf(secretRequireShift));
             settingsProps.setProperty("secretRequireCtrl", String.valueOf(secretRequireCtrl));
             settingsProps.setProperty("secretRequireAlt", String.valueOf(secretRequireAlt));
@@ -1501,6 +1565,7 @@ public class BameClientConfig {
             if (props.containsKey("menuBind")) menuBind = Integer.parseInt(props.getProperty("menuBind"));
             if (props.containsKey("quickFriend")) quickFriend = Boolean.parseBoolean(props.getProperty("quickFriend"));
             if (props.containsKey("guiAnimation")) guiAnimation = Integer.parseInt(props.getProperty("guiAnimation"));
+            if (props.containsKey("threeDGui")) threeDGui = Boolean.parseBoolean(props.getProperty("threeDGui"));
             if (props.containsKey("selectedCategory")) {
                 selectedCategory = props.getProperty("selectedCategory");
                 com.bame.client.gui.BameClientScreen.selected = selectedCategory;

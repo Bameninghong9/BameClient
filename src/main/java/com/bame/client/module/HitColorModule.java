@@ -57,6 +57,7 @@ public class HitColorModule {
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
             apply();
+            com.bame.client.notification.NotificationManager.showModuleToggle("Hit Color", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

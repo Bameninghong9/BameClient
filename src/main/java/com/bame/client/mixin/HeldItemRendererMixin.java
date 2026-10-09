@@ -17,6 +17,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(HeldItemRenderer.class)
 public class HeldItemRendererMixin {
+    @Inject(method = "renderFirstPersonItem", at = @At("HEAD"), cancellable = true)
+    private void onRenderFirstPersonItemHead(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
+                                             float swingProgress, ItemStack item, float equipProgress,
+                                             MatrixStack matrices, OrderedRenderCommandQueue renderQueue, int light,
+                                             CallbackInfo ci) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.currentScreen instanceof com.bame.client.gui.BameClientScreen ||
+            client.currentScreen instanceof com.bame.client.gui.SecretScreen) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "renderFirstPersonItem",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;push()V", shift = At.Shift.AFTER))
     private void onRenderFirstPersonItem(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,

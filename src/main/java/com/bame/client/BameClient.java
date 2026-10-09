@@ -52,6 +52,21 @@ public class BameClient implements ClientModInitializer {
                     client.send(() -> client.setScreen(new BameClientScreen()));
                     return 1;
                 }));
+            dispatcher.register(ClientCommandManager.literal("cosmetics")
+                .executes(context -> {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    client.send(() -> {
+                        BameClientScreen.selected = "Cosmetics";
+                        client.setScreen(new BameClientScreen());
+                    });
+                    return 1;
+                }));
+        });
+
+        net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, livingEntityRenderer, registrationHelper, context) -> {
+            if (livingEntityRenderer instanceof net.minecraft.client.render.entity.PlayerEntityRenderer playerRenderer) {
+                registrationHelper.register(new com.bame.client.cosmetics.CaeserCosmeticsRenderer(playerRenderer));
+            }
         });
         
         net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
@@ -89,6 +104,8 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.module.DTapModule.onTick(client);
             com.bame.client.module.PearlCatchModule.onTick(client);
             com.bame.client.module.AggroPearlModule.onTick(client);
+            com.bame.client.module.TriggerbotModule.onTick(client);
+            com.bame.client.module.ShieldBreakerModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
                 // KeyStrokes bind
@@ -96,6 +113,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), KeyStrokesModule.keyBind);
                     if (down && !keyStrokesWasPressed) {
                         KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("KeyStrokes", KeyStrokesModule.enabled);
                         BameClientConfig.save();
                     }
                     keyStrokesWasPressed = down;
@@ -106,6 +124,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), FpsModule.keyBind);
                     if (down && !fpsWasPressed) {
                         FpsModule.enabled = !FpsModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("FPS", FpsModule.enabled);
                         BameClientConfig.save();
                     }
                     fpsWasPressed = down;
@@ -116,6 +135,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), PingModule.keyBind);
                     if (down && !pingWasPressed) {
                         PingModule.enabled = !PingModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Ping", PingModule.enabled);
                         BameClientConfig.save();
                     }
                     pingWasPressed = down;
@@ -126,6 +146,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), CpsModule.keyBind);
                     if (down && !cpsWasPressed) {
                         CpsModule.enabled = !CpsModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("CPS", CpsModule.enabled);
                         BameClientConfig.save();
                     }
                     cpsWasPressed = down;
@@ -136,6 +157,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), ServerInfoModule.keyBind);
                     if (down && !serverInfoWasPressed) {
                         ServerInfoModule.enabled = !ServerInfoModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Server Info", ServerInfoModule.enabled);
                         BameClientConfig.save();
                     }
                     serverInfoWasPressed = down;
@@ -146,6 +168,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), NameProtectModule.keyBind);
                     if (down && !nameProtectWasPressed) {
                         NameProtectModule.enabled = !NameProtectModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Name Protect", NameProtectModule.enabled);
                         BameClientConfig.save();
                     }
                     nameProtectWasPressed = down;
@@ -156,6 +179,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), ShowHudModule.keyBind);
                     if (down && !showHudWasPressed) {
                         ShowHudModule.enabled = !ShowHudModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("HUD", ShowHudModule.enabled);
                         BameClientConfig.save();
                     }
                     showHudWasPressed = down;
@@ -166,6 +190,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.FakeScoreboardModule.keyBind);
                     if (down && !fakeScoreboardWasPressed) {
                         com.bame.client.module.FakeScoreboardModule.enabled = !com.bame.client.module.FakeScoreboardModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Fake Scoreboard", com.bame.client.module.FakeScoreboardModule.enabled);
                         BameClientConfig.save();
                     }
                     fakeScoreboardWasPressed = down;
@@ -179,6 +204,7 @@ public class BameClient implements ClientModInitializer {
                         if (SpotifyHudModule.enabled) {
                             com.bame.client.spotify.SpotifyService.start();
                         }
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Spotify HUD", SpotifyHudModule.enabled);
                         BameClientConfig.save();
                     }
                     spotifyHudWasPressed = down;
@@ -189,6 +215,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.ScoreboardModule.keyBind);
                     if (down && !scoreboardWasPressed) {
                         com.bame.client.module.ScoreboardModule.enabled = !com.bame.client.module.ScoreboardModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Scoreboard", com.bame.client.module.ScoreboardModule.enabled);
                         BameClientConfig.save();
                     }
                     scoreboardWasPressed = down;
@@ -199,6 +226,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.CustomCrosshairModule.keyBind);
                     if (down && !crosshairWasPressed) {
                         com.bame.client.module.CustomCrosshairModule.enabled = !com.bame.client.module.CustomCrosshairModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Crosshair", com.bame.client.module.CustomCrosshairModule.enabled);
                         BameClientConfig.save();
                     }
                     crosshairWasPressed = down;
@@ -209,6 +237,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.TimeChangerModule.keyBind);
                     if (down && !timeChangerWasPressed) {
                         com.bame.client.module.TimeChangerModule.enabled = !com.bame.client.module.TimeChangerModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Time Changer", com.bame.client.module.TimeChangerModule.enabled);
                         BameClientConfig.save();
                     }
                     timeChangerWasPressed = down;
@@ -219,6 +248,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.SkinProtectModule.keyBind);
                     if (down && !skinProtectWasPressed) {
                         com.bame.client.module.SkinProtectModule.enabled = !com.bame.client.module.SkinProtectModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Skin Protect", com.bame.client.module.SkinProtectModule.enabled);
                         BameClientConfig.save();
                     }
                     skinProtectWasPressed = down;
@@ -262,6 +292,7 @@ public class BameClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.KeyStrokesRenderer());
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.StatusHudRenderer());
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.FakeScoreboardRenderer());
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.notification.NotificationManager());
         
         WorldRenderEvents.END_MAIN.register(context -> {
             AreaRenderer.render(context);

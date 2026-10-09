@@ -73,6 +73,7 @@ public class AutoToolModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Auto Tool", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

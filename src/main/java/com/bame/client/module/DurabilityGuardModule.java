@@ -81,6 +81,7 @@ public class DurabilityGuardModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("Durability Guard", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

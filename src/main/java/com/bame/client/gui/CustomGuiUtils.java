@@ -232,51 +232,71 @@ public class CustomGuiUtils {
         }
     }
 
-    private static final Map<String, Identifier> ICONS = Map.of(
-        "search", Identifier.of("bameclient", "textures/gui/icons/search.png"),
-        "combat", Identifier.of("bameclient", "textures/gui/icons/combat.png"),
-        "movement", Identifier.of("bameclient", "textures/gui/icons/movement.png"),
-        "visuals", Identifier.of("bameclient", "textures/gui/icons/visuals.png"),
-        "misc", Identifier.of("bameclient", "textures/gui/icons/misc.png"),
-        "world", Identifier.of("bameclient", "textures/gui/icons/world.png"),
-        "settings", Identifier.of("bameclient", "textures/gui/icons/settings.png"),
-        "reset", Identifier.of("bameclient", "textures/gui/icons/reset.png"));
+    private static final Map<String, Identifier> ICONS = Map.ofEntries(
+        Map.entry("search", Identifier.of("bameclient", "textures/gui/icons/search.png")),
+        Map.entry("combat", Identifier.of("bameclient", "textures/gui/icons/combat.png")),
+        Map.entry("movement", Identifier.of("bameclient", "textures/gui/icons/movement.png")),
+        Map.entry("visuals", Identifier.of("bameclient", "textures/gui/icons/visuals.png")),
+        Map.entry("misc", Identifier.of("bameclient", "textures/gui/icons/misc.png")),
+        Map.entry("world", Identifier.of("bameclient", "textures/gui/icons/world.png")),
+        Map.entry("settings", Identifier.of("bameclient", "textures/gui/icons/settings.png")),
+        Map.entry("reset", Identifier.of("bameclient", "textures/gui/icons/reset.png")),
+        Map.entry("shirt", Identifier.of("bameclient", "textures/gui/icons/shirt.png")),
+        Map.entry("bolt", Identifier.of("bameclient", "textures/gui/icons/bolt.png")),
+        Map.entry("camera", Identifier.of("bameclient", "textures/gui/icons/camera.png")),
+        Map.entry("hud", Identifier.of("bameclient", "textures/gui/icons/hud.png")),
+        Map.entry("crown", Identifier.of("bameclient", "textures/gui/icons/crown.png")),
+        Map.entry("music", Identifier.of("bameclient", "textures/gui/icons/music.png")),
+        Map.entry("trash", Identifier.of("bameclient", "textures/gui/icons/trash.png")),
+        Map.entry("c_logo", Identifier.of("bameclient", "textures/gui/icons/c_logo.png"))
+    );
 
-    private static void drawIcon(DrawContext context, String name, int x, int y, int color) {
+    public static void drawIcon(DrawContext context, String name, int x, int y, int size, int color) {
+        drawIcon(context, name, x, y, size, size, color);
+    }
+
+    public static void drawIcon(DrawContext context, String name, int x, int y, int w, int h, int color) {
+        Identifier id = ICONS.get(name);
+        if (id == null) return;
         context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
-            ICONS.get(name), x, y, 0.0f, 0.0f, 12, 12, 96, 96, 96, 96, color);
+            id, x, y, 0.0f, 0.0f, w, h, 96, 96, 96, 96, color);
     }
 
-    public static void drawSearchIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "search", x, y, color); }
-    public static void drawCombatIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "combat", x, y, color); }
-    public static void drawMovementIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "movement", x, y, color); }
-    public static void drawVisualsIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "visuals", x, y, color); }
-    public static void drawMiscIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "misc", x, y, color); }
-    public static void drawGlobeIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "world", x, y, color); }
-    public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, color); }
-    public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, color); }
-    public static void drawTrashIcon(DrawContext context, int x, int y, int color) {
-        context.fill(x + 6, y + 2, x + 10, y + 3, color);
-        context.fill(x + 3, y + 3, x + 13, y + 4, color);
-        context.fill(x + 4, y + 5, x + 5, y + 13, color);
-        context.fill(x + 11, y + 5, x + 12, y + 13, color);
-        context.fill(x + 4, y + 12, x + 12, y + 13, color);
-        context.fill(x + 6, y + 6, x + 7, y + 11, color);
-        context.fill(x + 9, y + 6, x + 10, y + 11, color);
+    public static void drawSearchIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "search", x, y, 14, 14, color); }
+    public static void drawCombatIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "combat", x, y, 18, 18, color); }
+    public static void drawMovementIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "movement", x, y, 18, 18, color); }
+    public static void drawVisualsIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "visuals", x, y, 18, 18, color); }
+    public static void drawMiscIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "misc", x, y, 18, 18, color); }
+    public static void drawGlobeIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "world", x, y, 18, 18, color); }
+    public static void drawGearIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "settings", x, y, 18, 18, color); }
+    public static void drawResetIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "reset", x, y, 14, 14, color); }
+    public static void drawShirtIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "shirt", x, y, 18, 18, color); }
+    public static void drawCameraIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "camera", x, y, 18, 18, color); }
+    public static void drawEmoteIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "hud", x, y, 18, 18, color); }
+    public static void drawCrownIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "crown", x, y, 18, 18, color); }
+    public static void drawMusicIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "music", x, y, 18, 18, color); }
+    public static void drawTrashIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "trash", x, y, 14, 14, color); }
+
+    public static void drawLightningBolt(DrawContext c, int x, int y, int w, int h, int color) {
+        drawIcon(c, "bolt", x, y, w, h, color);
     }
 
-    public static void drawMusicIcon(DrawContext context, int x, int y, int color) {
-        context.fill(x + 1, y + 7, x + 4, y + 10, color);
-        context.fill(x + 7, y + 5, x + 10, y + 8, color);
-        context.fill(x + 3, y + 2, x + 4, y + 8, color);
-        context.fill(x + 9, y + 1, x + 10, y + 6, color);
-        context.fill(x + 3, y + 1, x + 10, y + 3, color);
+    public static void drawCheckmark(DrawContext c, int x, int y, int color) {
+        drawIcon(c, "search", x, y, 12, 12, color);
     }
 
-    private static final Identifier C_LOGO = Identifier.of("bameclient", "textures/gui/c_logo.png");
+    public static void drawDotsIcon(DrawContext c, int x, int y, int color) {
+        c.fill(x, y + 1, x + 2, y + 3, color);
+        c.fill(x + 4, y + 1, x + 6, y + 3, color);
+        c.fill(x + 8, y + 1, x + 10, y + 3, color);
+    }
+
     public static void drawCLogo(DrawContext context, int x, int y, int size) {
-        context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
-            C_LOGO, x, y, 0.0f, 0.0f, size, size, 34, 34, 34, 34, 0xFFFFFFFF);
+        drawCLogo(context, x, y, size, 0xFFFFFFFF);
+    }
+
+    public static void drawCLogo(DrawContext context, int x, int y, int size, int color) {
+        drawIcon(context, "c_logo", x, y, size, size, color);
     }
 
     public static final Style SANS_STYLE = Style.EMPTY

@@ -12,7 +12,7 @@ final class ThemeSettingsPanel {
     private int half() { return (w-12)/2; }
     private int right() { return x+half()+12; }
     private int appearanceHeight() { return 168+(open==0?116:0); }
-    private int ambientTop() { return y+Math.max(appearanceHeight(),168)+12; }
+    private int ambientTop() { return y+Math.max(appearanceHeight(),208)+12; }
     private int ambientHeight() { return open==1?232:open==2?264:174; }
     private int motionTop() { return ambientTop()+ambientHeight()+12; }
     private int wallpaperTop() { return motionTop()+90+12; }
@@ -71,10 +71,10 @@ final class ThemeSettingsPanel {
         swatch(c,"Main Color",0,GuiTheme.accent());
         segments(c,"Toggle Style",groupY(0),new String[]{"Modern","Classic"},BameClientConfig.classicToggle?1:0);
         segments(c,"Ambient Color Mode",groupY(1),new String[]{"Theme","Custom","Two Color"},BameClientConfig.ambientMode);
-        card(c,right(),y,w-half()-12,168,"EFFECTS");
-        String[] effectLabels={"See-Through GUI","Frosted Blur","Ambient Background"};
-        boolean[] enabled={BameClientConfig.seeThrough,BameClientConfig.frostedBlur,BameClientConfig.ambientBackground};
-        for(int i=0;i<3;i++) {
+        card(c,right(),y,w-half()-12,208,"EFFECTS");
+        String[] effectLabels={"See-Through GUI","Frosted Blur","Ambient Background","Toast Notifications"};
+        boolean[] enabled={BameClientConfig.seeThrough,BameClientConfig.frostedBlur,BameClientConfig.ambientBackground,BameClientConfig.notifications};
+        for(int i=0;i<4;i++) {
             int ey=y+40+i*40;
             c.enableScissor(right()+10,ey,x+w-46,ey+28);
             text(c,effectLabels[i],right()+12,ey+2,0xFFD4D8E0);
@@ -176,10 +176,15 @@ final class ThemeSettingsPanel {
                 BameClientConfig.save(); return true;
             }
         }
-        for(int i=0;i<3;i++) if(hit(mx,my,right()+8,y+36+i*40,w-half()-20,32)) {
+        for(int i=0;i<4;i++) if(hit(mx,my,right()+8,y+36+i*40,w-half()-20,32)) {
             switch(i) { case 0 -> BameClientConfig.seeThrough=!BameClientConfig.seeThrough;
                 case 1 -> BameClientConfig.frostedBlur=!BameClientConfig.frostedBlur;
-                case 2 -> BameClientConfig.ambientBackground=!BameClientConfig.ambientBackground; }
+                case 2 -> BameClientConfig.ambientBackground=!BameClientConfig.ambientBackground;
+                case 3 -> {
+                    BameClientConfig.notifications=!BameClientConfig.notifications;
+                    com.bame.client.notification.NotificationManager.showModuleToggle("Notifications", BameClientConfig.notifications);
+                }
+            }
             BameClientConfig.save(); return true;
         }
         if(hit(mx,my,x+half()-38,motionTop()+54,26,14)) { BameClientConfig.ambientAnimation=!BameClientConfig.ambientAnimation; BameClientConfig.save(); return true; }

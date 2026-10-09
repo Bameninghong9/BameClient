@@ -24,6 +24,7 @@ public class AutoAreaMinerModule {
                 }
                 enabled = false;
             }
+            com.bame.client.notification.NotificationManager.showModuleToggle("Auto Area Miner", enabled);
         }
         wasKeyBindPressed = pressed;
 

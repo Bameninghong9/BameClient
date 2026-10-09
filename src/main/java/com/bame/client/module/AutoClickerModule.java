@@ -39,6 +39,7 @@ public class AutoClickerModule {
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             enabled = !enabled;
+            com.bame.client.notification.NotificationManager.showModuleToggle("AutoClicker", enabled);
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;

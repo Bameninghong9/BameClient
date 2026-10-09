@@ -47,7 +47,18 @@ jar {
 
 task printMethods { doLast { def clazz = Class.forName('net.minecraft.client.render.RenderLayer', false, project.configurations.compileClasspath.classLoader); clazz.getMethods().each { println it.name } } }
 
-task printVCMethods { doLast { def clazz = Class.forName('net.minecraft.client.render.VertexConsumer', false, project.configurations.compileClasspath.classLoader); clazz.getMethods().each { println it.name } } }
+task decompileFeatures {
+    doLast {
+        def cp = sourceSets.main.compileClasspath.asPath
+        def pb = new ProcessBuilder("javap", "-c", "-cp", cp, "net.minecraft.client.render.entity.feature.Deadmau5FeatureRenderer")
+        def proc = pb.start()
+        println proc.inputStream.text
+        pb = new ProcessBuilder("javap", "-c", "-cp", cp, "net.minecraft.client.render.entity.feature.ElytraFeatureRenderer")
+        proc = pb.start()
+        println proc.inputStream.text
+    }
+}
+
 
 // Standalone planner checks do not require a Minecraft client or JUnit.
 sourceSets {
@@ -60,5 +71,10 @@ tasks.register('plannerTest', JavaExec) {
     dependsOn plannerTestClasses
     classpath = sourceSets.plannerTest.runtimeClasspath
     mainClass = 'com.bame.client.module.LayerMiningPlannerTest'
+}
+tasks.register('testCosmeticModels', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.BedrockCosmeticModelTest'
 }
 tasks.named('check') { dependsOn 'plannerTest' }
