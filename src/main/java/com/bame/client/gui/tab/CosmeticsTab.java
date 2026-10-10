@@ -36,8 +36,8 @@ import java.util.Set;
 
 public class CosmeticsTab implements ClientTab {
 
-    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "ACCESSORIES", "SKINS"
-    private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "SKINS"};
+    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS"
+    private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS"};
 
     // Preview state (what is shown on the 3D player right now)
     public static String previewWings = null;
@@ -103,7 +103,7 @@ public class CosmeticsTab implements ClientTab {
     // Cosmetic Item Definition
     public static class CosmeticItem {
         public final String id;
-        public final String category; // "WINGS", "HEAD", "ACCESSORIES"
+        public final String category; // "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS"
         public final String name;
         public final String desc;
 
@@ -118,7 +118,7 @@ public class CosmeticsTab implements ClientTab {
             return switch (category) {
                 case "WINGS" -> id.equalsIgnoreCase(CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(CosmeticsConfig.head);
-                case "ACCESSORIES", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
+                case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(CaeserSkinManager.getActiveSkinId());
                 default -> false;
             };
@@ -128,7 +128,7 @@ public class CosmeticsTab implements ClientTab {
             return switch (category) {
                 case "WINGS" -> id.equalsIgnoreCase(previewWings != null ? previewWings : CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(previewHead != null ? previewHead : CosmeticsConfig.head);
-                case "ACCESSORIES", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
+                case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(previewSkin != null ? previewSkin : CaeserSkinManager.getActiveSkinId());
                 default -> false;
             };
@@ -138,7 +138,7 @@ public class CosmeticsTab implements ClientTab {
             switch (category) {
                 case "WINGS" -> previewWings = id;
                 case "HEAD" -> previewHead = id;
-                case "ACCESSORIES", "PET" -> previewPet = id;
+                case "ACCESSORIES", "PETS", "PET" -> previewPet = id;
                 case "SKINS" -> previewSkin = id;
             }
         }
@@ -163,7 +163,7 @@ public class CosmeticsTab implements ClientTab {
                         previewHead = id;
                     }
                 }
-                case "ACCESSORIES", "PET" -> {
+                case "ACCESSORIES", "PETS", "PET" -> {
                     CosmeticsConfig.toggleAccessory(id);
                     if (CosmeticsConfig.isAccessoryEquipped(id)) {
                         customizingAccessory = id;
@@ -216,6 +216,10 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("minime_head", "ACCESSORIES", "MiniMe Head", "Miniature player sitting on top of head"),
                 new CosmeticItem("minime_hand", "ACCESSORIES", "MiniMe Hand", "Miniature player holding onto hand"),
                 new CosmeticItem("minime_chain", "ACCESSORIES", "MiniMe Chain", "Miniature player hanging on a gold chain")
+        )));
+        sections.add(new CosmeticSection("PETS", "PETS", List.of(
+                new CosmeticItem("baby_dragon", "PETS", "Baby Dragon", "Sits on your shoulder and breathes tiny smoke puffs"),
+                new CosmeticItem("jelly_slime", "PETS", "Jelly Slime", "Squash & stretch physics, sits on your head or shoulder")
         )));
 
         // SKINS from Caeser Client Launcher
@@ -472,8 +476,8 @@ public class CosmeticsTab implements ClientTab {
         int titleColor = equipped ? 0xFFFFFFFF : (hover ? 0xFFF1F5F9 : 0xFFCBD5E1);
         screen.text(c, item.name, x + 6, y + 6, titleColor);
 
-        // Pencil Icon Button [ ✎ ] on top right of accessory card (matching NoRisk Bild 3/4)
-        boolean isAccessory = "ACCESSORIES".equalsIgnoreCase(item.category);
+        // Pencil Icon Button [ ✎ ] on top right of accessory/pet card (matching NoRisk Bild 3/4)
+        boolean isAccessory = "ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category);
         if (isAccessory) {
             int pencilBtnSize = 13;
             int pencilX = x + w - pencilBtnSize - 5;
@@ -507,7 +511,7 @@ public class CosmeticsTab implements ClientTab {
                 float cardScale = 0.84f * (h - 22) / 2.125f;
                 float rotY = (float) (Math.sin((System.currentTimeMillis() % 10000L) / 1000.0f * 1.5) * 4.0f);
                 int prevBottom = y + h - 16;
-                Identifier cardTex = ("ACCESSORIES".equalsIgnoreCase(item.category) || "PET".equalsIgnoreCase(item.category))
+                Identifier cardTex = ("ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category) || "PET".equalsIgnoreCase(item.category))
                         ? CaeserCosmeticsRenderer.getPetSkinDirect(item.id)
                         : DefaultSkinHelper.getTexture();
                 c.addPlayerSkin(cardModel, cardTex,
@@ -557,6 +561,8 @@ public class CosmeticsTab implements ClientTab {
                     case "minime_head" -> equippedList.add("MINIME HEAD");
                     case "minime_hand" -> equippedList.add("MINIME HAND");
                     case "minime_chain" -> equippedList.add("MINIME CHAIN");
+                    case "baby_dragon" -> equippedList.add("BABY DRAGON");
+                    case "jelly_slime" -> equippedList.add("JELLY SLIME");
                 }
             }
         }
@@ -646,7 +652,7 @@ public class CosmeticsTab implements ClientTab {
         CustomGuiUtils.drawUltraRoundedOutline(c, btnRightX, waistY, btnSize, btnSize, hoverRight ? GuiTheme.accent() : 0x35384458, 4.0f);
         screen.text(c, ">", btnRightX + 6, waistY + 4, hoverRight ? 0xFFFFFFFF : 0xFFCBD5E1);
 
-        // [ CUSTOM SKIN ] Button (Shown when pencil clicked / accessory selected, matching NoRisk Bild 5)
+        // [ CUSTOM SKIN ] or [ PET SETTINGS ] Button (Shown when pencil clicked / accessory selected, matching NoRisk Bild 5)
         if (customizingAccessory != null) {
             int csBtnW = pw - 24;
             int csBtnH = 22;
@@ -656,8 +662,10 @@ public class CosmeticsTab implements ClientTab {
 
             CustomGuiUtils.fillUltraRounded(c, csBtnX, csBtnY, csBtnW, csBtnH, hoverCs ? 0xFF1E283D : 0xFF121622, 4.0f);
             CustomGuiUtils.drawUltraRoundedOutline(c, csBtnX, csBtnY, csBtnW, csBtnH, hoverCs ? GuiTheme.accent() : 0xFF2A364E, 4.0f);
-            int twCs = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText("CUSTOM SKIN"));
-            screen.text(c, "CUSTOM SKIN", csBtnX + (csBtnW - twCs) / 2, csBtnY + 6, hoverCs ? 0xFFFFFFFF : 0xFFCBD5E1);
+            boolean isPet = "baby_dragon".equalsIgnoreCase(customizingAccessory) || "jelly_slime".equalsIgnoreCase(customizingAccessory);
+            String btnText = isPet ? "PET SETTINGS" : "CUSTOM SKIN";
+            int twCs = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(btnText));
+            screen.text(c, btnText, csBtnX + (csBtnW - twCs) / 2, csBtnY + 6, hoverCs ? 0xFFFFFFFF : 0xFFCBD5E1);
         }
 
         // Bottom Controls: Reset view button [⟲] & Navigation hint
@@ -681,8 +689,12 @@ public class CosmeticsTab implements ClientTab {
         if (!customSkinModalOpen) return;
 
         MinecraftClient mc = MinecraftClient.getInstance();
+        String targetAcc = (customizingAccessory != null && !customizingAccessory.isEmpty()) ? customizingAccessory.toLowerCase(java.util.Locale.ROOT) : "minime_sit";
+        boolean isPet = "baby_dragon".equals(targetAcc) || "jelly_slime".equals(targetAcc);
+        boolean hasSide = "minime_sit".equals(targetAcc) || "minime_hand".equals(targetAcc);
+
         int modalW = 280;
-        int modalH = 240;
+        int modalH = hasSide ? 270 : 250;
         int modalX = (screen.width - modalW) / 2;
         int modalY = (screen.height - modalH) / 2;
 
@@ -696,13 +708,15 @@ public class CosmeticsTab implements ClientTab {
         c.fill(modalX + 12, modalY + 1, modalX + modalW - 12, modalY + 2, GuiTheme.accent());
 
         // Header Title
-        String accTitle = switch (customizingAccessory != null ? customizingAccessory.toLowerCase(java.util.Locale.ROOT) : "") {
+        String accTitle = switch (targetAcc) {
             case "minime_head" -> "MINIME HEAD";
             case "minime_hand" -> "MINIME HAND";
             case "minime_chain" -> "MINIME CHAIN";
+            case "baby_dragon" -> "BABY DRAGON";
+            case "jelly_slime" -> "JELLY SLIME";
             default -> "MINIME SIT";
         };
-        screen.text(c, "CUSTOM SKIN • " + accTitle, modalX + 16, modalY + 12, 0xFFFFFFFF);
+        screen.text(c, "CUSTOMIZE • " + accTitle, modalX + 16, modalY + 12, 0xFFFFFFFF);
 
         // Close button [✕]
         int closeX = modalX + modalW - 24;
@@ -710,30 +724,100 @@ public class CosmeticsTab implements ClientTab {
         boolean hoverClose = screen.inside(mx, my, closeX - 2, closeY - 2, 16, 16);
         screen.text(c, "✕", closeX, closeY, hoverClose ? 0xFFF43F5E : 0xFF8E95A4);
 
-        // Username Text Field Widget
-        int fieldX = modalX + 16;
-        int fieldY = modalY + 32;
-        int fieldW = modalW - 32;
-        int fieldH = 20;
-        modalPlayerField.setX(fieldX);
-        modalPlayerField.setY(fieldY);
-        modalPlayerField.setWidth(fieldW);
-        modalPlayerField.setHeight(fieldH);
-        modalPlayerField.render(c, mx, my, delta);
+        int boxY;
+        int boxH;
 
-        // 3D Skin Showcase Box directly underneath the input field
+        if (hasSide) {
+            // Row 1: Side selection buttons [ LEFT ] [ RIGHT ] [ BOTH ]
+            int sideY = modalY + 30;
+            screen.text(c, "SIDE:", modalX + 16, sideY + 5, 0xFF94A3B8);
+
+            String currentSide = CosmeticsConfig.getAccessorySide(targetAcc);
+            String[] sides = {"left", "right", "both"};
+            String[] sideLabels = {"LEFT", "RIGHT", "BOTH"};
+            int btnW = 54;
+            int btnH = 18;
+            int startBtnX = modalX + 68;
+
+            for (int i = 0; i < 3; i++) {
+                int bx = startBtnX + i * (btnW + 6);
+                boolean active = sides[i].equalsIgnoreCase(currentSide);
+                boolean hover = screen.inside(mx, my, bx, sideY, btnW, btnH);
+                int bg = active ? GuiTheme.accent() : (hover ? 0xFF253046 : 0xFF141824);
+                int border = active ? GuiTheme.accent() : (hover ? 0xFF4A5568 : 0xFF262E3E);
+                CustomGuiUtils.fillUltraRounded(c, bx, sideY, btnW, btnH, bg, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, bx, sideY, btnW, btnH, border, 4.0f);
+                int tw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(sideLabels[i]));
+                screen.text(c, sideLabels[i], bx + (btnW - tw) / 2, sideY + 5, active ? 0xFFFFFFFF : 0xFFCBD5E1);
+            }
+
+            // Row 2: Username Text Field Widget
+            int fieldX = modalX + 16;
+            int fieldY = modalY + 54;
+            int fieldW = modalW - 32;
+            int fieldH = 20;
+            modalPlayerField.setX(fieldX);
+            modalPlayerField.setY(fieldY);
+            modalPlayerField.setWidth(fieldW);
+            modalPlayerField.setHeight(fieldH);
+            modalPlayerField.render(c, mx, my, delta);
+
+            boxY = modalY + 80;
+            boxH = modalH - 122;
+        } else if (isPet) {
+            // Placement Selection Buttons: [ L. SHOULDER ] [ R. SHOULDER ] [ HEAD ] [ FLOAT ]
+            int placeY = modalY + 30;
+            screen.text(c, "PLACE:", modalX + 14, placeY + 5, 0xFF94A3B8);
+
+            String currentPlace = CosmeticsConfig.getPetPlacement(targetAcc);
+            String[] places = {"left_shoulder", "right_shoulder", "head", "floating"};
+            String[] placeLabels = {"L. SHOULDER", "R. SHOULDER", "HEAD", "FLOAT"};
+            int[] widths = {56, 56, 42, 44};
+            int startBtnX = modalX + 58;
+
+            int curBx = startBtnX;
+            for (int i = 0; i < 4; i++) {
+                int bw = widths[i];
+                boolean active = places[i].equalsIgnoreCase(currentPlace);
+                boolean hover = screen.inside(mx, my, curBx, placeY, bw, 18);
+                int bg = active ? GuiTheme.accent() : (hover ? 0xFF253046 : 0xFF141824);
+                int border = active ? GuiTheme.accent() : (hover ? 0xFF4A5568 : 0xFF262E3E);
+                CustomGuiUtils.fillUltraRounded(c, curBx, placeY, bw, 18, bg, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, curBx, placeY, bw, 18, border, 4.0f);
+                int tw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(placeLabels[i]));
+                screen.text(c, placeLabels[i], curBx + (bw - tw) / 2, placeY + 5, active ? 0xFFFFFFFF : 0xFFCBD5E1);
+                curBx += bw + 4;
+            }
+
+            boxY = modalY + 54;
+            boxH = modalH - 96;
+        } else {
+            // Default MiniMe (Head / Chain)
+            int fieldX = modalX + 16;
+            int fieldY = modalY + 32;
+            int fieldW = modalW - 32;
+            int fieldH = 20;
+            modalPlayerField.setX(fieldX);
+            modalPlayerField.setY(fieldY);
+            modalPlayerField.setWidth(fieldW);
+            modalPlayerField.setHeight(fieldH);
+            modalPlayerField.render(c, mx, my, delta);
+
+            boxY = modalY + 58;
+            boxH = modalH - 100;
+        }
+
+        // 3D Showcase Box
         int boxX = modalX + 16;
-        int boxY = modalY + 58;
         int boxW = modalW - 32;
-        int boxH = 136;
         CustomGuiUtils.fillUltraRounded(c, boxX, boxY, boxW, boxH, 0x60090B10, 5.0f);
         CustomGuiUtils.drawUltraRoundedOutline(c, boxX, boxY, boxW, boxH, 0xFF1C2230, 5.0f);
 
-        // Render live 3D player skin of the entered name
+        // Render live 3D player skin or pet preview
         String inputName = modalPlayerField.getText().trim();
-        Identifier skinTex = inputName.isEmpty()
-                ? (mc.player != null && mc.player.getSkin() != null ? mc.player.getSkin().body().texturePath() : DefaultSkinHelper.getTexture())
-                : PlayerSkinResolver.resolve(inputName);
+        Identifier skinTex = (!isPet && !inputName.isEmpty())
+                ? PlayerSkinResolver.resolve(inputName)
+                : (mc.player != null && mc.player.getSkin() != null ? mc.player.getSkin().body().texturePath() : DefaultSkinHelper.getTexture());
 
         PlayerEntityModel pModel = getPreviewModel(mc, false);
         if (pModel != null) {
@@ -766,11 +850,14 @@ public class CosmeticsTab implements ClientTab {
     }
 
     public static void applyModalSkin() {
-        String name = modalPlayerField.getText().trim();
-        String targetAcc = (customizingAccessory != null && !customizingAccessory.isEmpty()) ? customizingAccessory : "minime_sit";
-        CosmeticsConfig.setAccessoryCustomPlayer(targetAcc, name);
-        if (!name.isEmpty()) {
-            PlayerSkinResolver.resolve(name);
+        String targetAcc = (customizingAccessory != null && !customizingAccessory.isEmpty()) ? customizingAccessory.toLowerCase(java.util.Locale.ROOT) : "minime_sit";
+        boolean isPet = "baby_dragon".equals(targetAcc) || "jelly_slime".equals(targetAcc);
+        if (!isPet) {
+            String name = modalPlayerField.getText().trim();
+            CosmeticsConfig.setAccessoryCustomPlayer(targetAcc, name);
+            if (!name.isEmpty()) {
+                PlayerSkinResolver.resolve(name);
+            }
         }
         if (!CosmeticsConfig.isAccessoryEquipped(targetAcc)) {
             CosmeticsConfig.toggleAccessory(targetAcc);
@@ -785,8 +872,12 @@ public class CosmeticsTab implements ClientTab {
         if (!customSkinModalOpen) return false;
         double mx = click.x();
         double my = click.y();
+        String targetAcc = (customizingAccessory != null && !customizingAccessory.isEmpty()) ? customizingAccessory.toLowerCase(java.util.Locale.ROOT) : "minime_sit";
+        boolean isPet = "baby_dragon".equals(targetAcc) || "jelly_slime".equals(targetAcc);
+        boolean hasSide = "minime_sit".equals(targetAcc) || "minime_hand".equals(targetAcc);
+
         int modalW = 280;
-        int modalH = 240;
+        int modalH = hasSide ? 270 : 250;
         int modalX = (screen.width - modalW) / 2;
         int modalY = (screen.height - modalH) / 2;
 
@@ -805,16 +896,57 @@ public class CosmeticsTab implements ClientTab {
             return true;
         }
 
-        // Input text field click
-        int fieldX = modalX + 16;
-        int fieldY = modalY + 32;
-        int fieldW = modalW - 32;
-        int fieldH = 20;
-        if (screen.inside(mx, my, fieldX, fieldY, fieldW, fieldH)) {
-            modalPlayerField.mouseClicked(click, twice);
-            return true;
+        // Side selection clicks (LEFT, RIGHT, BOTH)
+        if (hasSide) {
+            int sideY = modalY + 30;
+            String[] sides = {"left", "right", "both"};
+            int btnW = 54;
+            int btnH = 18;
+            int startBtnX = modalX + 68;
+            for (int i = 0; i < 3; i++) {
+                int bx = startBtnX + i * (btnW + 6);
+                if (screen.inside(mx, my, bx, sideY, btnW, btnH)) {
+                    CosmeticsConfig.setAccessorySide(targetAcc, sides[i]);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+
+            int fieldX = modalX + 16;
+            int fieldY = modalY + 54;
+            int fieldW = modalW - 32;
+            int fieldH = 20;
+            if (screen.inside(mx, my, fieldX, fieldY, fieldW, fieldH)) {
+                modalPlayerField.mouseClicked(click, twice);
+                return true;
+            } else {
+                modalPlayerField.setFocused(false);
+            }
+        } else if (isPet) {
+            int placeY = modalY + 30;
+            String[] places = {"left_shoulder", "right_shoulder", "head", "floating"};
+            int[] widths = {56, 56, 42, 44};
+            int curBx = modalX + 58;
+            for (int i = 0; i < 4; i++) {
+                int bw = widths[i];
+                if (screen.inside(mx, my, curBx, placeY, bw, 18)) {
+                    CosmeticsConfig.setPetPlacement(targetAcc, places[i]);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+                curBx += bw + 4;
+            }
         } else {
-            modalPlayerField.setFocused(false);
+            int fieldX = modalX + 16;
+            int fieldY = modalY + 32;
+            int fieldW = modalW - 32;
+            int fieldH = 20;
+            if (screen.inside(mx, my, fieldX, fieldY, fieldW, fieldH)) {
+                modalPlayerField.mouseClicked(click, twice);
+                return true;
+            } else {
+                modalPlayerField.setFocused(false);
+            }
         }
 
         // Bottom Buttons
@@ -957,8 +1089,8 @@ public class CosmeticsTab implements ClientTab {
                 int cardX = leftX + col * (colW + CARD_GAP);
                 int cardY = curY + row * (CARD_HEIGHT + CARD_GAP);
 
-                // Pencil Button Click on Accessory Card
-                if ("ACCESSORIES".equalsIgnoreCase(item.category)) {
+                // Pencil Button Click on Accessory or Pet Card
+                if ("ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category)) {
                     int pencilBtnSize = 13;
                     int pencilX = cardX + colW - pencilBtnSize - 5;
                     int pencilY = cardY + 5;

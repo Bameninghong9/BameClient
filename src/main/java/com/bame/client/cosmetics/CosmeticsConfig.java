@@ -71,6 +71,48 @@ public class CosmeticsConfig {
     }
 
     public static final java.util.Map<String, String> accessoryCustomPlayers = new java.util.concurrent.ConcurrentHashMap<>();
+    public static final java.util.Map<String, String> accessorySides = new java.util.concurrent.ConcurrentHashMap<>();
+    public static final java.util.Map<String, String> petPlacements = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static String getAccessorySide(String id) {
+        if (id == null) return "right";
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        if ("minime_hand".equals(key)) {
+            return accessorySides.getOrDefault(key, "left");
+        }
+        return accessorySides.getOrDefault(key, "right");
+    }
+
+    public static void setAccessorySide(String id, String side) {
+        if (id == null) return;
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        if (side == null || side.isBlank()) {
+            accessorySides.remove(key);
+        } else {
+            accessorySides.put(key, side.toLowerCase(java.util.Locale.ROOT));
+        }
+        save();
+    }
+
+    public static String getPetPlacement(String id) {
+        if (id == null) return "right_shoulder";
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        if ("jelly_slime".equals(key)) {
+            return petPlacements.getOrDefault(key, "head");
+        }
+        return petPlacements.getOrDefault(key, "right_shoulder");
+    }
+
+    public static void setPetPlacement(String id, String placement) {
+        if (id == null) return;
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        if (placement == null || placement.isBlank()) {
+            petPlacements.remove(key);
+        } else {
+            petPlacements.put(key, placement.toLowerCase(java.util.Locale.ROOT));
+        }
+        save();
+    }
 
     public static String getAccessoryCustomPlayer(String id) {
         if (id == null) return "";
@@ -142,6 +184,22 @@ public class CosmeticsConfig {
                 }
             }
             root.add("accessoryCustomPlayers", accPlayers);
+
+            JsonObject sidesObj = new JsonObject();
+            for (java.util.Map.Entry<String, String> entry : accessorySides.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    sidesObj.addProperty(entry.getKey(), entry.getValue());
+                }
+            }
+            root.add("accessorySides", sidesObj);
+
+            JsonObject placementsObj = new JsonObject();
+            for (java.util.Map.Entry<String, String> entry : petPlacements.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    placementsObj.addProperty(entry.getKey(), entry.getValue());
+                }
+            }
+            root.add("petPlacements", placementsObj);
 
             Files.writeString(file, root.toString());
             lastModified = Files.getLastModifiedTime(file).toMillis();
@@ -217,6 +275,26 @@ public class CosmeticsConfig {
                 }
             } else if (petCustomPlayer != null && !petCustomPlayer.isBlank()) {
                 accessoryCustomPlayers.put("minime_sit", petCustomPlayer);
+            }
+
+            if (root.has("accessorySides") && root.get("accessorySides").isJsonObject()) {
+                accessorySides.clear();
+                JsonObject obj = root.getAsJsonObject("accessorySides");
+                for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : obj.entrySet()) {
+                    if (e.getValue().isJsonPrimitive()) {
+                        accessorySides.put(e.getKey().toLowerCase(java.util.Locale.ROOT), e.getValue().getAsString());
+                    }
+                }
+            }
+
+            if (root.has("petPlacements") && root.get("petPlacements").isJsonObject()) {
+                petPlacements.clear();
+                JsonObject obj = root.getAsJsonObject("petPlacements");
+                for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : obj.entrySet()) {
+                    if (e.getValue().isJsonPrimitive()) {
+                        petPlacements.put(e.getKey().toLowerCase(java.util.Locale.ROOT), e.getValue().getAsString());
+                    }
+                }
             }
 
             for (String user : accessoryCustomPlayers.values()) {

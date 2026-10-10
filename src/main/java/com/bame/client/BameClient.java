@@ -29,6 +29,7 @@ public class BameClient implements ClientModInitializer {
     private static boolean timeChangerWasPressed = false;
     private static boolean skinProtectWasPressed = false;
     private static boolean secretComboWasPressed = false;
+    private static boolean emoteWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -43,6 +44,11 @@ public class BameClient implements ClientModInitializer {
         HitColorModule.apply();
         com.bame.client.wallpaper.WallpaperManager.getWallpaperDir();
         com.bame.client.cosmetics.CaeserSkinManager.reloadFromLauncher();
+        MinecraftClient.getInstance().send(() -> {
+            try {
+                MinecraftClient.getInstance().updateWindowTitle();
+            } catch (Throwable ignored) {}
+        });
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
         });
@@ -66,11 +72,39 @@ public class BameClient implements ClientModInitializer {
                     });
                     return 1;
                 }));
+            dispatcher.register(ClientCommandManager.literal("emotes")
+                .executes(context -> {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    client.send(() -> client.setScreen(new com.bame.client.gui.EmoteWheelScreen()));
+                    return 1;
+                }));
+            dispatcher.register(ClientCommandManager.literal("caeser_open_screenshot")
+                .then(ClientCommandManager.argument("path", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                    .executes(context -> {
+                        String path = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "path");
+                        com.bame.client.util.ScreenshotHelper.openScreenshot(path);
+                        return 1;
+                    })));
+            dispatcher.register(ClientCommandManager.literal("caeser_copy_screenshot")
+                .then(ClientCommandManager.argument("path", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                    .executes(context -> {
+                        String path = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "path");
+                        com.bame.client.util.ScreenshotHelper.copyToClipboard(path);
+                        return 1;
+                    })));
+            dispatcher.register(ClientCommandManager.literal("caeser_del_screenshot")
+                .then(ClientCommandManager.argument("path", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                    .executes(context -> {
+                        String path = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "path");
+                        com.bame.client.util.ScreenshotHelper.deleteScreenshot(path);
+                        return 1;
+                    })));
         });
 
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, livingEntityRenderer, registrationHelper, context) -> {
             if (livingEntityRenderer instanceof net.minecraft.client.render.entity.PlayerEntityRenderer playerRenderer) {
                 registrationHelper.register(new com.bame.client.cosmetics.CaeserCosmeticsRenderer(playerRenderer));
+                registrationHelper.register(new com.bame.client.emotes.EmotePropFeatureRenderer(playerRenderer));
             }
         });
         
@@ -112,8 +146,18 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.module.AggroPearlModule.onTick(client);
             com.bame.client.module.TriggerbotModule.onTick(client);
             com.bame.client.module.ShieldBreakerModule.onTick(client);
+            com.bame.client.module.EmoteModule.onTick(client);
             
             if (client.getWindow() != null && client.currentScreen == null) {
+                // Emote Wheel bind
+                if (com.bame.client.module.EmoteModule.enabled && com.bame.client.module.EmoteModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.EmoteModule.keyBind);
+                    if (down && !emoteWasPressed) {
+                        client.setScreen(new com.bame.client.gui.EmoteWheelScreen());
+                    }
+                    emoteWasPressed = down;
+                }
+
                 // KeyStrokes bind
                 if (KeyStrokesModule.keyBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), KeyStrokesModule.keyBind);

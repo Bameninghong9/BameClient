@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
   "client": [
+    "ChatHudMixin",
     "SimpleOptionMixin",
     "GameRendererMixin",
     "KeyBindingMixin",
@@ -17,6 +18,7 @@
     "ScoreboardMixin",
     "ClientPlayNetworkHandlerMixin",
     "MinecraftClientAccessor",
+    "MinecraftClientMixin",
     "OverlayTextureAccessor",
     "OverlayTextureMixin",
     "HeldItemRendererMixin",
@@ -36,7 +38,11 @@
     "DefaultSkinHelperAccessor",
     "AbstractClientPlayerEntityMixin",
     "PlayerListEntryMixin",
-    "PlayerSkinGuiElementRendererMixin"
+    "PlayerSkinGuiElementRendererMixin",
+    "PlayerEntityModelMixin",
+    "PlayerEntityRenderStateMixin",
+    "LivingEntityRendererAccessor",
+    "PlayerEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

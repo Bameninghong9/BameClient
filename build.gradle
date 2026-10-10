@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version '1.18-SNAPSHOT'
+	id 'fabric-loom' version '1.17.21'
 	id 'maven-publish'
 }
 
@@ -53,9 +53,6 @@ task decompileFeatures {
         def pb = new ProcessBuilder("javap", "-c", "-cp", cp, "net.minecraft.client.render.entity.feature.Deadmau5FeatureRenderer")
         def proc = pb.start()
         println proc.inputStream.text
-        pb = new ProcessBuilder("javap", "-c", "-cp", cp, "net.minecraft.client.render.entity.feature.ElytraFeatureRenderer")
-        proc = pb.start()
-        println proc.inputStream.text
     }
 }
 
@@ -76,5 +73,11 @@ tasks.register('testCosmeticModels', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.bame.client.cosmetics.BedrockCosmeticModelTest'
+}
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+    filter {
+        setFailOnNoMatchingTests(false)
+    }
 }
 tasks.named('check') { dependsOn 'plannerTest' }

@@ -630,6 +630,16 @@ public class BameClientConfig {
                 if (props.containsKey("sensitivity")) FreelookModule.sensitivity = Float.parseFloat(props.getProperty("sensitivity"));
             }
 
+            // Movement - Emotes
+            Path emoteFile = BASE_CONFIG_DIR.resolve("Movement").resolve("emotes.properties");
+            if (Files.exists(emoteFile)) {
+                Properties props = loadProps(emoteFile);
+                if (props.containsKey("enabled")) com.bame.client.module.EmoteModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("keyBind")) com.bame.client.module.EmoteModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) com.bame.client.module.EmoteModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+                if (props.containsKey("smoothAnimations")) com.bame.client.module.EmoteModule.smoothAnimations = Boolean.parseBoolean(props.getProperty("smoothAnimations"));
+            }
+
             // Visuals - ItemSize
             Path itemSizeFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("item_size.properties");
             if (Files.exists(itemSizeFile)) {
@@ -1233,6 +1243,14 @@ public class BameClientConfig {
             freelookProps.setProperty("invertPitch", String.valueOf(FreelookModule.invertPitch));
             freelookProps.setProperty("sensitivity", String.valueOf(FreelookModule.sensitivity));
             saveProps(movementDir.resolve("freelook.properties"), freelookProps, "Caeser Client - Freelook");
+
+            // Movement - Emotes
+            Properties emoteProps = new Properties();
+            emoteProps.setProperty("enabled", String.valueOf(com.bame.client.module.EmoteModule.enabled));
+            emoteProps.setProperty("keyBind", String.valueOf(com.bame.client.module.EmoteModule.keyBind));
+            emoteProps.setProperty("expanded", String.valueOf(com.bame.client.module.EmoteModule.expanded));
+            emoteProps.setProperty("smoothAnimations", String.valueOf(com.bame.client.module.EmoteModule.smoothAnimations));
+            saveProps(movementDir.resolve("emotes.properties"), emoteProps, "Caeser Client - Emotes");
 
             // Visuals - ItemSize
             Properties itemSizeProps = new Properties();

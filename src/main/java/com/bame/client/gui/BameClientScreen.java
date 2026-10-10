@@ -516,8 +516,8 @@ public class BameClientScreen extends Screen {
                 return "5 modules  •  " + on + " on";
             }
             case "Movement" -> {
-                int on = (InvMoveModule.enabled ? 1 : 0) + (FreelookModule.enabled ? 1 : 0);
-                return "2 modules  •  " + on + " on";
+                int on = (InvMoveModule.enabled ? 1 : 0) + (FreelookModule.enabled ? 1 : 0) + (com.bame.client.module.EmoteModule.enabled ? 1 : 0);
+                return "3 modules  •  " + on + " on";
             }
             case "Visuals" -> {
                 int on = (FullbrightModule.enabled ? 1 : 0) + (ShowHudModule.enabled ? 1 : 0)
@@ -703,7 +703,7 @@ public class BameClientScreen extends Screen {
         }
 
         String mainBtnText = "MOD MENU";
-        if (hoveredQuick == 0) mainBtnText = "THEME";
+        if (hoveredQuick == 0) mainBtnText = "GALLERY";
         else if (hoveredQuick == 1) mainBtnText = "COSMETICS";
         else if (hoveredQuick == 2) mainBtnText = "MOD MENU";
         else if (hoveredQuick == 3) mainBtnText = "HUD";
@@ -849,6 +849,17 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.drawSkinIcon(c, sbBtnX + 20, py + 118, skinsIconCol);
             int twSkins = textRenderer.getWidth(CustomGuiUtils.getFontText("SKINS"));
             c.drawText(textRenderer, CustomGuiUtils.getFontText("SKINS"), sbBtnX + (sbBtnW - twSkins) / 2, py + 142, activeSkins ? accent : (hoverSkins ? 0xFFFFFFFF : 0xFF8E95A4), false);
+
+            // Tab 4: 📷 GALLERY
+            boolean hoverGallery = inside(mx, my, sbBtnX, py + 166, sbBtnW, sbBtnH);
+            if (hoverGallery) {
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 166, sbBtnW, sbBtnH, 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 166, sbBtnW, sbBtnH, 0xFF3A3F50, 4.0f);
+            }
+            int galleryIconCol = hoverGallery ? 0xFFFFFFFF : 0xFF9CA3AF;
+            CustomGuiUtils.drawCameraIcon(c, sbBtnX + 20, py + 170, galleryIconCol);
+            int twGallery = textRenderer.getWidth(CustomGuiUtils.getFontText("GALLERY"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("GALLERY"), sbBtnX + (sbBtnW - twGallery) / 2, py + 194, hoverGallery ? 0xFFFFFFFF : 0xFF8E95A4, false);
 
             // Tab 3 (Bottom): ⌂ HUB
             int hubBtnH = 32;
@@ -1402,7 +1413,7 @@ public class BameClientScreen extends Screen {
             int btnY = cyCenter - 14;
             if (inside(mx, my, btnX, btnY, btnW, btnH)) {
                 com.bame.client.sound.ClientSoundManager.playClick();
-                if (hoveredQuick == 0) { currentView = ViewMode.THEME; layout(); }
+                if (hoveredQuick == 0) { client.setScreen(new GalleryScreen(this)); return true; }
                 else if (hoveredQuick == 1) { currentView = ViewMode.COSMETICS; layout(); }
                 else if (hoveredQuick == 3) { openHudEditor(); return true; }
                 else if (hoveredQuick == 4 && BameClientConfig.secretUnlocked) { client.setScreen(new SecretScreen(this)); return true; }
@@ -1416,7 +1427,7 @@ public class BameClientScreen extends Screen {
                 if (inside(mx, my, bx, rowY, iconSize, iconSize)) {
                     com.bame.client.sound.ClientSoundManager.playClick();
                     switch (i) {
-                        case 0 -> { currentView = ViewMode.THEME; geometry(); layout(); }
+                        case 0 -> { client.setScreen(new GalleryScreen(this)); }
                         case 1 -> { currentView = ViewMode.COSMETICS; geometry(); layout(); }
                         case 2 -> { currentView = ViewMode.MODS; geometry(); layout(); }
                         case 3 -> openHudEditor();
@@ -1680,6 +1691,11 @@ public class BameClientScreen extends Screen {
                 geometry();
                 layout();
             }
+            return true;
+        }
+        if (inside(mx, my, sbBtnX, py + 166, sbBtnW, sbBtnH)) {
+            com.bame.client.sound.ClientSoundManager.playClick();
+            client.setScreen(new GalleryScreen(this));
             return true;
         }
         if (inside(mx, my, sbBtnX, py + ph - 42, sbBtnW, 34)) {

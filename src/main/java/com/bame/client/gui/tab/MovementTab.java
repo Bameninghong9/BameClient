@@ -16,6 +16,7 @@ import java.util.Locale;
 public class MovementTab implements ClientTab {
     private boolean listeningInvMove = false;
     private boolean listeningFreelook = false;
+    private boolean listeningEmote = false;
     private boolean draggingFreelookSensitivity = false;
 
     @Override
@@ -35,10 +36,16 @@ public class MovementTab implements ClientTab {
         return true;
     }
 
+    public boolean emoteVisible(String search) {
+        String q = search.toLowerCase(Locale.ROOT);
+        if (!q.isEmpty()) return "emote".contains(q) || "emotes".contains(q) || "animation".contains(q) || "animations".contains(q) || "wave".contains(q) || "dance".contains(q) || "sit".contains(q) || "clap".contains(q) || "wheel".contains(q) || "animator".contains(q);
+        return true;
+    }
+
     @Override
     public boolean isVisible(String search) {
         if (search.isEmpty()) return true;
-        return invMoveVisible(search) || freelookVisible(search);
+        return invMoveVisible(search) || freelookVisible(search) || emoteVisible(search);
     }
 
     public int getInvMoveHeight() {
@@ -49,6 +56,10 @@ public class MovementTab implements ClientTab {
         return FreelookModule.expanded ? 180 : 50;
     }
 
+    public int getEmoteHeight() {
+        return com.bame.client.module.EmoteModule.expanded ? 158 : 50;
+    }
+
     @Override
     public void layout(BameClientScreen screen, int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
     }
@@ -57,6 +68,13 @@ public class MovementTab implements ClientTab {
     public void calculateHeight(BameClientScreen screen, int columnWidth, ColumnTracker tracker, String search) {
         if (invMoveVisible(search)) tracker.leftY += getInvMoveHeight() + 12;
         if (freelookVisible(search)) tracker.rightY += getFreelookHeight() + 12;
+        if (emoteVisible(search)) {
+            if (tracker.leftY <= tracker.rightY) {
+                tracker.leftY += getEmoteHeight() + 12;
+            } else {
+                tracker.rightY += getEmoteHeight() + 12;
+            }
+        }
     }
 
     @Override
@@ -69,6 +87,16 @@ public class MovementTab implements ClientTab {
         if (freelookVisible(search)) {
             renderFreelook(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
             tracker.rightY += getFreelookHeight() + 12;
+        }
+        if (emoteVisible(search)) {
+            int targetX = (tracker.leftY <= tracker.rightY) ? leftX : rightX;
+            int targetY = (tracker.leftY <= tracker.rightY) ? tracker.leftY : tracker.rightY;
+            renderEmote(screen, c, mx, my, delta, targetX, targetY, columnWidth);
+            if (targetX == leftX) {
+                tracker.leftY += getEmoteHeight() + 12;
+            } else {
+                tracker.rightY += getEmoteHeight() + 12;
+            }
         }
     }
 
@@ -134,6 +162,30 @@ public class MovementTab implements ClientTab {
         int sfill = Math.round(sw * Math.clamp(sensNorm, 0f, 1f));
         if (sfill > 0) CustomGuiUtils.fillUltraRounded(c, sx, curY + 6, sfill, 4, GuiTheme.accent(), 2);
         CustomGuiUtils.fillUltraRounded(c, sx + sfill - 3, curY + 4, 7, 8, 0xFFFFFFFF, 4);
+        curY += 26;
+
+        screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private void renderEmote(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
+        int h = getEmoteHeight();
+        screen.moduleCard(c, x, y, w, h, com.bame.client.module.EmoteModule.enabled, com.bame.client.module.EmoteModule.expanded,
+                "Animations & Emotes", "Emote Wheel radial menu & modern animations", "NEW", "movement", mx, my);
+
+        if (!com.bame.client.module.EmoteModule.expanded) return;
+
+        int curY = y + 54;
+        screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
+        String kb = listeningEmote ? "..." : screen.formatKey(com.bame.client.module.EmoteModule.keyBind);
+        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Smooth Animations", x + 14, curY + 4, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 2, com.bame.client.module.EmoteModule.smoothAnimations, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Radial Wheel", x + 14, curY + 4, 0xFFD4D8E0);
+        screen.button(c, "Open Wheel", x + w - 74, curY, 62, 16, mx, my);
         curY += 26;
 
         screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
@@ -239,6 +291,54 @@ public class MovementTab implements ClientTab {
             tracker.rightY += h + 12;
         }
 
+        if (emoteVisible(search)) {
+            int targetX = (tracker.leftY <= tracker.rightY) ? leftX : rightX;
+            int y = (tracker.leftY <= tracker.rightY) ? tracker.leftY : tracker.rightY;
+            int h = getEmoteHeight();
+            if (screen.handleCardHeaderClick((int) mx, (int) my, targetX, y, columnWidth,
+                    () -> {
+                        com.bame.client.module.EmoteModule.enabled = !com.bame.client.module.EmoteModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Emotes", com.bame.client.module.EmoteModule.enabled);
+                    },
+                    () -> com.bame.client.module.EmoteModule.expanded = !com.bame.client.module.EmoteModule.expanded)) {
+                return true;
+            }
+            if (com.bame.client.module.EmoteModule.expanded) {
+                int curY = y + 54;
+                if (screen.inside(mx, my, targetX + 64, curY, 48, 16)) {
+                    clearKeyListeners();
+                    listeningEmote = true;
+                    return true;
+                }
+                curY += 26;
+
+                if (screen.inside(mx, my, targetX + columnWidth - 38, curY + 2, 26, 14)) {
+                    com.bame.client.module.EmoteModule.smoothAnimations = !com.bame.client.module.EmoteModule.smoothAnimations;
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
+
+                if (screen.inside(mx, my, targetX + columnWidth - 74, curY, 62, 16)) {
+                    net.minecraft.client.MinecraftClient.getInstance().setScreen(new com.bame.client.gui.EmoteWheelScreen());
+                    return true;
+                }
+                curY += 26;
+
+                if (screen.inside(mx, my, targetX + columnWidth - 58, curY, 46, 16)) {
+                    com.bame.client.module.EmoteModule.keyBind = GLFW.GLFW_KEY_B;
+                    com.bame.client.module.EmoteModule.smoothAnimations = true;
+                    BameClientConfig.save();
+                    return true;
+                }
+            }
+            if (targetX == leftX) {
+                tracker.leftY += h + 12;
+            } else {
+                tracker.rightY += h + 12;
+            }
+        }
+
         return false;
     }
 
@@ -283,11 +383,18 @@ public class MovementTab implements ClientTab {
             BameClientConfig.save();
             return true;
         }
+        if (listeningEmote) {
+            com.bame.client.module.EmoteModule.keyBind = (key == GLFW.GLFW_KEY_ESCAPE) ? -1 : key;
+            listeningEmote = false;
+            BameClientConfig.save();
+            return true;
+        }
         return false;
     }
 
     private void clearKeyListeners() {
         listeningInvMove = false;
         listeningFreelook = false;
+        listeningEmote = false;
     }
 }
