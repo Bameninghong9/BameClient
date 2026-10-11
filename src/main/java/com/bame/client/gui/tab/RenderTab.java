@@ -7,6 +7,7 @@ import com.bame.client.gui.GuiTheme;
 import com.bame.client.gui.HudEditorScreen;
 import com.bame.client.module.*;
 import com.bame.client.render.CustomCrosshairRenderer;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.KeyInput;
@@ -113,12 +114,23 @@ public class RenderTab implements ClientTab {
         return true;
     }
 
+    public boolean tabBadgeVisible(String search) {
+        String q = search.toLowerCase(Locale.ROOT);
+        if (!q.isEmpty()) return "tab badge".contains(q) || "tablist".contains(q) || "badge".contains(q) || "tab".contains(q) || "icon".contains(q) || "symbol".contains(q) || "visuals".contains(q);
+        return true;
+    }
+
     @Override
     public boolean isVisible(String search) {
         if (search.isEmpty()) return true;
         return fullbrightVisible(search) || zoomVisible(search) || showHudVisible(search)
                 || scoreboardVisible(search) || spotifyHudVisible(search) || customCrosshairVisible(search)
-                || blockOutlineVisible(search) || handPositionVisible(search) || itemSizeVisible(search);
+                || blockOutlineVisible(search) || handPositionVisible(search) || itemSizeVisible(search)
+                || tabBadgeVisible(search);
+    }
+
+    public int getTabBadgeHeight() {
+        return TabBadgeModule.expanded ? 115 : 50;
     }
 
     public int getShowHudHeight() {
@@ -171,6 +183,7 @@ public class RenderTab implements ClientTab {
         if (scoreboardVisible(search)) tracker.leftY += getScoreboardHeight() + 12;
         if (blockOutlineVisible(search)) tracker.leftY += getBlockOutlineHeight() + 12;
         if (handPositionVisible(search)) tracker.leftY += getHandPositionHeight() + 12;
+        if (tabBadgeVisible(search)) tracker.leftY += getTabBadgeHeight() + 12;
 
         if (fullbrightVisible(search)) tracker.rightY += getFullbrightHeight() + 12;
         if (zoomVisible(search)) tracker.rightY += getZoomHeight() + 12;
@@ -198,6 +211,10 @@ public class RenderTab implements ClientTab {
         if (handPositionVisible(search)) {
             renderHandPosition(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
             tracker.leftY += getHandPositionHeight() + 12;
+        }
+        if (tabBadgeVisible(search)) {
+            renderTabBadge(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            tracker.leftY += getTabBadgeHeight() + 12;
         }
 
         // Right Column
@@ -802,6 +819,27 @@ public class RenderTab implements ClientTab {
         screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
     }
 
+    private void renderTabBadge(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
+        int h = getTabBadgeHeight();
+        screen.moduleCard(c, x, y, w, h, TabBadgeModule.enabled, TabBadgeModule.expanded,
+                "Tablist Badge", "Caeser 'C' symbol in front of name", "NEW", "visuals", mx, my);
+
+        if (!TabBadgeModule.expanded) return;
+
+        int curY = y + 54;
+        screen.text(c, "Badge Symbol:", x + 14, curY + 5, 0xFF8E95A4);
+        String name = TabBadgeModule.getBadgeName(TabBadgeModule.badgeType);
+        screen.button(c, name, x + 92, curY, w - 106, 18, mx, my);
+        curY += 26;
+
+        screen.text(c, "Preview:", x + 14, curY + 4, 0xFF8E95A4);
+        String sym = TabBadgeModule.getBadgeSymbol();
+        MinecraftClient mc = MinecraftClient.getInstance();
+        String playerName = (mc != null && mc.getSession() != null) ? mc.getSession().getUsername() : "Player";
+        String previewText = (sym != null ? sym : "") + "§f" + playerName;
+        screen.text(c, previewText, x + 70, curY + 4, 0xFFFFFFFF);
+    }
+
     private void clearKeyListeners() {
         listeningFullbright = false;
         listeningShowHud = false;
@@ -1273,6 +1311,46 @@ public class RenderTab implements ClientTab {
                 if (screen.inside(mx, my, c2X + colW - 46, curY, 46, 16)) {
                     resetHandPosition();
                     com.bame.client.sound.ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+            tracker.leftY += h + 12;
+        }
+
+        // Tablist Badge
+        if (tabBadgeVisible(search)) {
+            int y = tracker.leftY;
+            int h = getTabBadgeHeight();
+            if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth,
+                    () -> {
+                        TabBadgeModule.enabled = !TabBadgeModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Tablist Badge", TabBadgeModule.enabled);
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                        com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
+                    },
+                    () -> {
+                        TabBadgeModule.expanded = !TabBadgeModule.expanded;
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
+                    })) {
+                return true;
+            }
+            if (TabBadgeModule.expanded) {
+                int curY = y + 54;
+                if (screen.inside(mx, my, leftX + 92, curY, columnWidth - 106, 18)) {
+                    String[] types = TabBadgeModule.BADGE_TYPES;
+                    int idx = 0;
+                    for (int i = 0; i < types.length; i++) {
+                        if (types[i].equalsIgnoreCase(TabBadgeModule.badgeType)) {
+                            idx = i;
+                            break;
+                        }
+                    }
+                    TabBadgeModule.badgeType = types[(idx + 1) % types.length];
+                    com.bame.client.sound.ClientSoundManager.playClick();
+                    BameClientConfig.save();
+                    com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
                     return true;
                 }
             }

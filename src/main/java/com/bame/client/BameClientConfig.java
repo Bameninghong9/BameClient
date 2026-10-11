@@ -360,6 +360,16 @@ public class BameClientConfig {
                 if (props.containsKey("grid")) CustomCrosshairModule.setEncodedGrid(props.getProperty("grid"));
             }
 
+            // Visuals - Tab Badge
+            Path tabBadgeFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("tab_badge.properties");
+            if (Files.exists(tabBadgeFile)) {
+                Properties props = loadProps(tabBadgeFile);
+                if (props.containsKey("enabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                if (props.containsKey("badgeType")) TabBadgeModule.badgeType = props.getProperty("badgeType");
+                if (props.containsKey("keyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
+                if (props.containsKey("expanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
+            }
+
 
             // Combat - AutoClicker
             Path acFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_clicker.properties");
@@ -1037,6 +1047,14 @@ public class BameClientConfig {
             crosshairProps.setProperty("grid", CustomCrosshairModule.getEncodedGrid());
             saveProps(visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
 
+            // Visuals - Tab Badge
+            Properties tabBadgeProps = new Properties();
+            tabBadgeProps.setProperty("enabled", String.valueOf(TabBadgeModule.enabled));
+            tabBadgeProps.setProperty("badgeType", TabBadgeModule.badgeType != null ? TabBadgeModule.badgeType : "c");
+            tabBadgeProps.setProperty("keyBind", String.valueOf(TabBadgeModule.keyBind));
+            tabBadgeProps.setProperty("expanded", String.valueOf(TabBadgeModule.expanded));
+            saveProps(visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
+
 
             // Combat - AutoClicker
             Properties acProps = new Properties();
@@ -1519,6 +1537,11 @@ public class BameClientConfig {
             if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
             if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
             if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
+
+            if (props.containsKey("tabBadgeEnabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("tabBadgeEnabled"));
+            if (props.containsKey("tabBadgeType")) TabBadgeModule.badgeType = props.getProperty("tabBadgeType");
+            if (props.containsKey("tabBadgeKeyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("tabBadgeKeyBind"));
+            if (props.containsKey("tabBadgeExpanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("tabBadgeExpanded"));
 
             if (props.containsKey("autoCartEnabled")) AutoCartModule.enabled = Boolean.parseBoolean(props.getProperty("autoCartEnabled"));
             if (props.containsKey("autoCartKeyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("autoCartKeyBind"));

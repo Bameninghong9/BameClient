@@ -524,8 +524,8 @@ public class BameClientScreen extends Screen {
                         + (ZoomModule.enabled ? 1 : 0) + (SpotifyHudModule.enabled ? 1 : 0)
                         + (ScoreboardModule.enabled ? 1 : 0) + (CustomCrosshairModule.enabled ? 1 : 0)
                         + (BlockOutlineModule.enabled ? 1 : 0) + (ItemSizeModule.enabled ? 1 : 0)
-                        + (HandPositionModule.enabled ? 1 : 0);
-                return "9 modules  •  " + on + " on";
+                        + (HandPositionModule.enabled ? 1 : 0) + (TabBadgeModule.enabled ? 1 : 0);
+                return "10 modules  •  " + on + " on";
             }
             case "Misc" -> {
                 int on = (AutoToolModule.enabled ? 1 : 0) + (DurabilityGuardModule.enabled ? 1 : 0);

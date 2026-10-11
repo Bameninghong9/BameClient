@@ -33,6 +33,7 @@ public class CaeserPlayerSyncManager {
         public String head = "none";
         public String pet = "none";
         public String petCustomPlayer = "";
+        public String tabBadge = "c";
         public final Set<String> accessories = ConcurrentHashMap.newKeySet();
         public long lastUpdated = System.currentTimeMillis();
 
@@ -65,6 +66,7 @@ public class CaeserPlayerSyncManager {
 
     private static final Map<String, PlayerCosmeticsData> COSMETICS_MAP = new ConcurrentHashMap<>();
     private static final Map<String, PlayerEmoteData> EMOTE_MAP = new ConcurrentHashMap<>();
+    private static final Set<String> CAESER_PLAYERS = ConcurrentHashMap.newKeySet();
 
     private static CaeserMqttClient mqttClient;
     private static long lastHeartbeat = 0L;
@@ -110,6 +112,54 @@ public class CaeserPlayerSyncManager {
             return null;
         }
         return data;
+    }
+
+    public static boolean isCaeserPlayer(String username) {
+        if (username == null || username.isBlank()) return false;
+        String clean = cleanUsername(username);
+        if (clean == null || clean.isBlank()) return false;
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc != null && mc.getSession() != null) {
+            String localName = cleanUsername(mc.getSession().getUsername());
+            if (clean.equalsIgnoreCase(localName)) {
+                return true;
+            }
+        }
+
+        if (CAESER_PLAYERS.contains(clean)) return true;
+        if (COSMETICS_MAP.containsKey(clean)) return true;
+        if (EMOTE_MAP.containsKey(clean)) return true;
+        return false;
+    }
+
+    public static String getPlayerBadgePrefix(String username) {
+        if (!com.bame.client.module.TabBadgeModule.enabled) return null;
+        if (username == null || username.isBlank()) return null;
+        String clean = cleanUsername(username);
+        if (clean == null || clean.isBlank()) return null;
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc != null && mc.getSession() != null) {
+            String localName = cleanUsername(mc.getSession().getUsername());
+            if (clean.equalsIgnoreCase(localName)) {
+                return com.bame.client.module.TabBadgeModule.getBadgeSymbol();
+            }
+        }
+
+        PlayerCosmeticsData data = COSMETICS_MAP.get(clean);
+        String remoteBadgeType = (data != null && data.tabBadge != null && !data.tabBadge.isBlank()) ? data.tabBadge : "c";
+        return switch (remoteBadgeType.toLowerCase(Locale.ROOT)) {
+            case "c" -> "§6ⓒ ";
+            case "c_bracket" -> "§6[§eC§6] ";
+            case "c_bold" -> "§6§lC §r";
+            case "bolt" -> "§b⚡ ";
+            case "crown" -> "§e👑 ";
+            case "fire" -> "§6🔥 ";
+            case "star" -> "§e✦ ";
+            case "none" -> null;
+            default -> "§6ⓒ ";
+        };
     }
 
     public static void onServerJoin() {
@@ -162,6 +212,7 @@ public class CaeserPlayerSyncManager {
             json.addProperty("type", "COSMETICS");
             json.addProperty("instanceId", LOCAL_INSTANCE_ID);
             json.addProperty("name", localUsername);
+            json.addProperty("tabBadge", com.bame.client.module.TabBadgeModule.badgeType != null ? com.bame.client.module.TabBadgeModule.badgeType : "c");
             json.addProperty("wings", CosmeticsConfig.wings != null ? CosmeticsConfig.wings : "none");
             json.addProperty("head", CosmeticsConfig.head != null ? CosmeticsConfig.head : "none");
             json.addProperty("pet", CosmeticsConfig.pet != null ? CosmeticsConfig.pet : "none");
@@ -224,6 +275,12 @@ public class CaeserPlayerSyncManager {
             }
 
             if ("REQUEST_SYNC".equalsIgnoreCase(type)) {
+                if (!name.isBlank()) {
+                    String reqKey = cleanUsername(name);
+                    if (reqKey != null && !reqKey.isBlank()) {
+                        CAESER_PLAYERS.add(reqKey);
+                    }
+                }
                 broadcastLocalCosmetics();
                 return;
             }
@@ -232,6 +289,8 @@ public class CaeserPlayerSyncManager {
             String key = cleanUsername(name);
             if (key == null || key.isBlank()) return;
 
+            CAESER_PLAYERS.add(key);
+
             if ("COSMETICS".equalsIgnoreCase(type)) {
                 PlayerCosmeticsData data = COSMETICS_MAP.computeIfAbsent(key, k -> {
                     PlayerCosmeticsData d = new PlayerCosmeticsData();
@@ -239,6 +298,7 @@ public class CaeserPlayerSyncManager {
                     return d;
                 });
 
+                data.tabBadge = root.has("tabBadge") ? root.get("tabBadge").getAsString() : "c";
                 data.wings = root.has("wings") ? root.get("wings").getAsString() : "none";
                 data.head = root.has("head") ? root.get("head").getAsString() : "none";
                 data.pet = root.has("pet") ? root.get("pet").getAsString() : "none";
