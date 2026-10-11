@@ -55,7 +55,7 @@ public final class SessionSwitcher {
     }
 
     /** Muss auf dem Haupt-Thread aufgerufen werden. Das Ergebnis wird nur im Speicher gehalten. */
-    static void switchSession(LauncherBridge.SwitchResult result, Consumer<String> onSuccess, Consumer<String> onError) {
+    static void switchSession(LauncherBridge.SwitchResult result, Consumer<LauncherBridge.SwitchSuccess> onSuccess, Consumer<String> onError) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world != null) {
             onError.accept(MSG_IN_WORLD);
@@ -92,11 +92,34 @@ public final class SessionSwitcher {
                             return;
                         }
                         onAccountChanged();
-                        onSuccess.accept(prepared.session().getUsername());
+                        applyLauncherSkinSync(result);
+                        onSuccess.accept(new LauncherBridge.SwitchSuccess(prepared.session().getUsername(),
+                                result.skinSyncStatus, result.skinSyncError));
                     } finally {
                         SWITCHING.set(false);
                     }
                 }));
+    }
+
+    /**
+     * Übernimmt das Skin-Sync-Ergebnis des Launchers, nachdem {@link #onAccountChanged()} den Upload-Status
+     * zurückgesetzt hat. Bei {@code uploaded}/{@code unchanged}/{@code pending} hat der Launcher den Skin bereits
+     * übertragen (bzw. überträgt ihn gerade); bei {@code failed}/{@code skipped} oder ohne {@code skinSync} lädt der
+     * Mod wie bisher beim Server-Beitritt selbst hoch.
+     */
+    private static void applyLauncherSkinSync(LauncherBridge.SwitchResult result) {
+        String status = result.skinSyncStatus;
+        if (result.skinSyncSkinId == null) return;
+        if (!LauncherBridge.SKIN_SYNC_UPLOADED.equals(status)
+                && !LauncherBridge.SKIN_SYNC_UNCHANGED.equals(status)
+                && !LauncherBridge.SKIN_SYNC_PENDING.equals(status)) {
+            return;
+        }
+        try {
+            com.bame.client.cosmetics.CaeserSkinManager.markUploadedByLauncher(result.skinSyncSkinId);
+        } catch (Throwable t) {
+            LOGGER.warn("Failed to apply launcher skin sync after account switch ({})", t.getClass().getSimpleName());
+        }
     }
 
     /**

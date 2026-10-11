@@ -37,6 +37,9 @@ public class AccountSwitcherScreen extends Screen {
     private static final String MSG_LOGIN_TIMEOUT = "Die Anmeldung hat zu lange gedauert. Bitte versuche es erneut.";
     private static final String MSG_LOGIN_CANCELLED = "Die Anmeldung wurde abgebrochen.";
     private static final String MSG_IN_WORLD = "Account-Wechsel geht nur im Menü, nicht während du in einer Welt bist.";
+    private static final String MSG_SKIN_SYNC_FAILED = "Skin konnte nicht übertragen werden";
+    /** Hinweis-Farbe (Orange): der Wechsel hat geklappt, nur der Skin-Upload nicht. */
+    private static final int WARNING_COLOR = 0xFFF59E0B;
 
     private record Row(String id, String name, UUID uuid, boolean active) {}
 
@@ -55,6 +58,8 @@ public class AccountSwitcherScreen extends Screen {
     private String status = null;
     private boolean statusError = false;
     private boolean statusSpinner = false;
+    /** Optionaler Zusatz hinter {@link #status}, in Orange gezeichnet. */
+    private String statusWarning = null;
 
     private boolean loginActive = false;
     private boolean loginSeenRunning = false;
@@ -151,6 +156,7 @@ public class AccountSwitcherScreen extends Screen {
         this.status = text;
         this.statusError = error;
         this.statusSpinner = spinner;
+        this.statusWarning = null;
     }
 
     private boolean isBusy() {
@@ -169,9 +175,13 @@ public class AccountSwitcherScreen extends Screen {
         }
         busyId = row.id();
         setStatus(null, false, false);
-        LauncherBridge.switchTo(row.id(), name -> {
+        LauncherBridge.switchTo(row.id(), success -> {
             busyId = null;
-            setStatus("Angemeldet als " + name, false, false);
+            setStatus("Angemeldet als " + success.name(), false, false);
+            if (LauncherBridge.SKIN_SYNC_FAILED.equals(success.skinSyncStatus())) {
+                String detail = success.skinSyncError();
+                statusWarning = MSG_SKIN_SYNC_FAILED + (detail != null && !detail.isBlank() ? ": " + detail : ".");
+            }
             if (!closed) reloadList();
         }, err -> {
             busyId = null;
@@ -287,7 +297,14 @@ public class AccountSwitcherScreen extends Screen {
 
     private List<OrderedText> statusLines(int maxWidth) {
         if (status == null || status.isBlank()) return List.of();
-        return textRenderer.wrapLines(CustomGuiUtils.getFontText(status), maxWidth);
+        if (statusWarning == null || statusWarning.isBlank()) {
+            return textRenderer.wrapLines(CustomGuiUtils.getFontText(status), maxWidth);
+        }
+        // Hauptmeldung in der normalen Statusfarbe, Zusatz in Orange; der zusammengesetzte Text wird gemeinsam umbrochen.
+        Text combined = Text.empty()
+                .append(CustomGuiUtils.getFontText(status + " – "))
+                .append(CustomGuiUtils.getFontText(statusWarning).copy().styled(s -> s.withColor(WARNING_COLOR & 0xFFFFFF)));
+        return textRenderer.wrapLines(combined, maxWidth);
     }
 
     private int visibleRows() {

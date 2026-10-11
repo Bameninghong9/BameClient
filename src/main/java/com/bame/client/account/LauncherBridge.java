@@ -82,6 +82,21 @@ public final class LauncherBridge {
 
     public record AccountList(List<AccountInfo> accounts, LoginState login) {}
 
+    /** Mögliche Werte von {@code skinSync.status} in der Antwort von {@code POST /v1/accounts/switch}. */
+    public static final String SKIN_SYNC_UPLOADED = "uploaded";
+    public static final String SKIN_SYNC_UNCHANGED = "unchanged";
+    public static final String SKIN_SYNC_SKIPPED = "skipped";
+    public static final String SKIN_SYNC_PENDING = "pending";
+    public static final String SKIN_SYNC_FAILED = "failed";
+
+    /**
+     * Ergebnis eines erfolgreichen Account-Wechsels für die Oberfläche (ohne Access-Token).
+     *
+     * @param skinSyncStatus einer der {@code SKIN_SYNC_*}-Werte oder {@code null} (älterer Launcher/ungültig)
+     * @param skinSyncError  bereinigte Fehlermeldung des Launchers oder {@code null}
+     */
+    public record SwitchSuccess(String name, String skinSyncStatus, String skinSyncError) {}
+
     /**
      * Antwort von {@code POST /v1/accounts/switch}. Enthält das Access-Token und bleibt deshalb nur im Speicher;
      * {@link #toString()} gibt bewusst kein Token aus.
@@ -92,18 +107,27 @@ public final class LauncherBridge {
         final String accessToken;
         final String xuid;
         final String clientId;
+        /** Skin-Sync des Launchers; jeweils {@code null}, wenn {@code skinSync} fehlt oder ungültig ist. */
+        final String skinSyncStatus;
+        final String skinSyncSkinId;
+        final String skinSyncError;
 
-        SwitchResult(String id, String name, String accessToken, String xuid, String clientId) {
+        SwitchResult(String id, String name, String accessToken, String xuid, String clientId,
+                     String skinSyncStatus, String skinSyncSkinId, String skinSyncError) {
             this.id = id;
             this.name = name;
             this.accessToken = accessToken;
             this.xuid = xuid;
             this.clientId = clientId;
+            this.skinSyncStatus = skinSyncStatus;
+            this.skinSyncSkinId = skinSyncSkinId;
+            this.skinSyncError = skinSyncError;
         }
 
         @Override
         public String toString() {
-            return "SwitchResult[id=" + id + ", name=" + name + "]";
+            return "SwitchResult[id=" + id + ", name=" + name + ", skinSync=" + skinSyncStatus
+                    + (skinSyncSkinId != null ? ", skinId=" + skinSyncSkinId : "") + "]";
         }
     }
 
@@ -145,9 +169,9 @@ public final class LauncherBridge {
      * Holt beim Launcher die Anmeldedaten für {@code id} und übergibt sie sofort an den {@link SessionSwitcher}.
      * Das Ergebnis (inkl. Access-Token) wird nirgends gespeichert.
      *
-     * @param onSuccess erhält den Namen des neuen Accounts
+     * @param onSuccess erhält Namen des neuen Accounts und das Skin-Sync-Ergebnis des Launchers (ohne Token)
      */
-    public static void switchTo(String id, Consumer<String> onSuccess, Consumer<String> onError) {
+    public static void switchTo(String id, Consumer<SwitchSuccess> onSuccess, Consumer<String> onError) {
         if (!isAvailable()) {
             deliver(() -> onError.accept(MSG_NOT_AVAILABLE));
             return;
@@ -329,7 +353,46 @@ public final class LauncherBridge {
         if (id == null || name == null || name.isBlank() || token == null || token.isBlank()) {
             throw new BridgeException(MSG_INVALID_RESPONSE);
         }
-        return new SwitchResult(id, name.trim(), token, blankToNull(getString(root, "xuid")), blankToNull(getString(root, "clientId")));
+        String syncStatus = null;
+        String syncSkinId = null;
+        String syncError = null;
+        try {
+            // Optional (ältere Launcher senden es nicht); Fehler hier dürfen den Wechsel nie scheitern lassen.
+            if (root.has("skinSync") && root.get("skinSync").isJsonObject()) {
+                JsonObject sync = root.getAsJsonObject("skinSync");
+                syncStatus = normalizeSkinSyncStatus(getString(sync, "status"));
+                if (syncStatus != null) {
+                    syncSkinId = normalizeSkinId(getString(sync, "skinId"));
+                    String err = getString(sync, "error");
+                    syncError = err != null && !err.isBlank() ? sanitize(err) : null;
+                }
+            }
+        } catch (Throwable t) {
+            syncStatus = null;
+            syncSkinId = null;
+            syncError = null;
+        }
+        return new SwitchResult(id, name.trim(), token, blankToNull(getString(root, "xuid")), blankToNull(getString(root, "clientId")),
+                syncStatus, syncSkinId, syncError);
+    }
+
+    /** Bekannte {@code skinSync.status}-Werte, sonst {@code null}. */
+    private static String normalizeSkinSyncStatus(String status) {
+        if (status == null) return null;
+        String s = status.trim().toLowerCase(Locale.ROOT);
+        return switch (s) {
+            case SKIN_SYNC_UPLOADED, SKIN_SYNC_UNCHANGED, SKIN_SYNC_SKIPPED, SKIN_SYNC_PENDING, SKIN_SYNC_FAILED -> s;
+            default -> null;
+        };
+    }
+
+    /** Skin-ID des Launchers (z. B. "steve" oder eine eigene Skin-ID) unverändert übernehmen, wenn sie plausibel ist. */
+    private static String normalizeSkinId(String skinId) {
+        if (skinId == null || skinId.isBlank() || skinId.length() > 128) return null;
+        for (int i = 0; i < skinId.length(); i++) {
+            if (Character.isISOControl(skinId.charAt(i))) return null;
+        }
+        return skinId;
     }
 
     private static String normalizeId(String id) {

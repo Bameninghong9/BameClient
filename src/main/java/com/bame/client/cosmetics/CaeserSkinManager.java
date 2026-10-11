@@ -367,6 +367,25 @@ public class CaeserSkinManager {
         }
     }
 
+    /**
+     * Der Launcher hat den Skin nach einem Account-Wechsel bereits selbst auf den neuen Account übertragen
+     * (oder überträgt ihn gerade). Damit {@link #syncOnServerJoin()} ihn nicht ein zweites Mal hochlädt, wird er als
+     * hochgeladen markiert, aber nur, wenn er dem aktuell aktiven Skin entspricht.
+     *
+     * @return true, wenn der Upload-Status übernommen wurde
+     */
+    public static synchronized boolean markUploadedByLauncher(String skinId) {
+        if (skinId == null || skinId.isBlank()) return false;
+        reloadFromLauncher();
+        if (!hasActiveOverride() || !Objects.equals(skinId, activeSkinId)) {
+            LOGGER.info("[CaeserSkinManager] Launcher skin sync ({}) does not match active skin ({}), keeping own upload.", skinId, activeSkinId);
+            return false;
+        }
+        lastUploadedSkinId = skinId;
+        LOGGER.info("[CaeserSkinManager] Skin {} was already transferred by the launcher, skipping own upload.", skinId);
+        return true;
+    }
+
     public static void checkPeriodicSync() {
         long now = System.currentTimeMillis();
         if (now - lastCheckTime < 1000) return;
