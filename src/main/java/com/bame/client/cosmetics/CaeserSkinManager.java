@@ -403,7 +403,6 @@ public class CaeserSkinManager {
                     if (resp.statusCode() == 200 || resp.statusCode() == 204) {
                         lastUploadedSkinId = "steve";
                         LOGGER.info("[CaeserSkinManager] Successfully reset skin to default on Mojang.");
-                        com.bame.client.notification.NotificationManager.showInfo("Skin zurückgesetzt", "Skin bei Mojang auf Standard gesetzt.");
                     } else {
                         LOGGER.warn("[CaeserSkinManager] Failed to reset skin on Mojang: HTTP {}", resp.statusCode());
                     }

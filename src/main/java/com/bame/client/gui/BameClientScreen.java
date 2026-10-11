@@ -580,9 +580,12 @@ public class BameClientScreen extends Screen {
     }
 
     private double maxScroll() { return Math.max(0, contentHeight() - ch); }
+    public double getScroll() { return scroll; }
+    public void setScroll(double s) { this.scroll = Math.clamp(s, 0, maxScroll()); }
+    public double getMaxScroll() { return maxScroll(); }
     public int baseY() { return cy - (int) scroll; }
 
-    private void layout() {
+    public void layout() {
         scroll = Math.clamp(scroll, 0, maxScroll());
         int columnWidth = getColumnWidth();
         int leftX = getContentLeftX();
@@ -799,14 +802,20 @@ public class BameClientScreen extends Screen {
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 14, textY, col, false);
                 } else if (entry.indent() > 0) {
                     // Unterkategorie: ▪ grau, gewählte mit ▸ und Akzentfarbe
-                    boolean active = entry.id().equalsIgnoreCase(CosmeticsTab.subCategory);
+                    String activeCat = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
+                            ? CosmeticsTab.currentScrolledCategory
+                            : CosmeticsTab.subCategory;
+                    boolean active = entry.id().equalsIgnoreCase(activeCat);
                     int markerCol = active ? accent : 0xFF6B7280;
                     int col = active ? accent : (hover ? 0xFFFFFFFF : 0xFFCBD5E1);
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(active ? "▸" : "▪"), px + 20, textY, markerCol, false);
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 30, textY, col, false);
                 } else {
                     // ALL und EMOTES im bisherigen Knopf-Stil
-                    boolean active = entry.id().equalsIgnoreCase(CosmeticsTab.subCategory);
+                    String activeCat = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
+                            ? CosmeticsTab.currentScrolledCategory
+                            : CosmeticsTab.subCategory;
+                    boolean active = entry.id().equalsIgnoreCase(activeCat) || (entry.id().equalsIgnoreCase("ALL") && "ALL".equalsIgnoreCase(CosmeticsTab.subCategory));
                     int btnBg = active ? GuiTheme.alpha(accent, 45) : (hover ? 0xFF1E212D : 0x00000000);
                     int btnBorder = active ? accent : (hover ? 0xFF353C4E : 0x00000000);
                     if (active || hover) {
@@ -975,7 +984,10 @@ public class BameClientScreen extends Screen {
             search.render(c, mx, my, delta);
 
             // Active Category Label
-            String catTitle = switch (CosmeticsTab.subCategory) {
+            String catToDisplay = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
+                    ? CosmeticsTab.currentScrolledCategory
+                    : CosmeticsTab.subCategory;
+            String catTitle = switch (catToDisplay) {
                 case "WINGS" -> "WINGS";
                 case "HEAD" -> "HAT";
                 case "ACCESSORIES" -> "ACCESSORIES";
@@ -1610,7 +1622,16 @@ public class BameClientScreen extends Screen {
             for (CosmeticsTab.SidebarRow row : cosmeticsSidebarRows()) {
                 if (inside(mx, my, px + 8, row.y(), catBtnW, row.height())) {
                     CosmeticsTab.onSidebarClick(row.entry());
-                    scroll = 0;
+                    if (row.entry().id().equalsIgnoreCase("ALL")) {
+                        scroll = 0;
+                    } else if (!row.entry().isHeader()) {
+                        Integer targetY = CosmeticsTab.SECTION_Y_MAP.get(row.entry().id().toUpperCase(java.util.Locale.ROOT));
+                        if (targetY != null) {
+                            setScroll(targetY);
+                        } else {
+                            scroll = 0;
+                        }
+                    }
                     com.bame.client.sound.ClientSoundManager.playClick();
                     layout();
                     return true;

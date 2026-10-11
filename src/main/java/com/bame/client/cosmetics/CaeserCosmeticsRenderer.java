@@ -1400,6 +1400,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             if (CosmeticsConfig.accessories != null && !CosmeticsConfig.accessories.isEmpty()) {
                 toRender.addAll(CosmeticsConfig.accessories);
             }
+            if (activePet != null && !"none".equalsIgnoreCase(activePet)) {
+                toRender.add(activePet);
+            }
 
             float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
 

@@ -107,7 +107,8 @@ public class CosmeticsTab implements ClientTab {
             // Zugeklappt: Inhalt zeigt wieder alle Cosmetics
             if (!cosmeticsExpanded && isDropdownCategory(subCategory)) subCategory = "ALL";
         } else {
-            subCategory = entry.id();
+            subCategory = "ALL";
+            currentScrolledCategory = entry.id().toUpperCase(Locale.ROOT);
         }
     }
 
@@ -118,7 +119,7 @@ public class CosmeticsTab implements ClientTab {
         return false;
     }
 
-    // Preview state (what is shown on the 3D player right now)
+    // Preview state (what is shown on the 3D player right now - null defaults to currently equipped!)
     public static String previewWings = null;
     public static String previewHead = null;
     public static String previewFace = null;
@@ -126,12 +127,43 @@ public class CosmeticsTab implements ClientTab {
     public static String previewSkin = null;
 
     public static void resetPreview() {
-        previewWings = "none";
-        previewHead = "none";
-        previewFace = "none";
-        previewPet = "none";
+        previewWings = null;
+        previewHead = null;
+        previewFace = null;
+        previewPet = null;
         previewSkin = null;
         customizingAccessory = null;
+    }
+
+    // Scroll-Spy & Quick Jump to Item
+    public static final Map<String, Integer> SECTION_Y_MAP = new HashMap<>();
+    public static final Map<String, Integer> ITEM_Y_MAP = new HashMap<>();
+    public static String currentScrolledCategory = "WINGS";
+
+    public record EquippedPreviewItem(String id, String label, String category) {}
+    public record EquippedBadgeClick(String itemId, int x, int y, int w, int h) {}
+    private static final List<EquippedBadgeClick> equippedBadgeClicks = new ArrayList<>();
+
+    public static void scrollToItem(BameClientScreen screen, String itemId) {
+        if (screen == null || itemId == null) return;
+        subCategory = "ALL";
+        Integer targetY = ITEM_Y_MAP.get(itemId.toLowerCase(Locale.ROOT));
+        if (targetY != null) {
+            screen.setScroll(targetY - 24);
+            screen.layout();
+        }
+    }
+
+    private static String equippedAccLabel(String id) {
+        return switch (id.toLowerCase(Locale.ROOT)) {
+            case "minime_sit", "self", "custom" -> "MINIME SIT";
+            case "minime_head" -> "MINIME HEAD";
+            case "minime_hand" -> "MINIME HAND";
+            case "minime_chain" -> "MINIME CHAIN";
+            case "baby_dragon" -> "BABY DRAGON";
+            case "jelly_slime" -> "JELLY SLIME";
+            default -> id.toUpperCase(Locale.ROOT);
+        };
     }
 
     // Card standalone 3D models (each has visible=false on all body parts)
@@ -580,6 +612,34 @@ public class CosmeticsTab implements ClientTab {
         List<CosmeticSection> activeSections = getActiveSections(search);
         int curY = cardStartY;
         boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
+
+        // Update coordinate mappings for scroll-spy and quick jump
+        int relY = 0;
+        SECTION_Y_MAP.clear();
+        ITEM_Y_MAP.clear();
+        String detectedCategory = "WINGS";
+        double currentScroll = screen.getScroll();
+
+        for (CosmeticSection sec : activeSections) {
+            SECTION_Y_MAP.put(sec.category.toUpperCase(Locale.ROOT), relY);
+            if (currentScroll + 35 >= relY) {
+                detectedCategory = sec.category.toUpperCase(Locale.ROOT);
+            }
+            if (isAllMode) {
+                relY += HEADER_HEIGHT;
+            }
+            for (int i = 0; i < sec.items.size(); i++) {
+                CosmeticItem item = sec.items.get(i);
+                int row = i / COLS;
+                ITEM_Y_MAP.put(item.id.toLowerCase(Locale.ROOT), relY + row * (CARD_HEIGHT + CARD_GAP));
+            }
+            int rows = (sec.items.size() + COLS - 1) / COLS;
+            relY += rows * (CARD_HEIGHT + CARD_GAP);
+        }
+        if (isAllMode) {
+            currentScrolledCategory = detectedCategory;
+        }
+
         if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
             int bannerH = 18;
             int slotNum = (assigningToWheelSlot % 8) + 1;
@@ -742,30 +802,6 @@ public class CosmeticsTab implements ClientTab {
             }
         }
 
-        // 4. Equipped Status Badge at Bottom of Card
-        if (equipped) {
-            String eqText = "✓ Equipped";
-            if ("EMOTES".equalsIgnoreCase(item.category)) {
-                int slot = CosmeticsConfig.getSlotForEmote(item.id);
-                if (slot >= 0) {
-                    eqText = "✓ Slot " + ((slot % 8) + 1);
-                }
-            }
-            int eqW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eqText)) + 6;
-            int eqX = x + (w - eqW) / 2;
-            int eqY = y + h - 14;
-            CustomGuiUtils.fillUltraRounded(c, eqX, eqY, eqW, 11, 0x4010B981, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, eqX, eqY, eqW, 11, 0xFF10B981, 3.0f);
-            screen.text(c, eqText, eqX + 3, eqY + 2, 0xFF34D399);
-        } else if (!unlocked) {
-            String lockText = "🔒 Gesperrt";
-            int ltW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(lockText)) + 6;
-            int ltX = x + (w - ltW) / 2;
-            int ltY = y + h - 14;
-            CustomGuiUtils.fillUltraRounded(c, ltX, ltY, ltW, 11, 0x40EF4444, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, ltX, ltY, ltW, 11, 0xFFEF4444, 3.0f);
-            screen.text(c, lockText, ltX + 3, ltY + 2, 0xFFFCA5A5);
-        }
     }
 
     private void renderPreviewPanel(BameClientScreen screen, DrawContext c, MinecraftClient mc,
@@ -784,50 +820,46 @@ public class CosmeticsTab implements ClientTab {
         String curH = previewHead != null ? previewHead : CosmeticsConfig.head;
         String curF = previewFace != null ? previewFace : CosmeticsConfig.face;
 
-        List<String> equippedList = new ArrayList<>();
-        if (!"none".equalsIgnoreCase(curW)) {
-            equippedList.add("angel".equalsIgnoreCase(curW) ? "GOLD WINGS" : "DRAGON WINGS");
+        List<EquippedPreviewItem> equippedItems = new ArrayList<>();
+        if (curW != null && !"none".equalsIgnoreCase(curW)) {
+            equippedItems.add(new EquippedPreviewItem(curW, "angel".equalsIgnoreCase(curW) ? "GOLD WINGS" : "DRAGON WINGS", "WINGS"));
         }
-        if (!"none".equalsIgnoreCase(curH)) {
-            equippedList.add(equippedLabel(curH));
+        if (curH != null && !"none".equalsIgnoreCase(curH)) {
+            equippedItems.add(new EquippedPreviewItem(curH, equippedLabel(curH), "HEAD"));
         }
         if (curF != null && !"none".equalsIgnoreCase(curF)) {
-            equippedList.add(equippedLabel(curF));
+            equippedItems.add(new EquippedPreviewItem(curF, equippedLabel(curF), "FACE"));
         }
         if (CosmeticsConfig.accessories != null) {
             for (String acc : CosmeticsConfig.accessories) {
-                switch (acc.toLowerCase(java.util.Locale.ROOT)) {
-                    case "minime_sit", "self", "custom" -> equippedList.add("MINIME SIT");
-                    case "minime_head" -> equippedList.add("MINIME HEAD");
-                    case "minime_hand" -> equippedList.add("MINIME HAND");
-                    case "minime_chain" -> equippedList.add("MINIME CHAIN");
-                    case "baby_dragon" -> equippedList.add("BABY DRAGON");
-                    case "jelly_slime" -> equippedList.add("JELLY SLIME");
-                }
-            }
-        }
-        if (CaeserSkinManager.hasActiveOverride()) {
-            equippedList.add(CaeserSkinManager.getActiveSkinName().toUpperCase(Locale.ROOT));
-        }
-        if (CosmeticsConfig.equippedEmotes != null) {
-            for (String em : CosmeticsConfig.equippedEmotes) {
-                com.bame.client.emotes.EmoteType emType = com.bame.client.emotes.EmoteType.fromId(em);
-                if (emType != null) {
-                    equippedList.add("EMOTE: " + emType.getNameEn().toUpperCase(Locale.ROOT));
-                }
+                String cat = ("baby_dragon".equalsIgnoreCase(acc) || "jelly_slime".equalsIgnoreCase(acc)) ? "PETS" : "ACCESSORIES";
+                equippedItems.add(new EquippedPreviewItem(acc, equippedAccLabel(acc), cat));
             }
         }
 
-        int listY = py + 12;
-        if (equippedList.isEmpty()) {
+        equippedBadgeClicks.clear();
+        int listY = py + 10;
+        if (equippedItems.isEmpty()) {
             String noneText = "NO COSMETICS";
             int nw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(noneText));
             screen.text(c, noneText, px + pw - nw - 12, listY, 0xFF475569);
         } else {
-            for (String eqName : equippedList) {
-                int nw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eqName));
-                screen.text(c, eqName, px + pw - nw - 12, listY, 0xFFF1F5F9);
-                listY += 12;
+            for (EquippedPreviewItem eqItem : equippedItems) {
+                int nw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eqItem.label()));
+                int badgeW = nw + 10;
+                int badgeH = 15;
+                int badgeX = px + pw - badgeW - 10;
+                int badgeY = listY;
+                boolean hoverBadge = screen.inside(mx, my, badgeX, badgeY, badgeW, badgeH);
+
+                int bgCol = hoverBadge ? GuiTheme.alpha(GuiTheme.accent(), 60) : 0x50141926;
+                int borderCol = hoverBadge ? GuiTheme.accent() : 0x303E4C66;
+                CustomGuiUtils.fillUltraRounded(c, badgeX, badgeY, badgeW, badgeH, bgCol, 3.5f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, badgeX, badgeY, badgeW, badgeH, borderCol, 3.5f);
+                screen.text(c, eqItem.label(), badgeX + 5, badgeY + 4, hoverBadge ? 0xFFFFFFFF : 0xFFE2E8F0);
+
+                equippedBadgeClicks.add(new EquippedBadgeClick(eqItem.id(), badgeX, badgeY, badgeW, badgeH));
+                listY += 18;
             }
         }
 
@@ -878,7 +910,8 @@ public class CosmeticsTab implements ClientTab {
 
         if (model != null) {
             float baseScale = (0.74f * (float) skinH / 2.125f) * previewZoom;
-            c.addPlayerSkin(model, skinTexture, baseScale, previewPitch, previewYaw, -1.0625f,
+            float dynamicPivotY = -1.0625f + (previewZoom - DEFAULT_ZOOM) * 0.35f;
+            c.addPlayerSkin(model, skinTexture, baseScale, previewPitch, previewYaw, dynamicPivotY,
                     skinX, skinY, skinX + skinW, skinY + skinH);
         }
 
@@ -1309,6 +1342,15 @@ public class CosmeticsTab implements ClientTab {
                 return true;
             }
 
+            // Equipped items click in top right: Jump directly to clicked cosmetic card!
+            for (EquippedBadgeClick badge : equippedBadgeClicks) {
+                if (screen.inside(mx, my, badge.x, badge.y, badge.w, badge.h)) {
+                    scrollToItem(screen, badge.itemId);
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+
             // Click inside preview panel to begin smooth drag rotation
             if (screen.inside(mx, my, previewX, previewY, previewW, previewH)) {
                 previewDragging = true;
@@ -1408,8 +1450,8 @@ public class CosmeticsTab implements ClientTab {
     @Override
     public boolean mouseDragged(BameClientScreen screen, Click click, double deltaX, double deltaY) {
         if (previewDragging) {
-            previewYaw += (float) deltaX * 1.5f;
-            previewPitch = Math.clamp(previewPitch - (float) deltaY * 1.5f, -65.0f, 65.0f);
+            previewYaw += (float) deltaX * 1.0f;
+            previewPitch = Math.clamp(previewPitch - (float) deltaY * 1.0f, -50.0f, 50.0f);
             return true;
         }
         return false;
@@ -1427,7 +1469,8 @@ public class CosmeticsTab implements ClientTab {
         if (lastPreviewW > 0 && lastPreviewH > 0) {
             if (mouseX >= lastPreviewX && mouseX <= lastPreviewX + lastPreviewW
                     && mouseY >= lastPreviewY && mouseY <= lastPreviewY + lastPreviewH) {
-                previewZoom = Math.clamp(previewZoom + (float) verticalAmount * 0.08f, 0.35f, 2.0f);
+                float zoomDelta = (float) verticalAmount * 0.05f;
+                previewZoom = Math.clamp(previewZoom + zoomDelta, 0.50f, 1.30f);
                 return true;
             }
         }
