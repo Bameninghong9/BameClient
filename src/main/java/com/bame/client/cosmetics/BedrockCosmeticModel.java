@@ -100,6 +100,10 @@ public class BedrockCosmeticModel {
     public final Map<String, ModelBone> bonesByName = new HashMap<>();
     public final List<ModelBone> rootBones = new ArrayList<>();
 
+    // Blockbench exportiert X gespiegelt: im Bedrock-Raum muessen Rotationen um X und Z negiert werden.
+    // Nur fuer Modelle aktivieren, die nicht per Hand auf die alte Konvention nachjustiert wurden.
+    public boolean blockbenchAxisFix = false;
+
     public BedrockCosmeticModel(float textureWidth, float textureHeight) {
         this.textureWidth = textureWidth;
         this.textureHeight = textureHeight;
@@ -271,13 +275,14 @@ public class BedrockCosmeticModel {
         float px = bone.px;
         float py = bone.py;
         float pz = bone.pz;
+        float xzSign = blockbenchAxisFix ? -1.0f : 1.0f;
 
         // T(pivot + animTrans) @ R(bind + anim) @ T(-pivot)
         boneMat.translate(px + bone.animTx, py + bone.animTy, pz + bone.animTz);
         // Bedrock rotation order: Z, Y, X
-        boneMat.rotateZ((float) Math.toRadians(bone.rz + bone.animRz));
+        boneMat.rotateZ((float) Math.toRadians(xzSign * (bone.rz + bone.animRz)));
         boneMat.rotateY((float) Math.toRadians(bone.ry + bone.animRy));
-        boneMat.rotateX((float) Math.toRadians(bone.rx + bone.animRx));
+        boneMat.rotateX((float) Math.toRadians(xzSign * (bone.rx + bone.animRx)));
         boneMat.translate(-px, -py, -pz);
 
         // Render cubes of this bone
@@ -287,9 +292,9 @@ public class BedrockCosmeticModel {
                 cubeMat = new Matrix4f(boneMat);
                 cubeMat.translate(cube.px, cube.py, cube.pz);
                 if (cube.hasRot) {
-                    cubeMat.rotateZ((float) Math.toRadians(cube.rz));
+                    cubeMat.rotateZ((float) Math.toRadians(xzSign * cube.rz));
                     cubeMat.rotateY((float) Math.toRadians(cube.ry));
-                    cubeMat.rotateX((float) Math.toRadians(cube.rx));
+                    cubeMat.rotateX((float) Math.toRadians(xzSign * cube.rx));
                 }
                 cubeMat.translate(-cube.px, -cube.py, -cube.pz);
             }

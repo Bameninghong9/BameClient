@@ -250,6 +250,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
         if (miniMeHandModel == null) {
             miniMeHandModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/accessory/minimehand.geo.json");
+            if (miniMeHandModel != null) {
+                miniMeHandModel.blockbenchAxisFix = true;
+            }
         }
     }
 
@@ -575,7 +578,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                                int light, PlayerEntityRenderState state, float limbAngle, float limbDistance) {
         if (miniMeHandModel == null) return;
         float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
-        float walkSwing = (limbDistance > 0.01f) ? (float) Math.sin(limbAngle * 0.8f) * Math.min(limbDistance, 1.0f) * 0.35f : 0.0f;
+        // Hinweis: limbAngle/limbDistance sind in 1.21.11 relativeHeadYaw/pitch, daher die echten Laufwerte aus dem State
+        float limbProgress = state.limbSwingAnimationProgress;
+        float limbAmplitude = Math.min(state.limbSwingAmplitude, 1.0f);
+        float walkSwing = (limbAmplitude > 0.01f) ? (float) Math.sin(limbProgress * 0.6662f) * limbAmplitude * 0.35f : 0.0f;
 
         String side = CosmeticsConfig.getAccessorySide("minime_hand");
         boolean renderLeft = "left".equalsIgnoreCase(side) || "both".equalsIgnoreCase(side);
@@ -586,8 +592,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         if (renderLeft) {
             matrices.push();
-            this.getContextModel().leftArm.applyTransform(matrices);
-            matrices.translate(-0.3125f, -0.125f, 0.0f);
+            applyMiniMeHandTransform(matrices, this.getContextModel().leftArm, false, timeSec, walkSwing);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
@@ -598,15 +603,42 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         if (renderRight) {
             matrices.push();
-            this.getContextModel().rightArm.applyTransform(matrices);
-            matrices.translate(0.3125f, -0.125f, 0.0f);
+            // Rechter Arm schwingt gegenphasig zum linken
+            applyMiniMeHandTransform(matrices, this.getContextModel().rightArm, true, timeSec, -walkSwing);
             miniMeHandModel.resetAllAnimations();
-            applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
+            applyMiniMeHandAnimation(miniMeHandModel, timeSec, -walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
                 miniMeHandModel.render(entry, consumer, light, 0, 1, true);
             });
             matrices.pop();
         }
+    }
+
+    // Greifpunkt des MiniMe (Hand des hochgestreckten Arms) in Java-Modellkoordinaten, linke Seite
+    private static final float MINIME_GRIP_X = 6.05f / 16.0f;
+    private static final float MINIME_GRIP_Y = 12.0f / 16.0f;
+    private static final float MINIME_PENDULUM_WALK_DEG = 30.0f; // * walkSwing (max 0.35) = max 10.5 Grad
+    private static final float MINIME_PENDULUM_IDLE_DEG = 1.5f;
+
+    // Gemeinsame Arm-Transformation fuer Ingame und Menue-Vorschau: haengt das MiniMe an die Hand
+    // und laesst es um den Greifpunkt pendeln.
+    public static void applyMiniMeHandTransform(MatrixStack matrices, ModelPart arm, boolean mirrorX,
+                                                float timeSec, float walkSwing) {
+        if (arm != null) {
+            arm.applyTransform(matrices);
+            // Ruhe-Pivot des Arms abziehen (Wide 5/2/0, Slim 5/2.5/0). Bewusst nicht originX/Y/Z:
+            // Vanilla verschiebt diese beim Schleichen und Schlagen, das MiniMe wuerde von der Hand rutschen.
+            ModelTransform rest = arm.getDefaultTransform();
+            matrices.translate(-rest.x() / 16.0f, -rest.y() / 16.0f, -rest.z() / 16.0f);
+        }
+
+        float gripX = mirrorX ? -MINIME_GRIP_X : MINIME_GRIP_X;
+        float idleSway = (float) Math.sin(timeSec * 1.8f) * MINIME_PENDULUM_IDLE_DEG;
+        matrices.translate(gripX, MINIME_GRIP_Y, 0.0f);
+        // Positiver Pitch = Koerper nach hinten: haengt beim Vorschwingen des Arms leicht nach
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(walkSwing * MINIME_PENDULUM_WALK_DEG));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotationDegrees(mirrorX ? -idleSway : idleSway));
+        matrices.translate(-gripX, -MINIME_GRIP_Y, 0.0f);
     }
 
     private void renderBabyDragon(MatrixStack matrices, OrderedRenderCommandQueue queue,
@@ -1098,8 +1130,6 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         float bodyPosY = (float) Math.cos(idlePhase) * 0.1f;
 
         float rArmRotZ = (float) Math.cos(idlePhase) * -2.0f;
-        float rArmPosX = (float) Math.cos(idlePhase) * 0.075f;
-        float rArmPosY = (float) Math.cos(idlePhase) * 0.075f;
 
         float lArmRotZ = (float) Math.cos(idlePhase) * -3.0f;
         float lArmPosX = (float) Math.cos(idlePhase) * 0.075f;
@@ -1115,14 +1145,14 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         float lLegPosX = (float) Math.cos(idlePhase) * 0.075f;
         float lLegPosY = (float) Math.cos(idlePhase) * 0.075f;
 
-        model.setBoneRotation("minime", walkSwing * 12.0f, 0.0f, 0.0f);
+        // Pendeln des ganzen MiniMe passiert im Renderer um den Greifpunkt (applyMiniMeHandTransform)
         model.setBoneRotation("Head", headRotX, 0.0f, 0.0f);
         model.setBoneTranslation("Head", headPosX, headPosY, 0.0f);
 
         model.setBoneTranslation("Body", bodyPosX, bodyPosY, 0.0f);
 
+        // Greifarm: keine Translation, damit die Hand an der Spielerhand bleibt
         model.setBoneRotation("Right Arm", 0.0f, 0.0f, rArmRotZ);
-        model.setBoneTranslation("Right Arm", rArmPosX, rArmPosY, 0.0f);
 
         model.setBoneRotation("Left Arm", 0.0f, 0.0f, lArmRotZ);
         model.setBoneTranslation("Left Arm", lArmPosX, lArmPosY, 0.0f);
@@ -1463,8 +1493,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
                     if (doLeftH) {
                         matrices.push();
-                        if (playerModel != null) playerModel.leftArm.applyTransform(matrices);
-                        matrices.translate(-0.3125f, -0.125f, 0.0f);
+                        applyMiniMeHandTransform(matrices, playerModel != null ? playerModel.leftArm : null, false, timeSec, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                         miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1, false);
@@ -1472,8 +1501,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     }
                     if (doRightH) {
                         matrices.push();
-                        if (playerModel != null) playerModel.rightArm.applyTransform(matrices);
-                        matrices.translate(0.3125f, -0.125f, 0.0f);
+                        applyMiniMeHandTransform(matrices, playerModel != null ? playerModel.rightArm : null, true, timeSec, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                         miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1, true);
@@ -1666,7 +1694,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 matrices.translate(0.0f, 0.48f, 0.0f);
                 matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-15.0f));
                 matrices.scale(1.95f, 1.95f, 1.95f);
-                matrices.translate(-0.594f, -1.047f, 0.0f);
+                matrices.translate(-0.658f, -1.047f, 0.0f);
                 miniMeHandModel.resetAllAnimations();
                 applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                 Identifier skinTexture = getPetSkinDirect(cosmeticId);
