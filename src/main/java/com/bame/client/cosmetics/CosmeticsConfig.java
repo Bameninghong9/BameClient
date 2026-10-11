@@ -13,20 +13,82 @@ public class CosmeticsConfig {
     public static String petCustomPlayer = "";
     public static final java.util.Set<String> accessories = new java.util.LinkedHashSet<>();
     public static final java.util.Set<String> equippedEmotes = new java.util.LinkedHashSet<>();
+    public static final String[] wheelSlots = new String[40];
+
+    public static String getEmoteAtSlot(int slot) {
+        if (slot < 0 || slot >= wheelSlots.length) return null;
+        return wheelSlots[slot];
+    }
+
+    public static int getSlotForEmote(String id) {
+        if (id == null || id.isBlank()) return -1;
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        for (int i = 0; i < wheelSlots.length; i++) {
+            if (key.equals(wheelSlots[i])) return i;
+        }
+        return -1;
+    }
+
+    public static void setEmoteAtSlot(int slot, String id) {
+        if (slot < 0 || slot >= wheelSlots.length) return;
+        String clean = (id == null || id.isBlank()) ? null : id.toLowerCase(java.util.Locale.ROOT);
+        if (clean != null) {
+            for (int i = 0; i < wheelSlots.length; i++) {
+                if (clean.equals(wheelSlots[i])) {
+                    wheelSlots[i] = null;
+                }
+            }
+        }
+        wheelSlots[slot] = clean;
+        syncEquippedEmotesFromSlots();
+        save();
+    }
+
+    public static void clearSlot(int slot) {
+        if (slot >= 0 && slot < wheelSlots.length) {
+            wheelSlots[slot] = null;
+            syncEquippedEmotesFromSlots();
+            save();
+        }
+    }
+
+    public static void syncEquippedEmotesFromSlots() {
+        equippedEmotes.clear();
+        for (String s : wheelSlots) {
+            if (s != null && !s.isBlank()) {
+                equippedEmotes.add(s);
+            }
+        }
+    }
 
     public static boolean isEmoteEquipped(String id) {
         if (id == null || id.isBlank()) return false;
-        return equippedEmotes.contains(id.toLowerCase(java.util.Locale.ROOT));
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        for (String s : wheelSlots) {
+            if (key.equals(s)) return true;
+        }
+        return equippedEmotes.contains(key);
     }
 
     public static void toggleEmote(String id) {
         if (id == null || id.isBlank()) return;
         String key = id.toLowerCase(java.util.Locale.ROOT);
-        if (equippedEmotes.contains(key)) {
-            equippedEmotes.remove(key);
+        int currentSlot = getSlotForEmote(key);
+        if (currentSlot >= 0) {
+            wheelSlots[currentSlot] = null;
         } else {
-            equippedEmotes.add(key);
+            int empty = -1;
+            for (int i = 0; i < wheelSlots.length; i++) {
+                if (wheelSlots[i] == null) {
+                    empty = i;
+                    break;
+                }
+            }
+            if (empty >= 0) {
+                wheelSlots[empty] = key;
+            }
         }
+        syncEquippedEmotesFromSlots();
         save();
     }
 
@@ -224,6 +286,16 @@ public class CosmeticsConfig {
             }
             root.add("emotes", emotesArr);
 
+            com.google.gson.JsonArray wheelArr = new com.google.gson.JsonArray();
+            for (String slotEmote : wheelSlots) {
+                if (slotEmote == null) {
+                    wheelArr.add(com.google.gson.JsonNull.INSTANCE);
+                } else {
+                    wheelArr.add(slotEmote);
+                }
+            }
+            root.add("wheel_slots", wheelArr);
+
             Files.writeString(file, root.toString());
             lastModified = Files.getLastModifiedTime(file).toMillis();
 
@@ -350,11 +422,27 @@ public class CosmeticsConfig {
                 }
             }
 
-            if (root.has("emotes") && root.get("emotes").isJsonArray()) {
+            if (root.has("wheel_slots") && root.get("wheel_slots").isJsonArray()) {
+                java.util.Arrays.fill(wheelSlots, null);
+                com.google.gson.JsonArray arr = root.getAsJsonArray("wheel_slots");
+                for (int i = 0; i < Math.min(arr.size(), wheelSlots.length); i++) {
+                    com.google.gson.JsonElement el = arr.get(i);
+                    if (el != null && !el.isJsonNull() && el.isJsonPrimitive()) {
+                        wheelSlots[i] = el.getAsString().toLowerCase(java.util.Locale.ROOT);
+                    }
+                }
+                syncEquippedEmotesFromSlots();
+            } else if (root.has("emotes") && root.get("emotes").isJsonArray()) {
                 equippedEmotes.clear();
+                java.util.Arrays.fill(wheelSlots, null);
+                int slotIdx = 0;
                 for (com.google.gson.JsonElement el : root.getAsJsonArray("emotes")) {
                     if (el.isJsonPrimitive()) {
-                        equippedEmotes.add(el.getAsString().toLowerCase(java.util.Locale.ROOT));
+                        String em = el.getAsString().toLowerCase(java.util.Locale.ROOT);
+                        equippedEmotes.add(em);
+                        if (slotIdx < wheelSlots.length) {
+                            wheelSlots[slotIdx++] = em;
+                        }
                     }
                 }
             }

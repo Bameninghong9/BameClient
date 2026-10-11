@@ -38,6 +38,7 @@ public class CosmeticsTab implements ClientTab {
 
     public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES", "SKINS"
     private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES", "SKINS"};
+    public static int assigningToWheelSlot = -1;
 
     // Preview state (what is shown on the 3D player right now)
     public static String previewWings = null;
@@ -421,6 +422,9 @@ public class CosmeticsTab implements ClientTab {
         List<CosmeticSection> activeSections = getActiveSections(search);
 
         boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
+        if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
+            curY += 24;
+        }
         for (CosmeticSection sec : activeSections) {
             if (isAllMode) {
                 curY += HEADER_HEIGHT;
@@ -454,6 +458,16 @@ public class CosmeticsTab implements ClientTab {
         List<CosmeticSection> activeSections = getActiveSections(search);
         int curY = cardStartY;
         boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
+        if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
+            int bannerH = 18;
+            int slotNum = (assigningToWheelSlot % 8) + 1;
+            int pageNum = (assigningToWheelSlot / 8) + 1;
+            String hint = "★ Wähle ein freigeschaltetes Emote für Slot " + slotNum + " (Seite " + pageNum + ")";
+            CustomGuiUtils.fillUltraRounded(c, leftX, curY, cardsAreaW, bannerH, GuiTheme.alpha(GuiTheme.accent(), 45), 4.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, leftX, curY, cardsAreaW, bannerH, GuiTheme.accent(), 4.0f);
+            screen.text(c, hint, leftX + 8, curY + 4, 0xFFFFFFFF);
+            curY += bannerH + 6;
+        }
 
         for (CosmeticSection sec : activeSections) {
             if (isAllMode) {
@@ -524,32 +538,21 @@ public class CosmeticsTab implements ClientTab {
         int titleColor = equipped ? 0xFFFFFFFF : (hover ? 0xFFF1F5F9 : (unlocked ? 0xFFCBD5E1 : 0xFF64748B));
         screen.text(c, item.name, x + 6, y + 6, titleColor);
 
-        // If locked: render ONLY a prominent centered lock ("nur ein Schloss")
+        // Top Right: Lock icon (🔒 closed if locked, 🔓 open if unlocked)
+        int lockIconSize = 13;
+        int lockX = x + w - lockIconSize - 5;
+        int lockY = y + 5;
         if (!unlocked) {
-            int lockBoxSize = 34;
-            int lockBoxX = x + (w - lockBoxSize) / 2;
-            int lockBoxY = y + (h - lockBoxSize) / 2 - 2;
-            CustomGuiUtils.fillUltraRounded(c, lockBoxX, lockBoxY, lockBoxSize, lockBoxSize, 0x60121624, 7.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, lockBoxX, lockBoxY, lockBoxSize, lockBoxSize, 0xFF2B3548, 7.0f);
-
-            int lockIconW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText("🔒"));
-            screen.text(c, "🔒", lockBoxX + (lockBoxSize - lockIconW) / 2, lockBoxY + (lockBoxSize - 8) / 2, 0xFFCBD5E1);
-
-            String lockText = "Gesperrt";
-            int ltW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(lockText)) + 8;
-            int ltX = x + (w - ltW) / 2;
-            int ltY = y + h - 16;
-            CustomGuiUtils.fillUltraRounded(c, ltX, ltY, ltW, 11, 0x40161B28, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, ltX, ltY, ltW, 11, 0xFF2A344A, 3.0f);
-            screen.text(c, lockText, ltX + 4, ltY + 2, 0xFF64748B);
-            return;
+            CustomGuiUtils.drawLockIcon(c, lockX + 2, lockY + 1, true, 0xFFEF4444);
+        } else {
+            CustomGuiUtils.drawLockIcon(c, lockX + 2, lockY + 1, false, 0xFF22C55E);
         }
 
-        // Pencil Icon Button [ ✎ ] on top right of accessory/pet card (matching NoRisk Bild 3/4)
+        // Pencil Icon Button [ ✎ ] on top right of accessory/pet card (placed to the left of the lock icon)
         boolean isAccessory = "ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category);
         if (isAccessory) {
             int pencilBtnSize = 13;
-            int pencilX = x + w - pencilBtnSize - 5;
+            int pencilX = lockX - pencilBtnSize - 4;
             int pencilY = y + 5;
             boolean hoverPencil = screen.inside(mx, my, pencilX, pencilY, pencilBtnSize, pencilBtnSize);
             boolean isCustomizing = item.id.equalsIgnoreCase(customizingAccessory);
@@ -575,21 +578,32 @@ public class CosmeticsTab implements ClientTab {
                         x + 2, y + 18, x + w - 2, prevBottom);
             }
         } else if ("EMOTES".equalsIgnoreCase(item.category)) {
-            PlayerEntityModel pModel = getPreviewModel(mc, false);
-            if (pModel != null) {
-                Identifier skinTex = (mc.player != null && mc.player.getSkin() != null)
-                        ? mc.player.getSkin().body().texturePath()
-                        : DefaultSkinHelper.getTexture();
-                float cardScale = 0.74f * (h - 22) / 2.125f;
-                float rotY = (float) (Math.sin((System.currentTimeMillis() % 10000L) / 1000.0f * 1.5) * 10.0f);
-                int prevBottom = y + h - 16;
-                c.addPlayerSkin(pModel, skinTex,
-                        cardScale, -4.0f, rotY, -1.0625f,
-                        x + 2, y + 18, x + w - 2, prevBottom);
-            }
             com.bame.client.emotes.EmoteType emType = com.bame.client.emotes.EmoteType.fromId(item.id);
-            if (emType != null && !emType.getIcon().isEmpty()) {
-                screen.text(c, emType.getIcon(), x + w - 18, y + 6, 0xFFFFFFFF);
+            if (mc.player != null && emType != null) {
+                float animTime = (System.currentTimeMillis() % 100000L) / 1000.0f;
+                com.bame.client.emotes.EmotePreviewRenderer.drawPlayerPreview(
+                        c,
+                        x + 2, y + 14,
+                        x + w - 2, y + h - 14,
+                        28,
+                        mx, my,
+                        mc.player,
+                        emType,
+                        animTime
+                );
+            } else {
+                PlayerEntityModel pModel = getPreviewModel(mc, false);
+                if (pModel != null) {
+                    Identifier skinTex = (mc.player != null && mc.player.getSkin() != null)
+                            ? mc.player.getSkin().body().texturePath()
+                            : DefaultSkinHelper.getTexture();
+                    float cardScale = 0.74f * (h - 22) / 2.125f;
+                    float rotY = (float) (Math.sin((System.currentTimeMillis() % 10000L) / 1000.0f * 1.5) * 10.0f);
+                    int prevBottom = y + h - 16;
+                    c.addPlayerSkin(pModel, skinTex,
+                            cardScale, -4.0f, rotY, -1.0625f,
+                            x + 2, y + 18, x + w - 2, prevBottom);
+                }
             }
         } else {
             PlayerEntityModel cardModel = getCardModel(mc, item.id);
@@ -606,15 +620,29 @@ public class CosmeticsTab implements ClientTab {
             }
         }
 
-        // 4. Equipped Status Badge at Bottom of Card (matching NoRisk Bild 3/4)
+        // 4. Equipped Status Badge at Bottom of Card
         if (equipped) {
             String eqText = "✓ Equipped";
+            if ("EMOTES".equalsIgnoreCase(item.category)) {
+                int slot = CosmeticsConfig.getSlotForEmote(item.id);
+                if (slot >= 0) {
+                    eqText = "✓ Slot " + ((slot % 8) + 1);
+                }
+            }
             int eqW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eqText)) + 6;
             int eqX = x + (w - eqW) / 2;
             int eqY = y + h - 14;
             CustomGuiUtils.fillUltraRounded(c, eqX, eqY, eqW, 11, 0x4010B981, 3.0f);
             CustomGuiUtils.drawUltraRoundedOutline(c, eqX, eqY, eqW, 11, 0xFF10B981, 3.0f);
             screen.text(c, eqText, eqX + 3, eqY + 2, 0xFF34D399);
+        } else if (!unlocked) {
+            String lockText = "🔒 Gesperrt";
+            int ltW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(lockText)) + 6;
+            int ltX = x + (w - ltW) / 2;
+            int ltY = y + h - 14;
+            CustomGuiUtils.fillUltraRounded(c, ltX, ltY, ltW, 11, 0x40EF4444, 3.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, ltX, ltY, ltW, 11, 0xFFEF4444, 3.0f);
+            screen.text(c, lockText, ltX + 3, ltY + 2, 0xFFFCA5A5);
         }
     }
 
@@ -1170,6 +1198,9 @@ public class CosmeticsTab implements ClientTab {
         List<CosmeticSection> activeSections = getActiveSections(search);
         int curY = cardStartY;
         boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
+        if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
+            curY += 24;
+        }
 
         for (CosmeticSection sec : activeSections) {
             if (isAllMode) {
@@ -1190,13 +1221,21 @@ public class CosmeticsTab implements ClientTab {
                         if (mc.player != null) {
                             mc.player.playSound(net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                         }
+                        com.bame.client.notification.NotificationManager.add(
+                            new com.bame.client.notification.Notification(
+                                "🔒 Gesperrt",
+                                "Du hast \"" + item.name + "\" noch nicht freigeschaltet!",
+                                com.bame.client.notification.Notification.Type.DISABLED,
+                                2800
+                            )
+                        );
                         return true;
                     }
 
                     // Pencil Button Click on Accessory or Pet Card
                     if ("ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category)) {
                         int pencilBtnSize = 13;
-                        int pencilX = cardX + colW - pencilBtnSize - 5;
+                        int pencilX = cardX + colW - pencilBtnSize - 19;
                         int pencilY = cardY + 5;
                         if (screen.inside(mx, my, pencilX, pencilY, pencilBtnSize, pencilBtnSize)) {
                             customizingAccessory = item.id;
@@ -1207,6 +1246,25 @@ public class CosmeticsTab implements ClientTab {
                             ClientSoundManager.playClick();
                             return true;
                         }
+                    }
+
+                    // Assigning to specific wheel slot (from clicking [+] in emote wheel)
+                    if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(item.category)) {
+                        int targetSlot = assigningToWheelSlot;
+                        assigningToWheelSlot = -1;
+                        CosmeticsConfig.setEmoteAtSlot(targetSlot, item.id);
+                        ClientSoundManager.playClick();
+                        int slotNum = (targetSlot % 8) + 1;
+                        int pageNum = (targetSlot / 8) + 1;
+                        com.bame.client.notification.NotificationManager.add(
+                            new com.bame.client.notification.Notification(
+                                "✓ Ausgerüstet",
+                                item.name + " auf Slot " + slotNum + " (Seite " + pageNum + ") gesetzt!",
+                                com.bame.client.notification.Notification.Type.ENABLED,
+                                2500
+                            )
+                        );
+                        return true;
                     }
 
                     item.toggleEquipped();

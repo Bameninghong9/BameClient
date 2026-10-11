@@ -1622,11 +1622,17 @@ public class BameClientScreen extends Screen {
             int unequipX = cx + cw - unequipW;
             int unequipY = py + 8;
             if (inside(mx, my, unequipX, unequipY, unequipW, unequipH)) {
-                com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
-                com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
-                com.bame.client.cosmetics.CosmeticsConfig.accessories.clear();
-                com.bame.client.cosmetics.CosmeticsConfig.setPet("none", "");
-                CosmeticsTab.resetPreview();
+                if ("EMOTES".equalsIgnoreCase(CosmeticsTab.subCategory)) {
+                    java.util.Arrays.fill(com.bame.client.cosmetics.CosmeticsConfig.wheelSlots, null);
+                    com.bame.client.cosmetics.CosmeticsConfig.syncEquippedEmotesFromSlots();
+                    com.bame.client.cosmetics.CosmeticsConfig.save();
+                } else {
+                    com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
+                    com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
+                    com.bame.client.cosmetics.CosmeticsConfig.accessories.clear();
+                    com.bame.client.cosmetics.CosmeticsConfig.setPet("none", "");
+                    CosmeticsTab.resetPreview();
+                }
                 com.bame.client.sound.ClientSoundManager.playClick();
                 return true;
             }

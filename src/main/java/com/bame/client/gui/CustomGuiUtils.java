@@ -281,6 +281,28 @@ public class CustomGuiUtils {
     public static void drawMusicIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "music", x, y, 18, 18, color); }
     public static void drawTrashIcon(DrawContext c, int x, int y, int color) { drawIcon(c, "trash", x, y, 14, 14, color); }
 
+    public static void drawLockIcon(DrawContext c, int x, int y, boolean locked, int color) {
+        if (locked) {
+            // Closed lock shackle
+            c.fill(x + 2, y, x + 7, y + 1, color);
+            c.fill(x + 1, y + 1, x + 3, y + 4, color);
+            c.fill(x + 6, y + 1, x + 8, y + 4, color);
+            // Body
+            fillUltraRounded(c, x, y + 4, 9, 7, color, 1.5f);
+            // Keyhole
+            c.fill(x + 4, y + 6, x + 5, y + 9, 0xFF0E111A);
+        } else {
+            // Open lock shackle (shackle open on right)
+            c.fill(x + 2, y - 2, x + 7, y - 1, color);
+            c.fill(x + 1, y - 1, x + 3, y + 4, color);
+            c.fill(x + 6, y - 1, x + 8, y + 2, color);
+            // Body
+            fillUltraRounded(c, x, y + 4, 9, 7, color, 1.5f);
+            // Keyhole
+            c.fill(x + 4, y + 6, x + 5, y + 9, 0xFF0E111A);
+        }
+    }
+
     public static void drawLightningBolt(DrawContext c, int x, int y, int w, int h, int color) {
         drawIcon(c, "bolt", x, y, w, h, color);
     }

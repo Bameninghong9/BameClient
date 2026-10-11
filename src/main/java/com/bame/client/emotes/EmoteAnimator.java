@@ -449,6 +449,15 @@ public class EmoteAnimator {
         model.leftArm.resetTransform();
         model.rightLeg.resetTransform();
         model.leftLeg.resetTransform();
+
+        // In Minecraft 1.17+, outer layers (sleeves, pants, jacket, hat) are children of their respective
+        // parent body parts. Reset their local transforms to ensure zero displacement!
+        if (model.leftSleeve != null) model.leftSleeve.resetTransform();
+        if (model.rightSleeve != null) model.rightSleeve.resetTransform();
+        if (model.leftPants != null) model.leftPants.resetTransform();
+        if (model.rightPants != null) model.rightPants.resetTransform();
+        if (model.jacket != null) model.jacket.resetTransform();
+        if (model.hat != null) model.hat.resetTransform();
     }
 
     private static void applyBone(ModelPart part, float[] rot, float[] pos) {
@@ -468,21 +477,14 @@ public class EmoteAnimator {
     private static void syncLayers(PlayerEntityModel model) {
         if (model == null) return;
         model.hat.visible = model.head.visible;
-        copy(model.leftArm, model.leftSleeve);
-        copy(model.rightArm, model.rightSleeve);
-        copy(model.leftLeg, model.leftPants);
-        copy(model.rightLeg, model.rightPants);
-        copy(model.body, model.jacket);
-        copy(model.head, model.hat);
-    }
-
-    private static void copy(ModelPart src, ModelPart dst) {
-        if (src == null || dst == null) return;
-        dst.pitch = src.pitch;
-        dst.yaw = src.yaw;
-        dst.roll = src.roll;
-        dst.originX = src.originX;
-        dst.originY = src.originY;
-        dst.originZ = src.originZ;
+        // In modern Minecraft, sleeves, pants, jacket and hat are already children of their parent
+        // parts (leftArm, rightArm, body, etc.). They inherit the parent's transforms automatically!
+        // Never copy parent origins onto children or they get doubled and displaced into space.
+        if (model.leftSleeve != null) model.leftSleeve.resetTransform();
+        if (model.rightSleeve != null) model.rightSleeve.resetTransform();
+        if (model.leftPants != null) model.leftPants.resetTransform();
+        if (model.rightPants != null) model.rightPants.resetTransform();
+        if (model.jacket != null) model.jacket.resetTransform();
+        if (model.hat != null) model.hat.resetTransform();
     }
 }
