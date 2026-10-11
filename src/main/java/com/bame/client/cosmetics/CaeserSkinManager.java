@@ -15,10 +15,18 @@ import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -66,6 +74,10 @@ public class CaeserSkinManager {
     private static long lastSettingsModified = -1L;
     private static long lastSkinsModified = -1L;
     private static long lastCheckTime = 0L;
+    private static volatile String lastUploadedSkinId = null;
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
 
     public static Path getLauncherDir() {
         String appdata = System.getenv("APPDATA");
@@ -313,6 +325,9 @@ public class CaeserSkinManager {
         lastSkinsModified = -1L;
         reloadFromLauncher();
         LOGGER.info("[CaeserSkinManager] Synced active skin: {}", activeSkinId);
+        if (hasActiveOverride() && !Objects.equals(lastUploadedSkinId, activeSkinId)) {
+            uploadActiveSkinToMojangAsync();
+        }
     }
 
     public static void checkPeriodicSync() {
@@ -344,6 +359,102 @@ public class CaeserSkinManager {
         } catch (Throwable t) {
             LOGGER.warn("Failed to persist activeSkinId to launcher settings.json: {}", t.getMessage());
         }
+
+        uploadActiveSkinToMojangAsync();
+    }
+
+    public static void uploadActiveSkinToMojangAsync() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.getSession() == null) return;
+        String token = mc.getSession().getAccessToken();
+        if (token == null || token.isBlank() || token.length() < 20 || "0".equals(token)) {
+            LOGGER.info("[CaeserSkinManager] No valid Minecraft session token found, skipping Mojang skin upload.");
+            return;
+        }
+
+        final String skinId = activeSkinId;
+        if (skinId == null || "account".equalsIgnoreCase(skinId)) {
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                if ("steve".equalsIgnoreCase(skinId)) {
+                    HttpRequest req = HttpRequest.newBuilder()
+                            .uri(URI.create("https://api.minecraftservices.com/minecraft/profile/skins/active"))
+                            .timeout(Duration.ofSeconds(15))
+                            .header("Authorization", "Bearer " + token)
+                            .DELETE()
+                            .build();
+
+                    HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() == 200 || resp.statusCode() == 204) {
+                        lastUploadedSkinId = "steve";
+                        LOGGER.info("[CaeserSkinManager] Successfully reset skin to default on Mojang.");
+                        com.bame.client.notification.NotificationManager.showInfo("Skin zurückgesetzt", "Skin bei Mojang auf Standard gesetzt.");
+                    } else {
+                        LOGGER.warn("[CaeserSkinManager] Failed to reset skin on Mojang: HTTP {}", resp.statusCode());
+                    }
+                    return;
+                }
+
+                LauncherSkinEntry entry = CUSTOM_SKINS_BY_ID.get(skinId);
+                if (entry == null || entry.base64Data == null || entry.base64Data.isBlank()) {
+                    LOGGER.warn("[CaeserSkinManager] Custom skin entry not found for upload: {}", skinId);
+                    return;
+                }
+
+                String raw = entry.base64Data.trim();
+                int comma = raw.indexOf(',');
+                String b64 = comma >= 0 ? raw.substring(comma + 1) : raw;
+                byte[] bytes = Base64.getDecoder().decode(b64.trim());
+
+                String variant = (entry.getSkinType() == PlayerSkinType.SLIM) ? "slim" : "classic";
+                String boundary = "----CaeserSkinBoundary" + System.currentTimeMillis();
+                byte[] body = buildMultipartBody(boundary, variant, bytes);
+
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create("https://api.minecraftservices.com/minecraft/profile/skins"))
+                        .timeout(Duration.ofSeconds(15))
+                        .header("Authorization", "Bearer " + token)
+                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                        .build();
+
+                HttpResponse<String> resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 || resp.statusCode() == 204) {
+                    lastUploadedSkinId = skinId;
+                    LOGGER.info("[CaeserSkinManager] Successfully uploaded skin {} (variant: {}) to Mojang!", skinId, variant);
+                    com.bame.client.notification.NotificationManager.showInfo("Skin synchronisiert", "Dein Skin ist jetzt für alle Spieler sichtbar!");
+                } else if (resp.statusCode() == 429) {
+                    LOGGER.warn("[CaeserSkinManager] Mojang rate limit reached for skin upload.");
+                    com.bame.client.notification.NotificationManager.showInfo("Skin Rate-Limit", "Mojang erlaubt Änderungen nur alle paar Minuten.");
+                } else {
+                    LOGGER.warn("[CaeserSkinManager] Mojang skin upload failed: HTTP {} - {}", resp.statusCode(), resp.body());
+                }
+            } catch (Throwable t) {
+                LOGGER.warn("[CaeserSkinManager] Error during async Mojang skin upload", t);
+            }
+        });
+    }
+
+    private static byte[] buildMultipartBody(String boundary, String variant, byte[] pngBytes) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            String crlf = "\r\n";
+            out.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+            out.write(("Content-Disposition: form-data; name=\"variant\"" + crlf + crlf).getBytes(StandardCharsets.UTF_8));
+            out.write((variant + crlf).getBytes(StandardCharsets.UTF_8));
+
+            out.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"skin.png\"" + crlf).getBytes(StandardCharsets.UTF_8));
+            out.write(("Content-Type: image/png" + crlf + crlf).getBytes(StandardCharsets.UTF_8));
+            out.write(pngBytes);
+            out.write(crlf.getBytes(StandardCharsets.UTF_8));
+
+            out.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
+        } catch (Throwable ignored) {}
+        return out.toByteArray();
     }
 
     public static String getActiveSkinId() {
