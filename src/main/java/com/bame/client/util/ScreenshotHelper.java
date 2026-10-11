@@ -46,15 +46,7 @@ public class ScreenshotHelper {
                         if (filePath != null) {
                             String safePath = filePath.replace('\\', '/');
 
-                            MutableText openBtn = Text.literal(" [ᴏᴘᴇɴ]")
-                                .styled(s -> s
-                                    .withColor(Formatting.YELLOW)
-                                    .withBold(true)
-                                    .withClickEvent(new ClickEvent.RunCommand("/caeser_open_screenshot " + safePath))
-                                    .withHoverEvent(new HoverEvent.ShowText(Text.literal("§eScreenshot öffnen")))
-                                );
-
-                            MutableText copyBtn = Text.literal(" [ᴄᴏᴘʏ]")
+                            MutableText copyBtn = Text.literal(" [COPY]")
                                 .styled(s -> s
                                     .withColor(Formatting.GREEN)
                                     .withBold(true)
@@ -62,7 +54,7 @@ public class ScreenshotHelper {
                                     .withHoverEvent(new HoverEvent.ShowText(Text.literal("§aScreenshot in Zwischenablage kopieren")))
                                 );
 
-                            MutableText delBtn = Text.literal(" [ᴅᴇʟᴇᴛᴇ]")
+                            MutableText delBtn = Text.literal(" [DELETE]")
                                 .styled(s -> s
                                     .withColor(Formatting.RED)
                                     .withBold(true)
@@ -70,11 +62,19 @@ public class ScreenshotHelper {
                                     .withHoverEvent(new HoverEvent.ShowText(Text.literal("§cScreenshot löschen")))
                                 );
 
+                            MutableText openBtn = Text.literal(" [OPEN]")
+                                .styled(s -> s
+                                    .withColor(Formatting.YELLOW)
+                                    .withBold(true)
+                                    .withClickEvent(new ClickEvent.RunCommand("/caeser_open_screenshot " + safePath))
+                                    .withHoverEvent(new HoverEvent.ShowText(Text.literal("§eScreenshot öffnen")))
+                                );
+
                             return Text.empty()
                                 .append(message)
-                                .append(openBtn)
                                 .append(copyBtn)
-                                .append(delBtn);
+                                .append(delBtn)
+                                .append(openBtn);
                         }
                     }
                 }
@@ -92,7 +92,7 @@ public class ScreenshotHelper {
                 }
                 File file = new File(cleanPath.replace('/', File.separatorChar));
                 if (!file.exists()) {
-                    sendMessage("§c[Caeser] Screenshot-Datei nicht gefunden: " + file.getName());
+                    sendMessage("§cScreenshot not found");
                     return;
                 }
 
@@ -116,7 +116,7 @@ public class ScreenshotHelper {
                     }
                 }
             } catch (Throwable t) {
-                sendMessage("§c[Caeser] Fehler beim Öffnen: " + (t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName()));
+                sendMessage("§cScreenshot not found");
             }
         }, "Caeser-Screenshot-Open").start();
     }
@@ -130,48 +130,42 @@ public class ScreenshotHelper {
                 }
                 File file = new File(cleanPath.replace('/', File.separatorChar));
                 if (!file.exists()) {
-                    sendMessage("§c[Caeser] Screenshot-Datei nicht gefunden: " + file.getName());
+                    sendMessage("§cScreenshot not found");
                     return;
                 }
 
                 boolean copied = false;
-                String os = System.getProperty("os.name", "").toLowerCase();
 
-                // 1. Windows native clipboard via hidden PowerShell
-                if (os.contains("win")) {
-                    copied = copyViaWindowsPowerShell(file);
-                }
+                // 1. Ultra-fast in-process Java AWT clipboard (5-15ms)
+                try {
+                    System.setProperty("java.awt.headless", "false");
+                    BufferedImage image = ImageIO.read(file);
+                    if (image != null) {
+                        ImageSelection selection = new ImageSelection(image, file);
+                        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+                        copied = true;
+                    }
+                } catch (Throwable ignored) {}
 
-                // 2. macOS native clipboard via osascript
-                if (!copied && os.contains("mac")) {
-                    copied = copyViaMacOsascript(file);
-                }
-
-                // 3. Linux native clipboard via xclip / wl-copy
-                if (!copied && (os.contains("nix") || os.contains("nux"))) {
-                    copied = copyViaLinux(file);
-                }
-
-                // 4. Java AWT clipboard fallback
+                // 2. Fallbacks if in-process AWT clipboard failed
                 if (!copied) {
-                    try {
-                        System.setProperty("java.awt.headless", "false");
-                        BufferedImage image = ImageIO.read(file);
-                        if (image != null) {
-                            ImageSelection selection = new ImageSelection(image, file);
-                            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
-                            copied = true;
-                        }
-                    } catch (Throwable ignored) {}
+                    String os = System.getProperty("os.name", "").toLowerCase();
+                    if (os.contains("win")) {
+                        copied = copyViaWindowsPowerShell(file);
+                    } else if (os.contains("mac")) {
+                        copied = copyViaMacOsascript(file);
+                    } else if (os.contains("nix") || os.contains("nux")) {
+                        copied = copyViaLinux(file);
+                    }
                 }
 
                 if (copied) {
-                    sendMessage("§a[Caeser] ✓ Screenshot in die Zwischenablage kopiert!");
+                    sendMessage("§aScreenshot copied to Clipboard");
                 } else {
-                    sendMessage("§c[Caeser] Screenshot konnte nicht in die Zwischenablage kopiert werden.");
+                    sendMessage("§cScreenshot not found");
                 }
             } catch (Throwable t) {
-                sendMessage("§c[Caeser] Fehler beim Kopieren: " + (t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName()));
+                sendMessage("§cScreenshot not found");
             }
         }, "Caeser-Screenshot-Copy").start();
     }
@@ -241,27 +235,24 @@ public class ScreenshotHelper {
     }
 
     public static void deleteScreenshot(String rawPath) {
-        new Thread(() -> {
-            try {
-                String cleanPath = rawPath.trim();
-                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
-                    cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
-                }
-                File file = new File(cleanPath.replace('/', File.separatorChar));
-                if (!file.exists()) {
-                    sendMessage("§c[Caeser] Screenshot existiert nicht mehr.");
-                    return;
-                }
-                String name = file.getName();
-                if (file.delete()) {
-                    sendMessage("§c[Caeser] 🗑 Screenshot gelöscht (" + name + ")");
-                } else {
-                    sendMessage("§c[Caeser] Screenshot konnte nicht gelöscht werden.");
-                }
-            } catch (Throwable t) {
-                sendMessage("§c[Caeser] Fehler beim Löschen: " + (t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName()));
+        try {
+            String cleanPath = rawPath.trim();
+            if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
+                cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
             }
-        }, "Caeser-Screenshot-Delete").start();
+            File file = new File(cleanPath.replace('/', File.separatorChar));
+            if (!file.exists()) {
+                sendMessage("§cScreenshot not found");
+                return;
+            }
+            if (file.delete()) {
+                sendMessage("§aScreenshot deleted");
+            } else {
+                sendMessage("§cScreenshot not found");
+            }
+        } catch (Throwable t) {
+            sendMessage("§cScreenshot not found");
+        }
     }
 
     private static void sendMessage(String msg) {

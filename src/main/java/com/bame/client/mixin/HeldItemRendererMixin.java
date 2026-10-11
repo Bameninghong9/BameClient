@@ -24,7 +24,8 @@ public class HeldItemRendererMixin {
                                              CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.currentScreen instanceof com.bame.client.gui.BameClientScreen ||
-            client.currentScreen instanceof com.bame.client.gui.SecretScreen) {
+            client.currentScreen instanceof com.bame.client.gui.SecretScreen ||
+            com.bame.client.module.EmoteModule.isEmoting()) {
             ci.cancel();
         }
     }

@@ -23,4 +23,11 @@ public abstract class CameraMixin {
             this.setRotation(yaw, pitch);
         }
     }
+
+    @org.spongepowered.asm.mixin.injection.Inject(method = "isThirdPerson", at = @At("HEAD"), cancellable = true)
+    private void onIsThirdPerson(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        if (com.bame.client.module.EmoteModule.isEmoting()) {
+            cir.setReturnValue(true);
+        }
+    }
 }

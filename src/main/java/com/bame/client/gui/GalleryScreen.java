@@ -317,23 +317,23 @@ public class GalleryScreen extends Screen {
                 int bGap = 4;
                 int bW = (cardW - 12 - 3 * bGap) / 4;
 
-                // [ ᴄᴏᴘʏ ]
+                // COPY
                 int bCopyX = cx + 6;
                 int bCopyW = bW;
                 boolean hoverCopy = inside(mx, my, bCopyX, btnActY, bCopyW, actH);
                 CustomGuiUtils.fillUltraRounded(c, bCopyX, btnActY, bCopyW, actH, hoverCopy ? 0xFF143820 : 0xFF12151D, 4.0f);
                 CustomGuiUtils.drawUltraRoundedOutline(c, bCopyX, btnActY, bCopyW, actH, hoverCopy ? 0xFF22C55E : 0xFF2A3040, 4.0f);
-                int twCopy = textRenderer.getWidth(CustomGuiUtils.getFontText("ᴄᴏᴘʏ"));
-                c.drawText(textRenderer, CustomGuiUtils.getFontText("ᴄᴏᴘʏ"), bCopyX + (bCopyW - twCopy) / 2, btnActY + 6, hoverCopy ? 0xFF22C55E : 0xFF8E95A4, false);
+                int twCopy = textRenderer.getWidth(CustomGuiUtils.getFontText("COPY"));
+                c.drawText(textRenderer, CustomGuiUtils.getFontText("COPY"), bCopyX + (bCopyW - twCopy) / 2, btnActY + 6, hoverCopy ? 0xFF22C55E : 0xFF8E95A4, false);
 
-                // [ ᴏᴘᴇɴ ]
+                // OPEN
                 int bOpenX = bCopyX + bCopyW + bGap;
                 int bOpenW = bW;
                 boolean hoverOpen = inside(mx, my, bOpenX, btnActY, bOpenW, actH);
                 CustomGuiUtils.fillUltraRounded(c, bOpenX, btnActY, bOpenW, actH, hoverOpen ? 0xFF352D12 : 0xFF12151D, 4.0f);
                 CustomGuiUtils.drawUltraRoundedOutline(c, bOpenX, btnActY, bOpenW, actH, hoverOpen ? 0xFFFACC15 : 0xFF2A3040, 4.0f);
-                int twOpen = textRenderer.getWidth(CustomGuiUtils.getFontText("ᴏᴘᴇɴ"));
-                c.drawText(textRenderer, CustomGuiUtils.getFontText("ᴏᴘᴇɴ"), bOpenX + (bOpenW - twOpen) / 2, btnActY + 6, hoverOpen ? 0xFFFACC15 : 0xFF8E95A4, false);
+                int twOpen = textRenderer.getWidth(CustomGuiUtils.getFontText("OPEN"));
+                c.drawText(textRenderer, CustomGuiUtils.getFontText("OPEN"), bOpenX + (bOpenW - twOpen) / 2, btnActY + 6, hoverOpen ? 0xFFFACC15 : 0xFF8E95A4, false);
 
                 // [ ʀᴇɴᴀᴍᴇ ]
                 int bRenX = bOpenX + bOpenW + bGap;
@@ -344,14 +344,14 @@ public class GalleryScreen extends Screen {
                 int twRen = textRenderer.getWidth(CustomGuiUtils.getFontText("ʀᴇɴᴀᴍᴇ"));
                 c.drawText(textRenderer, CustomGuiUtils.getFontText("ʀᴇɴᴀᴍᴇ"), bRenX + (bRenW - twRen) / 2, btnActY + 6, hoverRen ? 0xFF38BDF8 : 0xFF8E95A4, false);
 
-                // [ ᴅᴇʟ ]
+                // [ 🗑 Trash Can ]
                 int bDelX = bRenX + bRenW + bGap;
                 int bDelW = (cx + cardW - 6) - bDelX;
                 boolean hoverDel = inside(mx, my, bDelX, btnActY, bDelW, actH);
                 CustomGuiUtils.fillUltraRounded(c, bDelX, btnActY, bDelW, actH, hoverDel ? 0xFF3E1A22 : 0xFF12151D, 4.0f);
                 CustomGuiUtils.drawUltraRoundedOutline(c, bDelX, btnActY, bDelW, actH, hoverDel ? 0xFFEF4444 : 0xFF2A3040, 4.0f);
-                int twDel = textRenderer.getWidth(CustomGuiUtils.getFontText("ᴅᴇʟ"));
-                c.drawText(textRenderer, CustomGuiUtils.getFontText("ᴅᴇʟ"), bDelX + (bDelW - twDel) / 2, btnActY + 6, hoverDel ? 0xFFEF4444 : 0xFF8E95A4, false);
+                int iconColor = hoverDel ? 0xFFEF4444 : 0xFF8E95A4;
+                CustomGuiUtils.drawTrashIcon(c, bDelX + (bDelW - 14) / 2, btnActY + (actH - 14) / 2, iconColor);
             }
         }
 
@@ -425,17 +425,17 @@ public class GalleryScreen extends Screen {
             int bW = 86;
             int bH = 24;
 
-            // [ ᴄᴏᴘʏ ]
+            // COPY
             boolean hCopy = inside(mx, my, imgX, ctrlY, bW, bH);
             CustomGuiUtils.fillUltraRounded(c, imgX, ctrlY, bW, bH, hCopy ? 0xFF143820 : 0xFF1A1D27, 4.0f);
-            int twCopy = textRenderer.getWidth(CustomGuiUtils.getFontText("ᴄᴏᴘʏ"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("ᴄᴏᴘʏ"), imgX + (bW - twCopy) / 2, ctrlY + 7, hCopy ? 0xFF22C55E : 0xFF9CA3AF, false);
+            int twCopy = textRenderer.getWidth(CustomGuiUtils.getFontText("COPY"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("COPY"), imgX + (bW - twCopy) / 2, ctrlY + 7, hCopy ? 0xFF22C55E : 0xFF9CA3AF, false);
 
-            // [ ᴏᴘᴇɴ ]
+            // OPEN
             boolean hOpen = inside(mx, my, imgX + bW + 8, ctrlY, bW, bH);
             CustomGuiUtils.fillUltraRounded(c, imgX + bW + 8, ctrlY, bW, bH, hOpen ? 0xFF352D12 : 0xFF1A1D27, 4.0f);
-            int twOpen = textRenderer.getWidth(CustomGuiUtils.getFontText("ᴏᴘᴇɴ"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("ᴏᴘᴇɴ"), imgX + bW + 8 + (bW - twOpen) / 2, ctrlY + 7, hOpen ? 0xFFFACC15 : 0xFF9CA3AF, false);
+            int twOpen = textRenderer.getWidth(CustomGuiUtils.getFontText("OPEN"));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("OPEN"), imgX + bW + 8 + (bW - twOpen) / 2, ctrlY + 7, hOpen ? 0xFFFACC15 : 0xFF9CA3AF, false);
 
             // [ Close ]
             int closeX = imgX + (int) targetW - bW;
@@ -615,7 +615,7 @@ public class GalleryScreen extends Screen {
                 int bCopyW = bW;
                 if (inside(mx, my, bCopyX, btnActY, bCopyW, actH)) {
                     ScreenshotHelper.copyToClipboard(item.file.getAbsolutePath());
-                    NotificationManager.add(new Notification("Gallery", "✓ Copied to clipboard!", Notification.Type.ENABLED));
+                    NotificationManager.add(new Notification("Gallery", "Screenshot copied to Clipboard", Notification.Type.ENABLED));
                     return true;
                 }
 
@@ -643,10 +643,11 @@ public class GalleryScreen extends Screen {
                     return true;
                 }
 
-                // [ ᴅᴇʟ ]
+                // [ Delete ]
                 int bDelX = bRenX + bRenW + bGap;
                 int bDelW = (cx + cardW - 6) - bDelX;
                 if (inside(mx, my, bDelX, btnActY, bDelW, actH)) {
+                    boolean existed = item.file.exists();
                     ScreenshotHelper.deleteScreenshot(item.file.getAbsolutePath());
                     textureCache.remove(item.file.getAbsolutePath());
                     NativeImageBackedTexture tex = nativeTextures.remove(item.file.getAbsolutePath());
@@ -655,7 +656,11 @@ public class GalleryScreen extends Screen {
                     }
                     items.remove(item);
                     filteredItems.remove(item);
-                    NotificationManager.add(new Notification("Gallery", "Screenshot deleted", Notification.Type.DISABLED));
+                    if (existed) {
+                        NotificationManager.add(new Notification("Gallery", "Screenshot deleted", Notification.Type.ENABLED));
+                    } else {
+                        NotificationManager.add(new Notification("Gallery", "Screenshot not found", Notification.Type.DISABLED));
+                    }
                     return true;
                 }
             }

@@ -203,6 +203,19 @@ public class CosmeticsConfig {
 
             Files.writeString(file, root.toString());
             lastModified = Files.getLastModifiedTime(file).toMillis();
+
+            // Also keep launcher settings.json synchronized
+            try {
+                Path launcherDir = CaeserSkinManager.getLauncherDir();
+                if (launcherDir != null) {
+                    Path launcherSettings = launcherDir.resolve("settings.json");
+                    if (Files.exists(launcherSettings)) {
+                        JsonObject launcherObj = JsonParser.parseString(Files.readString(launcherSettings)).getAsJsonObject();
+                        launcherObj.add("cosmetics", root);
+                        Files.writeString(launcherSettings, launcherObj.toString());
+                    }
+                }
+            } catch (Throwable ignored) {}
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -215,13 +228,25 @@ public class CosmeticsConfig {
 
         try {
             Path file = BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
-            if (!Files.exists(file)) return;
-            long mod = Files.getLastModifiedTime(file).toMillis();
-            if (mod == lastModified) return;
-            lastModified = mod;
+            JsonObject root = null;
+            if (Files.exists(file)) {
+                long mod = Files.getLastModifiedTime(file).toMillis();
+                if (mod == lastModified) return;
+                lastModified = mod;
+                String content = Files.readString(file);
+                root = JsonParser.parseString(content).getAsJsonObject();
+            } else {
+                // Fallback to launcher settings.json if local cosmetics.json doesn't exist yet
+                Path launcherSettings = CaeserSkinManager.getLauncherDir().resolve("settings.json");
+                if (Files.exists(launcherSettings)) {
+                    JsonObject lRoot = JsonParser.parseString(Files.readString(launcherSettings)).getAsJsonObject();
+                    if (lRoot.has("cosmetics") && lRoot.get("cosmetics").isJsonObject()) {
+                        root = lRoot.getAsJsonObject("cosmetics");
+                    }
+                }
+            }
+            if (root == null) return;
 
-            String content = Files.readString(file);
-            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
             if (root.has("wings")) {
                 JsonObject w = root.getAsJsonObject("wings");
                 wings = w.has("type") ? w.get("type").getAsString() : "none";
@@ -259,6 +284,11 @@ public class CosmeticsConfig {
                     if ("self".equals(a) || "custom".equals(a)) a = "minime_sit";
                     accessories.add(a);
                 }
+            }
+            if (accessories.isEmpty() && pet != null && !"none".equalsIgnoreCase(pet)) {
+                String a = pet.toLowerCase(java.util.Locale.ROOT);
+                if ("self".equals(a) || "custom".equals(a)) a = "minime_sit";
+                accessories.add(a);
             }
             if (root.has("accessoryCustomPlayers") && root.get("accessoryCustomPlayers").isJsonObject()) {
                 accessoryCustomPlayers.clear();

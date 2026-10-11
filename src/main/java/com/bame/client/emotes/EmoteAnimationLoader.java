@@ -19,6 +19,8 @@ public class EmoteAnimationLoader {
     private static final Map<String, KeyframeAnimation> CACHE = new HashMap<>();
 
     public static final String JUGGLE_ANIMATION_PATH = "emotes/football_freestyle/football_freestyle.animation.json";
+    public static final String BASKETBALL_ANIMATION_PATH = "emotes/basketball/basketball.animation.json";
+    public static final String GUITAR_ANIMATION_PATH = "emotes/guitar/guitar.animation.json";
 
     public static KeyframeAnimation getOrLoad(String path) {
         if (CACHE.containsKey(path)) {
@@ -34,6 +36,14 @@ public class EmoteAnimationLoader {
 
     public static KeyframeAnimation getJuggleAnimation() {
         return getOrLoad(JUGGLE_ANIMATION_PATH);
+    }
+
+    public static KeyframeAnimation getBasketballAnimation() {
+        return getOrLoad(BASKETBALL_ANIMATION_PATH);
+    }
+
+    public static KeyframeAnimation getGuitarAnimation() {
+        return getOrLoad(GUITAR_ANIMATION_PATH);
     }
 
     public static KeyframeAnimation load(String path) {

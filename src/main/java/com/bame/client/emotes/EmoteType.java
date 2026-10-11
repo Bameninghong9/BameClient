@@ -3,13 +3,15 @@ package com.bame.client.emotes;
 public enum EmoteType {
     NONE("Keins", "NONE", "", "Keine Animation"),
     WAVE("Winken", "WAVE", "\uD83D\uDC4B", "Freundlich mit der Hand winken"),
-    CLAP("Klatschen", "CLAP", "\uD83D\uDC4F", "Begeistert applaudieren"),
+    GUITAR("E-Gitarre", "GUITAR", "🎸", "Rockstar Solo & Kniefall-Slide"),
     DANCE("Tanz", "DANCE", "\uD83D\uDC83", "Rhythmischer Caeser Groove"),
     SIT("Sitzen", "SIT", "\uD83E\uDE91", "Gemütlich auf den Boden setzen"),
     T_POSE("T-Pose", "TPOSE", "🧍", "Arme waagerecht ausstrecken"),
     JUGGLE("Jonglieren", "JUGGLE", "⚽", "Fußball mit den Füßen jonglieren"),
+    BASKETBALL("Basketball", "BASKETBALL", "🏀", "Dribbeln, Crossover & Finger-Spin"),
+    COIN_FLIP("Münzwurf", "COIN_FLIP", "🪙", "Goldmünze werfen & Kopf oder Zahl"),
+    WHEELCHAIR("Rollstuhl", "WHEELCHAIR", "♿", "Realistischer Sport-Rollstuhl mit drehenden Rädern & Fahren"),
     ZOMBIE("Zombie", "ZOMBIE", "🧟", "Arme wie ein Zombie nach vorne"),
-    HEADSPIN("Kopfdrehen", "HEADSPIN", "🔄", "Humorvolles Kopfkreisen"),
     STOP("Beenden", "STOP", "\u23F9", "Aktuelle Animation beenden");
 
     private final String nameDe;
@@ -41,7 +43,7 @@ public enum EmoteType {
     }
 
     public boolean allowsWalking() {
-        return this == T_POSE || this == WAVE || this == CLAP || this == HEADSPIN
-                || this == ZOMBIE || this == DANCE || this == JUGGLE;
+        return this == T_POSE || this == WAVE || this == GUITAR || this == BASKETBALL
+                || this == COIN_FLIP || this == WHEELCHAIR || this == ZOMBIE || this == DANCE || this == JUGGLE;
     }
 }

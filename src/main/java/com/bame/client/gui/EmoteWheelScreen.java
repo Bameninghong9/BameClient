@@ -24,25 +24,35 @@ public class EmoteWheelScreen extends Screen {
     private static final EmoteType[][] PAGES = new EmoteType[PAGE_COUNT][SLOTS_PER_PAGE];
 
     static {
-        // Page 1: Active Emotes (Slot 4 at the bottom is T-Pose, Slot 5 is JUGGLE)
-        PAGES[0][0] = EmoteType.WAVE;      // Top
-        PAGES[0][1] = EmoteType.CLAP;      // Top-Right
-        PAGES[0][2] = EmoteType.DANCE;     // Right
-        PAGES[0][3] = EmoteType.SIT;       // Bottom-Right
-        PAGES[0][4] = EmoteType.T_POSE;    // Bottom (TPOSE)
-        PAGES[0][5] = EmoteType.JUGGLE;    // Bottom-Left (JUGGLE ⚽)
-        PAGES[0][6] = EmoteType.HEADSPIN;  // Left
-        PAGES[0][7] = EmoteType.STOP;      // Top-Left
+        // Page 1: Active Emotes (8 unique emotes)
+        PAGES[0][0] = EmoteType.T_POSE;      // Top (T-Pose)
+        PAGES[0][1] = EmoteType.GUITAR;      // Top-Right (🎸 E-Gitarre Solo)
+        PAGES[0][2] = EmoteType.DANCE;       // Right (💃 Tanz)
+        PAGES[0][3] = EmoteType.WHEELCHAIR;  // Bottom-Right (♿ Rollstuhl)
+        PAGES[0][4] = EmoteType.SIT;         // Bottom (Sitzen)
+        PAGES[0][5] = EmoteType.JUGGLE;      // Bottom-Left (⚽ Freestyle Juggle)
+        PAGES[0][6] = EmoteType.BASKETBALL;  // Left (🏀 Basketball Dribble & Spin)
+        PAGES[0][7] = EmoteType.COIN_FLIP;   // Top-Left (🪙 Münzwurf)
 
-        // Page 2:
-        PAGES[1][0] = EmoteType.ZOMBIE;
-        PAGES[1][1] = null;
-        PAGES[1][2] = null;
-        PAGES[1][3] = null;
-        PAGES[1][4] = null;
-        PAGES[1][5] = null;
-        PAGES[1][6] = null;
-        PAGES[1][7] = null;
+        // Other pages empty (no duplicates, no wave, no zombie)
+        for (int p = 1; p < PAGE_COUNT; p++) {
+            for (int s = 0; s < SLOTS_PER_PAGE; s++) {
+                PAGES[p][s] = null;
+            }
+        }
+    }
+
+    public static int getActivePageCount() {
+        int count = 1;
+        for (int p = 0; p < PAGES.length; p++) {
+            for (int s = 0; s < SLOTS_PER_PAGE; s++) {
+                if (PAGES[p][s] != null) {
+                    count = Math.max(count, p + 1);
+                    break;
+                }
+            }
+        }
+        return count;
     }
 
     private final long openTime;
@@ -118,10 +128,11 @@ public class EmoteWheelScreen extends Screen {
             );
         }
 
-        // Center Page Indicator below player: "< 1 / 5 >"
-        String pageStr = "<  " + (currentPage + 1) + " / " + PAGE_COUNT + "  >";
+        // Center Page Indicator below player: "< 1 / 1 >"
+        int totalPages = getActivePageCount();
+        String pageStr = totalPages > 1 ? ("<  " + (currentPage + 1) + " / " + totalPages + "  >") : "1 / 1";
         int pageW = textRenderer.getWidth(CustomGuiUtils.getFontText(pageStr));
-        boolean pageHovered = mouseX >= cx - pageW / 2 - 4 && mouseX <= cx + pageW / 2 + 4 && mouseY >= cy + 30 && mouseY <= cy + 42;
+        boolean pageHovered = totalPages > 1 && mouseX >= cx - pageW / 2 - 4 && mouseX <= cx + pageW / 2 + 4 && mouseY >= cy + 30 && mouseY <= cy + 42;
         context.drawTextWithShadow(
                 textRenderer,
                 CustomGuiUtils.getFontText(pageStr),
@@ -181,7 +192,9 @@ public class EmoteWheelScreen extends Screen {
         }
 
         // Subtitle / Controls guide at the bottom
-        String hint = "Taste 1-8 • Klick zum Ausführen • Mausrad für Seiten (1/5) • ESC zum Schließen";
+        String hint = totalPages > 1
+                ? "Taste 1-8 • Klick zum Ausführen • Mausrad für Seiten (" + (currentPage + 1) + "/" + totalPages + ") • ESC zum Schließen"
+                : "Taste 1-8 • Klick zum Ausführen • ESC zum Schließen";
         int hintW = textRenderer.getWidth(CustomGuiUtils.getFontText(hint));
         context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(hint), cx - hintW / 2, height - 24, 0x889CA3AF);
 
@@ -206,15 +219,18 @@ public class EmoteWheelScreen extends Screen {
         int cy = height / 2;
 
         // Check page indicator click
-        String pageStr = "<  " + (currentPage + 1) + " / " + PAGE_COUNT + "  >";
-        int pageW = textRenderer.getWidth(CustomGuiUtils.getFontText(pageStr));
-        if (click.y() >= cy + 28 && click.y() <= cy + 44) {
-            if (click.x() >= cx - pageW / 2 - 8 && click.x() <= cx - 10) {
-                prevPage();
-                return true;
-            } else if (click.x() >= cx + 10 && click.x() <= cx + pageW / 2 + 8) {
-                nextPage();
-                return true;
+        int totalPages = getActivePageCount();
+        if (totalPages > 1) {
+            String pageStr = "<  " + (currentPage + 1) + " / " + totalPages + "  >";
+            int pageW = textRenderer.getWidth(CustomGuiUtils.getFontText(pageStr));
+            if (click.y() >= cy + 28 && click.y() <= cy + 44) {
+                if (click.x() >= cx - pageW / 2 - 8 && click.x() <= cx - 10) {
+                    prevPage();
+                    return true;
+                } else if (click.x() >= cx + 10 && click.x() <= cx + pageW / 2 + 8) {
+                    nextPage();
+                    return true;
+                }
             }
         }
 
@@ -287,18 +303,22 @@ public class EmoteWheelScreen extends Screen {
     }
 
     private void prevPage() {
-        currentPage = (currentPage - 1 + PAGE_COUNT) % PAGE_COUNT;
+        int max = getActivePageCount();
+        if (max <= 1) return;
+        currentPage = (currentPage - 1 + max) % max;
         ClientSoundManager.playClick();
     }
 
     private void nextPage() {
-        currentPage = (currentPage + 1) % PAGE_COUNT;
+        int max = getActivePageCount();
+        if (max <= 1) return;
+        currentPage = (currentPage + 1) % max;
         ClientSoundManager.playClick();
     }
 
     private void executeSelectedEmote(EmoteType emote) {
         ClientSoundManager.playClick();
-        if (emote == EmoteType.STOP) {
+        if (emote == EmoteType.STOP || emote == EmoteModule.getCurrentEmote()) {
             EmoteModule.stopEmote();
         } else {
             EmoteModule.playEmote(emote);

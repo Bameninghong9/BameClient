@@ -31,7 +31,16 @@ public class EmoteAnimator {
             EmoteType emote = EmoteModule.getCurrentEmote();
             float t = EmoteModule.getElapsedSeconds();
             applyEmotePose(model, emote, t, false, state);
+            if (client.options != null && client.options.getPerspective().isFirstPerson()) {
+                model.head.visible = false;
+                model.hat.visible = false;
+            } else {
+                model.head.visible = true;
+                model.hat.visible = true;
+            }
         } else {
+            model.head.visible = true;
+            model.hat.visible = true;
             if (wasEmoting) {
                 wasEmoting = false;
                 resetAllParts(model);
@@ -142,37 +151,232 @@ public class EmoteAnimator {
                     model.head.roll += 0.12f;
                 }
             }
-            case CLAP -> {
-                // Both arms brought together and clapping
-                model.rightArm.pitch = (float) Math.toRadians(-80);
-                model.leftArm.pitch = (float) Math.toRadians(-80);
-                float clap = (float) (Math.abs(Math.sin(t * 12.0)) * 0.28);
-                model.rightArm.yaw = -0.42f - clap;
-                model.leftArm.yaw = 0.42f + clap;
-                model.rightArm.roll = 0.05f;
-                model.leftArm.roll = -0.05f;
+            case BASKETBALL -> {
+                KeyframeAnimation anim = EmoteAnimationLoader.getBasketballAnimation();
+                if (anim != null) {
+                    float[] rot = new float[3];
+                    float[] pos = new float[3];
 
-                if (isPreview) {
-                    model.head.pitch = (float) (Math.sin(t * 12.0) * 0.05);
-                    model.rightLeg.pitch = 0.0f;
-                    model.leftLeg.pitch = 0.0f;
-                } else {
-                    model.head.pitch += (float) (Math.sin(t * 12.0) * 0.05);
+                    resetAllParts(model);
+
+                    anim.sample("bipedHead", t, rot, pos);
+                    applyBone(model.head, rot, pos);
+
+                    anim.sample("bipedBody", t, rot, pos);
+                    applyBone(model.body, rot, pos);
+
+                    anim.sample("bipedRightArm", t, rot, pos);
+                    applyBone(model.rightArm, rot, pos);
+
+                    anim.sample("bipedLeftArm", t, rot, pos);
+                    applyBone(model.leftArm, rot, pos);
+
+                    anim.sample("bipedRightLeg", t, rot, pos);
+                    applyBone(model.rightLeg, rot, pos);
+
+                    anim.sample("bipedLeftLeg", t, rot, pos);
+                    applyBone(model.leftLeg, rot, pos);
                 }
             }
-            case HEADSPIN -> {
-                // Humorous head tilt & swivel
-                float headYaw = (float) (Math.sin(t * 7.0) * 0.85);
-                float headRoll = (float) (Math.cos(t * 7.0) * 0.25);
+            case GUITAR -> {
+                resetAllParts(model);
+                float loopT = t % 7.0f;
+
+                // Rock stance (legs spread for balance)
+                model.rightLeg.yaw = (float) Math.toRadians(12);
+                model.leftLeg.yaw = (float) Math.toRadians(-12);
+                model.rightLeg.pitch = (float) Math.toRadians(8);
+                model.leftLeg.pitch = (float) Math.toRadians(-8);
+
+                if (loopT < 3.8f) {
+                    // Phase 1: Heavy Metal Standing Shred & Headbang
+                    float headbang = (float) Math.sin(loopT * 10.0) * 0.32f;
+                    model.head.pitch = headbang + 0.12f;
+                    model.body.pitch = headbang * 0.25f;
+
+                    // Left hand gripping guitar neck (angled up and across chest)
+                    model.leftArm.pitch = (float) Math.toRadians(-62) + (float) Math.sin(loopT * 4.0) * 0.08f;
+                    model.leftArm.yaw = (float) Math.toRadians(38);
+                    model.leftArm.roll = (float) Math.toRadians(-24);
+
+                    // Right hand strumming / picking over guitar body
+                    float strum = (float) Math.sin(loopT * 26.0) * 0.18f;
+                    model.rightArm.pitch = (float) Math.toRadians(-48);
+                    model.rightArm.yaw = (float) Math.toRadians(-22);
+                    model.rightArm.roll = (float) Math.toRadians(20) + strum;
+                } else if (loopT < 5.8f) {
+                    // Phase 2: Epic Knee Slide! (All body parts drop down synchronously)
+                    float slideP = (loopT - 3.8f) / 2.0f;
+                    float slideFactor = (float) Math.sin(slideP * Math.PI); // 0 -> 1 -> 0
+
+                    float dropY = slideFactor * 8.5f;
+                    model.body.originY += dropY;
+                    model.head.originY += dropY;
+                    model.rightArm.originY += dropY;
+                    model.leftArm.originY += dropY;
+                    model.rightLeg.originY += dropY;
+                    model.leftLeg.originY += dropY;
+
+                    // Fold legs back for knee slide
+                    model.rightLeg.pitch = (float) Math.toRadians(78) * slideFactor;
+                    model.leftLeg.pitch = (float) Math.toRadians(78) * slideFactor;
+                    model.rightLeg.yaw = (float) Math.toRadians(8);
+                    model.leftLeg.yaw = (float) Math.toRadians(-8);
+
+                    // Body arched back, head tilted to the sky
+                    model.body.pitch = (float) Math.toRadians(-32) * slideFactor;
+                    model.head.pitch = (float) Math.toRadians(-45) * slideFactor;
+
+                    // Continuous shredding during slide
+                    model.leftArm.pitch = (float) Math.toRadians(-70);
+                    model.leftArm.yaw = (float) Math.toRadians(42);
+                    model.leftArm.roll = (float) Math.toRadians(-26);
+
+                    float strum = (float) Math.sin(loopT * 28.0) * 0.22f;
+                    model.rightArm.pitch = (float) Math.toRadians(-46);
+                    model.rightArm.yaw = (float) Math.toRadians(-26);
+                    model.rightArm.roll = (float) Math.toRadians(22) + strum;
+                } else {
+                    // Phase 3: Windmill Strum Finish & Power Chord!
+                    float windP = (loopT - 5.8f) / 1.2f;
+                    model.head.pitch = (float) Math.toRadians(-12);
+                    model.body.pitch = (float) Math.toRadians(6);
+
+                    // Left arm firmly holds neck
+                    model.leftArm.pitch = (float) Math.toRadians(-62);
+                    model.leftArm.yaw = (float) Math.toRadians(38);
+                    model.leftArm.roll = (float) Math.toRadians(-24);
+
+                    if (windP < 0.65f) {
+                        // 360-degree windmill swing on right arm
+                        float angle = windP / 0.65f * (float) (Math.PI * 2.0);
+                        model.rightArm.pitch = (float) (-Math.cos(angle) * 2.4f - 0.4f);
+                        model.rightArm.roll = (float) (Math.sin(angle) * 0.6f + 0.2f);
+                        model.rightArm.yaw = (float) Math.toRadians(-18);
+                    } else {
+                        // Power chord sustain hold
+                        model.rightArm.pitch = (float) Math.toRadians(-52);
+                        model.rightArm.yaw = (float) Math.toRadians(-20);
+                        model.rightArm.roll = (float) Math.toRadians(24);
+                    }
+                }
+            }
+            case COIN_FLIP -> {
+                // Münzwurf (one-shot up to 3.8s)
+                float loopT = Math.min(t, 3.8f);
+                if (loopT < 0.4f) {
+                    // Thumb flick
+                    float fp = loopT / 0.4f;
+                    model.rightArm.pitch = -0.75f - fp * 0.35f;
+                    model.rightArm.yaw = -0.15f;
+                    model.rightArm.roll = 0.20f;
+                    model.leftArm.pitch = 0.0f;
+                    model.head.pitch = 0.0f;
+                } else if (loopT < 2.0f) {
+                    // Coin in air: head tilts back watching flight
+                    float flightP = (loopT - 0.4f) / 1.6f;
+                    model.head.pitch = -0.55f * (float) Math.sin(flightP * Math.PI);
+
+                    model.leftArm.pitch = -0.80f;
+                    model.leftArm.yaw = 0.35f;
+                    model.leftArm.roll = -0.15f;
+
+                    model.rightArm.pitch = -0.60f;
+                    model.rightArm.yaw = -0.10f;
+                    model.rightArm.roll = 0.15f;
+                } else if (loopT < 2.5f) {
+                    // Catch on back of hand & slap
+                    model.leftArm.pitch = -0.82f;
+                    model.leftArm.yaw = 0.32f;
+                    model.leftArm.roll = -0.15f;
+
+                    model.rightArm.pitch = -0.85f;
+                    model.rightArm.yaw = 0.28f;
+                    model.rightArm.roll = 0.45f;
+                    model.head.pitch = 0.15f;
+                } else {
+                    // Peek at coin
+                    model.leftArm.pitch = -0.82f;
+                    model.leftArm.yaw = 0.32f;
+                    model.leftArm.roll = -0.15f;
+
+                    model.rightArm.pitch = -0.82f;
+                    model.rightArm.yaw = 0.12f;
+                    model.rightArm.roll = 0.35f;
+
+                    model.head.pitch = 0.38f + (float) Math.sin((loopT - 2.5f) * 6.0) * 0.06f;
+                }
 
                 if (isPreview) {
-                    model.head.yaw = headYaw;
-                    model.head.roll = headRoll;
                     model.rightLeg.pitch = 0.0f;
                     model.leftLeg.pitch = 0.0f;
+                }
+            }
+            case WHEELCHAIR -> {
+                resetAllParts(model);
+
+                // Sit cleanly on top of the elevated wheelchair seat cushion (matching Bild 2)
+                float seatOffsetY = 1.0f;
+                float seatOffsetZ = 1.5f;
+                model.body.originY += seatOffsetY;
+                model.head.originY += seatOffsetY;
+                model.rightArm.originY += seatOffsetY;
+                model.leftArm.originY += seatOffsetY;
+                model.rightLeg.originY += seatOffsetY;
+                model.leftLeg.originY += seatOffsetY;
+
+                model.body.originZ += seatOffsetZ;
+                model.head.originZ += seatOffsetZ;
+                model.rightArm.originZ += seatOffsetZ;
+                model.leftArm.originZ += seatOffsetZ;
+                model.rightLeg.originZ += seatOffsetZ;
+                model.leftLeg.originZ += seatOffsetZ;
+
+                // Legs forward and bent comfortably, resting right on the elevated footplates
+                model.rightLeg.pitch = (float) Math.toRadians(-74);
+                model.leftLeg.pitch = (float) Math.toRadians(-74);
+                model.rightLeg.yaw = (float) Math.toRadians(5);
+                model.leftLeg.yaw = (float) Math.toRadians(-5);
+
+                // Movement driving vs resting
+                float limbAmp = state != null ? state.limbSwingAmplitude : 0.0f;
+                float limbProg = state != null ? state.limbSwingAnimationProgress : 0.0f;
+                boolean driving = isMoving || (limbAmp > 0.04f);
+
+                if (driving) {
+                    // Wheelchair push stroke (greifen, drücken, ausholen) - smooth & calm pace
+                    float pushCycle = limbProg * 0.75f;
+                    float pushSin = (float) Math.sin(pushCycle);
+                    float pushCos = (float) Math.cos(pushCycle);
+
+                    // Arms push down and forward along the handrims
+                    model.rightArm.pitch = (float) Math.toRadians(-18) + pushSin * 0.28f;
+                    model.leftArm.pitch = (float) Math.toRadians(-18) + pushSin * 0.28f;
+
+                    model.rightArm.yaw = (float) Math.toRadians(-12) - pushCos * 0.06f;
+                    model.leftArm.yaw = (float) Math.toRadians(12) + pushCos * 0.06f;
+
+                    model.rightArm.roll = (float) Math.toRadians(14);
+                    model.leftArm.roll = (float) Math.toRadians(-14);
+
+                    // Dynamic athletic body lean during push strokes
+                    float bodyLean = Math.max(0.0f, pushSin) * 0.10f;
+                    model.body.pitch = 0.05f + bodyLean;
+                    model.head.pitch = -0.03f + bodyLean * 0.4f;
                 } else {
-                    model.head.yaw += headYaw;
-                    model.head.roll += headRoll;
+                    // Relaxed sitting pose, hands resting on the top of the Greifreifen
+                    float breath = (float) (Math.sin(t * 2.5) * 0.02f);
+                    model.body.pitch = breath;
+                    model.head.pitch = -breath * 0.5f;
+
+                    model.rightArm.pitch = (float) Math.toRadians(-16) + breath * 0.3f;
+                    model.leftArm.pitch = (float) Math.toRadians(-16) + breath * 0.3f;
+
+                    model.rightArm.yaw = (float) Math.toRadians(-12);
+                    model.leftArm.yaw = (float) Math.toRadians(12);
+
+                    model.rightArm.roll = (float) Math.toRadians(12);
+                    model.leftArm.roll = (float) Math.toRadians(-12);
                 }
             }
             case ZOMBIE -> {
@@ -237,6 +441,8 @@ public class EmoteAnimator {
 
     private static void resetAllParts(PlayerEntityModel model) {
         if (model == null) return;
+        model.head.visible = true;
+        model.hat.visible = true;
         model.head.resetTransform();
         model.body.resetTransform();
         model.rightArm.resetTransform();
@@ -260,6 +466,8 @@ public class EmoteAnimator {
     }
 
     private static void syncLayers(PlayerEntityModel model) {
+        if (model == null) return;
+        model.hat.visible = model.head.visible;
         copy(model.leftArm, model.leftSleeve);
         copy(model.rightArm, model.rightSleeve);
         copy(model.leftLeg, model.leftPants);
