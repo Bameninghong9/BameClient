@@ -61,6 +61,7 @@ public class EmoteWheelScreen extends Screen {
     public EmoteWheelScreen() {
         super(Text.literal("Caeser Client Emote Wheel"));
         this.openTime = System.currentTimeMillis();
+        com.bame.client.emotes.EmoteUnlockManager.checkRefresh();
     }
 
     @Override
@@ -153,10 +154,18 @@ public class EmoteWheelScreen extends Screen {
 
             boolean isHovered = (i == hoveredSlot);
             EmoteType emote = PAGES[currentPage][i];
+            boolean isUnlocked = (emote == null || com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(emote));
 
             // Slot Box
-            int bgCol = isHovered ? 0x99222736 : 0x750E1018;
-            int borderCol = isHovered ? (accent | 0xFF000000) : 0x55FFFFFF;
+            int bgCol;
+            int borderCol;
+            if (!isUnlocked) {
+                bgCol = isHovered ? 0x992B151C : 0x75160E14;
+                borderCol = isHovered ? 0xFFEF4444 : 0x55EF4444;
+            } else {
+                bgCol = isHovered ? 0x99222736 : 0x750E1018;
+                borderCol = isHovered ? (accent | 0xFF000000) : 0x55FFFFFF;
+            }
 
             CustomGuiUtils.fillUltraRounded(context, x1, y1, slotSize, slotSize, bgCol, 6.0F);
             CustomGuiUtils.drawUltraRoundedOutline(context, x1, y1, slotSize, slotSize, borderCol, 6.0F);
@@ -174,13 +183,25 @@ public class EmoteWheelScreen extends Screen {
                         animTime
                 );
 
-                // Render emote label in uppercase centered below the slot box
-                String label = emote.getNameEn().toUpperCase(Locale.ROOT);
-                int labelW = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
-                int labelCol = isHovered ? accent : 0xFFFFFFFF;
-                if (emote == EmoteType.STOP && isHovered) {
-                    labelCol = 0xFFF87171;
+                // If locked, render sleek lock badge overlay on the top right
+                if (!isUnlocked) {
+                    CustomGuiUtils.fillUltraRounded(context, x2 - 16, y1 + 3, 13, 13, 0xEE111827, 3.0F);
+                    CustomGuiUtils.drawUltraRoundedOutline(context, x2 - 16, y1 + 3, 13, 13, 0xAAEF4444, 3.0F);
+                    context.drawTextWithShadow(textRenderer, Text.literal("🔒"), x2 - 14, y1 + 5, 0xFFFFFFFF);
                 }
+
+                // Render emote label in uppercase centered below the slot box
+                String label = isUnlocked ? emote.getNameEn().toUpperCase(Locale.ROOT) : ("🔒 " + emote.getNameEn().toUpperCase(Locale.ROOT));
+                int labelW = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+                int labelCol;
+                if (!isUnlocked) {
+                    labelCol = isHovered ? 0xFFF87171 : 0xFFA1A1AA;
+                } else if (emote == EmoteType.STOP && isHovered) {
+                    labelCol = 0xFFF87171;
+                } else {
+                    labelCol = isHovered ? accent : 0xFFFFFFFF;
+                }
+
                 context.drawTextWithShadow(
                         textRenderer,
                         CustomGuiUtils.getFontText(label),
@@ -189,6 +210,13 @@ public class EmoteWheelScreen extends Screen {
                         labelCol
                 );
             }
+        }
+
+        // Hovered locked warning hint in center
+        if (hoveredEmote != null && !com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(hoveredEmote)) {
+            String lockedBanner = "§c🔒 " + hoveredEmote.getNameEn() + " ist gesperrt • Freischaltung erforderlich";
+            int bannerW = textRenderer.getWidth(CustomGuiUtils.getFontText(lockedBanner));
+            context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(lockedBanner), cx - bannerW / 2, cy + 48, 0xFFF87171);
         }
 
         // Subtitle / Controls guide at the bottom
@@ -317,6 +345,22 @@ public class EmoteWheelScreen extends Screen {
     }
 
     private void executeSelectedEmote(EmoteType emote) {
+        if (!com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(emote)) {
+            if (client != null) {
+                try {
+                    client.getSoundManager().play(
+                        net.minecraft.client.sound.PositionedSoundInstance.master(
+                            net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f
+                        )
+                    );
+                    if (client.player != null) {
+                        client.player.sendMessage(Text.literal("§c🔒 Dieses Emote ist nicht freigeschaltet!"), true);
+                    }
+                } catch (Throwable ignored) {}
+            }
+            return;
+        }
+
         ClientSoundManager.playClick();
         if (emote == EmoteType.STOP || emote == EmoteModule.getCurrentEmote()) {
             EmoteModule.stopEmote();

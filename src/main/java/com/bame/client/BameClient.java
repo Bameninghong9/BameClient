@@ -38,6 +38,7 @@ public class BameClient implements ClientModInitializer {
         LOGGER.info("Initializing BameClient!");
         BameClientConfig.load();
         com.bame.client.cosmetics.CosmeticsConfig.load();
+        com.bame.client.emotes.EmoteUnlockManager.init();
         if (SpotifyHudModule.enabled) {
             com.bame.client.spotify.SpotifyService.start();
         }
@@ -51,6 +52,7 @@ public class BameClient implements ClientModInitializer {
         });
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
+            com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
         });
         try {
             net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT, DurabilityGuardModule.ALARM_ID, DurabilityGuardModule.ALARM_SOUND);

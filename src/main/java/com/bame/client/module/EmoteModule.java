@@ -40,6 +40,18 @@ public class EmoteModule {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
+        if (!com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(type)) {
+            try {
+                client.getSoundManager().play(
+                    net.minecraft.client.sound.PositionedSoundInstance.master(
+                        net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f
+                    )
+                );
+                client.player.sendMessage(net.minecraft.text.Text.literal("§c🔒 Dieses Emote ist nicht freigeschaltet!"), true);
+            } catch (Throwable ignored) {}
+            return;
+        }
+
         currentEmote = type;
         startTime = System.currentTimeMillis();
 
