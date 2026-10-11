@@ -25,7 +25,11 @@ public class EmoteAnimator {
         MinecraftClient client = MinecraftClient.getInstance();
         boolean isClientPlayer = client.player != null && client.player.getId() == state.id;
 
-        // Apply active emote for the local player
+        // Apply active emote for the local player OR remote Caeser Client player
+        String username = state.playerName != null ? state.playerName.getString() : null;
+        com.bame.client.cosmetics.CaeserPlayerSyncManager.PlayerEmoteData remoteEmote =
+                !isClientPlayer ? com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(username) : null;
+
         if (isClientPlayer && EmoteModule.isEmoting()) {
             wasEmoting = true;
             EmoteType emote = EmoteModule.getCurrentEmote();
@@ -38,6 +42,10 @@ public class EmoteAnimator {
                 model.head.visible = true;
                 model.hat.visible = true;
             }
+        } else if (remoteEmote != null && !remoteEmote.isExpired()) {
+            applyEmotePose(model, remoteEmote.emote, remoteEmote.getElapsedSeconds(), false, state);
+            model.head.visible = true;
+            model.hat.visible = true;
         } else {
             model.head.visible = true;
             model.hat.visible = true;

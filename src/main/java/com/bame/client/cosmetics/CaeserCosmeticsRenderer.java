@@ -2,6 +2,7 @@ package com.bame.client.cosmetics;
 
 import com.bame.client.module.SkinProtectModule;
 import com.mojang.authlib.GameProfile;
+import java.util.Set;
 import java.util.function.Supplier;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.model.Dilation;
@@ -233,53 +234,69 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player == null) return;
 
-        // Render cosmetics on the local player (third-person view, inventory, paper doll)
+        // Render cosmetics on the local player OR remote Caeser Client players
         boolean isLocal = false;
         if (state.playerName != null && state.playerName.getString().equalsIgnoreCase(mc.getSession().getUsername())) {
             isLocal = true;
         } else if (state.id == mc.player.getId()) {
             isLocal = true;
         }
-        if (!isLocal) return;
 
-        PetStateManager.tick();
-        CosmeticsConfig.checkReload();
+        String wings = null;
+        String head = null;
+        String pet = null;
+        Set<String> accessories = null;
 
-        // 1. Wings
-        if ("angel".equalsIgnoreCase(CosmeticsConfig.wings)) {
-            renderAngelWings(matrices, queue, light);
-        } else if ("dragon".equalsIgnoreCase(CosmeticsConfig.wings)) {
-            renderDragonWings(matrices, queue, light);
-        }
-
-        // 2. Head Accessories (Halo, Horns)
-        if ("halo".equalsIgnoreCase(CosmeticsConfig.head)) {
-            renderHalo(matrices, queue, light);
-        } else if ("horns".equalsIgnoreCase(CosmeticsConfig.head)) {
-            renderDemonHorns(matrices, queue, light);
-        }
-
-        // 3. Accessories & Pets - Multi-equip enabled!
-        if (CosmeticsConfig.isAccessoryEquipped("minime_sit")) {
-            renderShoulderPet(matrices, queue, light, state);
-        }
-        if (CosmeticsConfig.isAccessoryEquipped("minime_head")) {
-            renderHeadPet(matrices, queue, light, state);
-        }
-        if (CosmeticsConfig.isAccessoryEquipped("minime_hand")) {
-            renderHandPet(matrices, queue, light, state, limbAngle, limbDistance);
-        }
-        if (CosmeticsConfig.isAccessoryEquipped("minime_chain")) {
-            renderChainPet(matrices, queue, light, state);
-        }
-        if (CosmeticsConfig.isAccessoryEquipped("baby_dragon")) {
-            renderBabyDragon(matrices, queue, light, state);
-        }
-        if (CosmeticsConfig.isAccessoryEquipped("jelly_slime")) {
-            renderJellySlime(matrices, queue, light, state);
+        if (isLocal) {
+            PetStateManager.tick();
+            CosmeticsConfig.checkReload();
+            wings = CosmeticsConfig.wings;
+            head = CosmeticsConfig.head;
+            pet = CosmeticsConfig.pet;
+            accessories = CosmeticsConfig.accessories;
+        } else {
+            String username = state.playerName != null ? state.playerName.getString() : null;
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(username);
+            if (remote != null) {
+                wings = remote.wings;
+                head = remote.head;
+                pet = remote.pet;
+                accessories = remote.accessories;
+            }
         }
 
-        // 4. Active Emote Props (e.g. 3D Soccer Ball bouncing during JUGGLE)
+        if (wings != null || head != null || pet != null || (accessories != null && !accessories.isEmpty())) {
+            // 1. Wings
+            if ("angel".equalsIgnoreCase(wings)) {
+                renderAngelWings(matrices, queue, light);
+            } else if ("dragon".equalsIgnoreCase(wings)) {
+                renderDragonWings(matrices, queue, light);
+            }
+
+            // 2. Head Accessories (Halo, Horns)
+            if ("halo".equalsIgnoreCase(head)) {
+                renderHalo(matrices, queue, light);
+            } else if ("horns".equalsIgnoreCase(head)) {
+                renderDemonHorns(matrices, queue, light);
+            }
+
+            // 3. Accessories & Pets - Multi-equip enabled!
+            boolean hasSit = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
+            boolean hasHead = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_head") : ((accessories != null && accessories.contains("minime_head")) || "minime_head".equalsIgnoreCase(pet));
+            boolean hasHand = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_hand") : ((accessories != null && accessories.contains("minime_hand")) || "minime_hand".equalsIgnoreCase(pet));
+            boolean hasChain = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_chain") : ((accessories != null && accessories.contains("minime_chain")) || "minime_chain".equalsIgnoreCase(pet));
+            boolean hasDragon = isLocal ? CosmeticsConfig.isAccessoryEquipped("baby_dragon") : ((accessories != null && accessories.contains("baby_dragon")) || "baby_dragon".equalsIgnoreCase(pet));
+            boolean hasSlime = isLocal ? CosmeticsConfig.isAccessoryEquipped("jelly_slime") : ((accessories != null && accessories.contains("jelly_slime")) || "jelly_slime".equalsIgnoreCase(pet));
+
+            if (hasSit) renderShoulderPet(matrices, queue, light, state);
+            if (hasHead) renderHeadPet(matrices, queue, light, state);
+            if (hasHand) renderHandPet(matrices, queue, light, state, limbAngle, limbDistance);
+            if (hasChain) renderChainPet(matrices, queue, light, state);
+            if (hasDragon) renderBabyDragon(matrices, queue, light, state);
+            if (hasSlime) renderJellySlime(matrices, queue, light, state);
+        }
+
+        // 4. Active Emote Props (for local AND remote players!)
         com.bame.client.emotes.EmotePropFeatureRenderer.renderDirectProp(matrices, queue, light, state);
     }
 
@@ -709,17 +726,33 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     }
 
     private static Identifier getPetSkin(String accId, PlayerEntityRenderState state) {
-        String custom = CosmeticsConfig.getAccessoryCustomPlayer(accId);
-        if (custom != null && !custom.trim().isEmpty()) {
-            return PlayerSkinResolver.resolve(custom);
+        MinecraftClient mc = MinecraftClient.getInstance();
+        boolean isLocal = false;
+        if (state != null && state.playerName != null && mc.getSession() != null
+                && state.playerName.getString().equalsIgnoreCase(mc.getSession().getUsername())) {
+            isLocal = true;
+        } else if (state != null && mc.player != null && state.id == mc.player.getId()) {
+            isLocal = true;
         }
-        if (SkinProtectModule.enabled) {
-            return SkinProtectModule.getCurrentSkin().body().texturePath();
-        }
-        if (CaeserSkinManager.hasActiveOverride()) {
-            SkinTextures customTex = CaeserSkinManager.getActiveSkinTextures();
-            if (customTex != null && customTex.body() != null) {
-                return customTex.body().texturePath();
+
+        if (isLocal) {
+            String custom = CosmeticsConfig.getAccessoryCustomPlayer(accId);
+            if (custom != null && !custom.trim().isEmpty()) {
+                return PlayerSkinResolver.resolve(custom);
+            }
+            if (SkinProtectModule.enabled) {
+                return SkinProtectModule.getCurrentSkin().body().texturePath();
+            }
+            if (CaeserSkinManager.hasActiveOverride()) {
+                SkinTextures customTex = CaeserSkinManager.getActiveSkinTextures();
+                if (customTex != null && customTex.body() != null) {
+                    return customTex.body().texturePath();
+                }
+            }
+        } else if (state != null && state.playerName != null) {
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state.playerName.getString());
+            if (remote != null && remote.petCustomPlayer != null && !remote.petCustomPlayer.trim().isEmpty()) {
+                return PlayerSkinResolver.resolve(remote.petCustomPlayer);
             }
         }
         if (state != null && state.skinTextures != null && state.skinTextures.body() != null) {

@@ -311,6 +311,10 @@ public class CosmeticsConfig {
                     }
                 }
             } catch (Throwable ignored) {}
+
+            try {
+                CaeserPlayerSyncManager.broadcastLocalCosmetics();
+            } catch (Throwable ignored) {}
         } catch (Exception e) {
             e.printStackTrace();
         }

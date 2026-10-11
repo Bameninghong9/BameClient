@@ -61,6 +61,8 @@ public class EmoteModule {
             coinFlipAmount = 1 + rnd.nextInt(99);
             coinFlipAnnounced = false;
         }
+
+        com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(type, false);
     }
 
     public static void stopEmote() {
@@ -68,6 +70,7 @@ public class EmoteModule {
         currentEmote = EmoteType.NONE;
         startTime = 0;
         coinFlipAnnounced = false;
+        com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(EmoteType.STOP, true);
     }
 
     public static void onTick(MinecraftClient client) {

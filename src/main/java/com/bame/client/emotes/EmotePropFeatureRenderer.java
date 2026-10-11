@@ -403,6 +403,14 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
                 if (isLocal && EmoteModule.isEmoting()) {
                     emote = EmoteModule.getCurrentEmote();
                     t = EmoteModule.getElapsedSeconds();
+                } else if (!isLocal) {
+                    String username = state.playerName != null ? state.playerName.getString() : null;
+                    com.bame.client.cosmetics.CaeserPlayerSyncManager.PlayerEmoteData remoteEmote =
+                            com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(username);
+                    if (remoteEmote != null && !remoteEmote.isExpired()) {
+                        emote = remoteEmote.emote;
+                        t = remoteEmote.getElapsedSeconds();
+                    }
                 }
             }
         }
