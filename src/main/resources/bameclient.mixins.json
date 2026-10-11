@@ -18,6 +18,9 @@
     "ScoreboardMixin",
     "ClientPlayNetworkHandlerMixin",
     "MinecraftClientAccessor",
+    "MinecraftClientSessionAccessor",
+    "RealmsClientAccessor",
+    "SplashTextResourceSupplierAccessor",
     "MinecraftClientMixin",
     "OverlayTextureAccessor",
     "OverlayTextureMixin",
@@ -42,7 +45,17 @@
     "PlayerEntityModelMixin",
     "PlayerEntityRenderStateMixin",
     "LivingEntityRendererAccessor",
-    "PlayerEntityRendererMixin"
+    "PlayerEntityRendererMixin",
+    "GameOptionsScreenMixin",
+    "KeybindsScreenMixin",
+    "ControlsListWidgetMixin",
+    "ControlsListWidgetKeyBindingEntryAccessor",
+    "StatsScreenMixin",
+    "StatsTabMixin",
+    "StatsGeneralEntryAccessor",
+    "StatsEntityEntryAccessor",
+    "StatsItemStatEntryAccessor",
+    "StatsItemListAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -20,8 +20,12 @@ public class CustomTextFieldWidget extends ClickableWidget {
     private Consumer<String> changedListener;
     private String placeholder = "";
     private boolean drawsBackground = true;
+    private int textInsetLeft = 0;
 
     public void setDrawsBackground(boolean value) { this.drawsBackground = value; }
+
+    /** Extra space left of the text, e.g. for an icon drawn by a subclass. */
+    public void setTextInsetLeft(int inset) { this.textInsetLeft = Math.max(0, inset); }
 
     public CustomTextFieldWidget(int x, int y, int width, int height, Text message) {
         super(x, y, width, height, message);
@@ -53,9 +57,9 @@ public class CustomTextFieldWidget extends ClickableWidget {
         CustomGuiUtils.drawUltraRoundedOutline(context, this.getX(), this.getY(), this.width, this.height, this.isFocused() ? GuiTheme.accent() : 0xFF1E1E24, 4.0f);
         }
 
-        int innerX = this.getX() + 6;
+        int innerX = this.getX() + 6 + this.textInsetLeft;
         int innerY = this.getY() + (this.height - 8) / 2;
-        int innerWidth = this.width - 12;
+        int innerWidth = this.width - 12 - this.textInsetLeft;
 
         context.enableScissor(innerX, this.getY(), innerX + innerWidth, this.getY() + this.height);
 
@@ -105,7 +109,7 @@ public class CustomTextFieldWidget extends ClickableWidget {
         
         if (click.button() == 0) {
             TextRenderer tr = MinecraftClient.getInstance().textRenderer;
-            int innerX = this.getX() + 6;
+            int innerX = this.getX() + 6 + this.textInsetLeft;
             int clickOffset = (int)click.x() - innerX + this.offset;
             
             this.cursor = 0;

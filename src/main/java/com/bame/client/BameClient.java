@@ -56,6 +56,16 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
             com.bame.client.cosmetics.CaeserPlayerSyncManager.onServerJoin();
         });
+        // Account-Switcher: Knopf oben links im Multiplayer-Menü (ohne Mixin in MultiplayerScreen)
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            if (screen instanceof net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen) {
+                try {
+                    com.bame.client.account.AccountButtonWidget.attach(screen);
+                } catch (Throwable t) {
+                    LOGGER.warn("Failed to add account button to multiplayer screen", t);
+                }
+            }
+        });
         try {
             net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT, DurabilityGuardModule.ALARM_ID, DurabilityGuardModule.ALARM_SOUND);
         } catch (Exception ignored) {}

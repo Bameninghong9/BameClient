@@ -342,6 +342,31 @@ public class CaeserSkinManager {
         }
     }
 
+    /**
+     * Nach einem Account-Wechsel: Upload-Status zurücksetzen (der neue Account hat den Skin noch nicht) und
+     * Cape/Elytra in den bereits geladenen eigenen Skins neu aus dem Account-Skin des neuen Accounts übernehmen.
+     */
+    public static synchronized void onAccountChanged() {
+        lastUploadedSkinId = null;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        SkinTextures acc = getAccountSkinTextures(mc);
+        AssetInfo.TextureAsset cape = acc != null ? acc.cape() : null;
+        AssetInfo.TextureAsset elytra = acc != null ? acc.elytra() : null;
+        for (LauncherSkinEntry entry : CUSTOM_SKINS_BY_ID.values()) {
+            if (entry.textureId == null || entry.skinTextures == null) continue;
+            entry.skinTextures = new SkinTextures(
+                    new AssetInfo.TextureAssetInfo(entry.textureId, entry.textureId),
+                    cape,
+                    elytra,
+                    entry.skinType,
+                    true
+            );
+            if (entry.id.equalsIgnoreCase(activeSkinId)) {
+                activeSkinTextures = entry.skinTextures;
+            }
+        }
+    }
+
     public static void checkPeriodicSync() {
         long now = System.currentTimeMillis();
         if (now - lastCheckTime < 1000) return;
