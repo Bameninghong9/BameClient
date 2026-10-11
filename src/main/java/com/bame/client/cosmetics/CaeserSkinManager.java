@@ -38,16 +38,22 @@ public class CaeserSkinManager {
         public final String name;
         public final String base64Data;
         public final long createdAt;
+        public volatile String variant = null;
         private volatile Identifier textureId;
         private volatile SkinTextures skinTextures;
         private volatile PlayerSkinType skinType = PlayerSkinType.WIDE;
         private volatile boolean textureLoaded = false;
 
-        public LauncherSkinEntry(String id, String name, String base64Data, long createdAt) {
+        public LauncherSkinEntry(String id, String name, String base64Data, long createdAt, String variant) {
             this.id = id;
             this.name = name;
             this.base64Data = base64Data;
             this.createdAt = createdAt;
+            this.variant = variant;
+        }
+
+        public LauncherSkinEntry(String id, String name, String base64Data, long createdAt) {
+            this(id, name, base64Data, createdAt, null);
         }
 
         public Identifier getTextureId() {
@@ -175,7 +181,8 @@ public class CaeserSkinManager {
             NativeImage image = NativeImage.read(bytes);
             if (image == null) return;
 
-            boolean slim = isSlimSkin(image);
+            boolean slim = "slim".equalsIgnoreCase(entry.variant)
+                    || (entry.variant == null && isSlimSkin(image));
             image = remapSkin(image);
 
             entry.skinType = slim ? PlayerSkinType.SLIM : PlayerSkinType.WIDE;
@@ -255,8 +262,13 @@ public class CaeserSkinManager {
                         String name = obj.has("name") ? obj.get("name").getAsString() : "Custom Skin";
                         String data = obj.has("data") ? obj.get("data").getAsString() : "";
                         long createdAt = obj.has("createdAt") ? obj.get("createdAt").getAsLong() : 0L;
+                        String variant = obj.has("variant") ? obj.get("variant").getAsString() : null;
                         if (!id.isEmpty() && !data.isEmpty()) {
-                            LauncherSkinEntry entry = CUSTOM_SKINS_BY_ID.computeIfAbsent(id, k -> new LauncherSkinEntry(id, name, data, createdAt));
+                            LauncherSkinEntry entry = CUSTOM_SKINS_BY_ID.computeIfAbsent(id, k -> new LauncherSkinEntry(id, name, data, createdAt, variant));
+                            if (!Objects.equals(entry.variant, variant)) {
+                                entry.variant = variant;
+                                entry.textureLoaded = false;
+                            }
                             newEntries.add(entry);
                             ensureTextureLoaded(entry);
                         }
