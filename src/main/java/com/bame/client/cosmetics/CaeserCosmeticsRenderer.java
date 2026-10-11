@@ -228,6 +228,17 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
     }
 
+    public static String getPlayerUsername(PlayerEntityRenderState state) {
+        if (state == null) return null;
+        if (state instanceof com.bame.client.emotes.EmotePreviewHolder holder && holder.caeser$getPlayerUsername() != null) {
+            return holder.caeser$getPlayerUsername();
+        }
+        if (state.playerName != null) {
+            return state.playerName.getString();
+        }
+        return null;
+    }
+
     @Override
     public void render(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
                        PlayerEntityRenderState state, float limbAngle, float limbDistance) {
@@ -235,11 +246,14 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (mc.player == null) return;
 
         // Render cosmetics on the local player OR remote Caeser Client players
-        boolean isLocal = false;
-        if (state.playerName != null && state.playerName.getString().equalsIgnoreCase(mc.getSession().getUsername())) {
-            isLocal = true;
-        } else if (state.id == mc.player.getId()) {
-            isLocal = true;
+        boolean isLocal = (state.id == mc.player.getId());
+        String rawUsername = getPlayerUsername(state);
+        if (!isLocal && rawUsername != null && mc.getSession() != null) {
+            String cleanStateName = CaeserPlayerSyncManager.cleanUsername(rawUsername);
+            String cleanLocalName = CaeserPlayerSyncManager.cleanUsername(mc.getSession().getUsername());
+            if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
+                isLocal = true;
+            }
         }
 
         String wings = null;
@@ -255,8 +269,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             pet = CosmeticsConfig.pet;
             accessories = CosmeticsConfig.accessories;
         } else {
-            String username = state.playerName != null ? state.playerName.getString() : null;
-            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(username);
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(rawUsername);
             if (remote != null) {
                 wings = remote.wings;
                 head = remote.head;
@@ -727,12 +740,14 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     private static Identifier getPetSkin(String accId, PlayerEntityRenderState state) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        boolean isLocal = false;
-        if (state != null && state.playerName != null && mc.getSession() != null
-                && state.playerName.getString().equalsIgnoreCase(mc.getSession().getUsername())) {
-            isLocal = true;
-        } else if (state != null && mc.player != null && state.id == mc.player.getId()) {
-            isLocal = true;
+        boolean isLocal = (state != null && mc.player != null && state.id == mc.player.getId());
+        String rawName = getPlayerUsername(state);
+        if (!isLocal && rawName != null && mc.getSession() != null) {
+            String cleanStateName = CaeserPlayerSyncManager.cleanUsername(rawName);
+            String cleanLocalName = CaeserPlayerSyncManager.cleanUsername(mc.getSession().getUsername());
+            if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
+                isLocal = true;
+            }
         }
 
         if (isLocal) {
@@ -749,8 +764,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     return customTex.body().texturePath();
                 }
             }
-        } else if (state != null && state.playerName != null) {
-            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state.playerName.getString());
+        } else if (rawName != null) {
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(rawName);
             if (remote != null && remote.petCustomPlayer != null && !remote.petCustomPlayer.trim().isEmpty()) {
                 return PlayerSkinResolver.resolve(remote.petCustomPlayer);
             }

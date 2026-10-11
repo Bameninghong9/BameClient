@@ -10,6 +10,17 @@ public class EmoteAnimator {
 
     private static boolean wasEmoting = false;
 
+    public static String getPlayerUsername(PlayerEntityRenderState state) {
+        if (state == null) return null;
+        if (state instanceof EmotePreviewHolder holder && holder.caeser$getPlayerUsername() != null) {
+            return holder.caeser$getPlayerUsername();
+        }
+        if (state.playerName != null) {
+            return state.playerName.getString();
+        }
+        return null;
+    }
+
     public static void apply(PlayerEntityModel model, PlayerEntityRenderState state) {
         if (!EmoteModule.enabled || model == null || state == null) return;
 
@@ -17,6 +28,7 @@ public class EmoteAnimator {
         if (state instanceof EmotePreviewHolder holder && holder.bame$getPreviewEmote() != null) {
             EmoteType previewEmote = holder.bame$getPreviewEmote();
             float previewTime = holder.bame$getPreviewTime();
+            resetAllParts(model);
             applyEmotePose(model, previewEmote, previewTime, true, state);
             syncLayers(model);
             return;
@@ -24,13 +36,21 @@ public class EmoteAnimator {
 
         MinecraftClient client = MinecraftClient.getInstance();
         boolean isClientPlayer = client.player != null && client.player.getId() == state.id;
+        String rawUsername = getPlayerUsername(state);
+        if (!isClientPlayer && rawUsername != null && client.getSession() != null) {
+            String cleanStateName = com.bame.client.cosmetics.CaeserPlayerSyncManager.cleanUsername(rawUsername);
+            String cleanLocalName = com.bame.client.cosmetics.CaeserPlayerSyncManager.cleanUsername(client.getSession().getUsername());
+            if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
+                isClientPlayer = true;
+            }
+        }
 
         // Apply active emote for the local player OR remote Caeser Client player
-        String username = state.playerName != null ? state.playerName.getString() : null;
         com.bame.client.cosmetics.CaeserPlayerSyncManager.PlayerEmoteData remoteEmote =
-                !isClientPlayer ? com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(username) : null;
+                !isClientPlayer ? com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(rawUsername) : null;
 
         if (isClientPlayer && EmoteModule.isEmoting()) {
+            resetAllParts(model);
             wasEmoting = true;
             EmoteType emote = EmoteModule.getCurrentEmote();
             float t = EmoteModule.getElapsedSeconds();
@@ -43,6 +63,7 @@ public class EmoteAnimator {
                 model.hat.visible = true;
             }
         } else if (remoteEmote != null && !remoteEmote.isExpired()) {
+            resetAllParts(model);
             applyEmotePose(model, remoteEmote.emote, remoteEmote.getElapsedSeconds(), false, state);
             model.head.visible = true;
             model.hat.visible = true;

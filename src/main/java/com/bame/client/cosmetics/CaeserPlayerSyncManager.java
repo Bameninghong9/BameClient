@@ -12,15 +12,20 @@ import org.slf4j.LoggerFactory;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages multiplayer synchronization of cosmetics and emotes between all players running Caeser Client.
- * Connects automatically to public peer sync and broadcasts loadouts & active animations.
+ * Uses both high-speed local peer sync (UDP Multicast on LAN / same-PC) and public MQTT (broker.hivemq.com)
+ * for seamless internet sync across all servers.
  */
 public class CaeserPlayerSyncManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("CaeserPlayerSync");
     private static final String TOPIC = "caeser/sync/global";
+
+    // Unique ID per running Minecraft game instance to prevent echo while allowing dual-instance on same PC
+    public static final String LOCAL_INSTANCE_ID = UUID.randomUUID().toString();
 
     public static class PlayerCosmeticsData {
         public String username;
@@ -46,7 +51,7 @@ public class CaeserPlayerSyncManager {
 
         public float getElapsedSeconds() {
             if (emote == null || emote == EmoteType.NONE || emote == EmoteType.STOP) return 0.0f;
-            return (System.currentTimeMillis() - startTime) / 1000.0f;
+            return Math.max(0.0f, (System.currentTimeMillis() - startTime) / 1000.0f);
         }
 
         public boolean isExpired() {
@@ -69,29 +74,47 @@ public class CaeserPlayerSyncManager {
         if (initialized) return;
         initialized = true;
 
-        String clientId = "Caeser_" + (System.currentTimeMillis() % 10000000L);
+        // 1. High-speed local peer sync (UDP Multicast) for same PC / LAN
+        CaeserLocalPeerSync.start(payload -> handleIncomingMessage(TOPIC, payload));
+
+        // 2. Global MQTT sync for internet multiplayer
+        String clientId = "Caeser_" + LOCAL_INSTANCE_ID.substring(0, 8);
         mqttClient = new CaeserMqttClient("broker.hivemq.com", 1883, clientId, TOPIC, CaeserPlayerSyncManager::handleIncomingMessage);
         mqttClient.start();
-        LOGGER.info("Caeser Player Sync Manager initialized.");
+
+        LOGGER.info("Caeser Player Sync Manager initialized with instance ID {}", LOCAL_INSTANCE_ID);
+    }
+
+    public static String cleanUsername(String raw) {
+        if (raw == null) return null;
+        String clean = raw.replaceAll("§[0-9a-fk-orA-FK-OR]", "").trim();
+        int spaceIdx = clean.lastIndexOf(' ');
+        if (spaceIdx >= 0) {
+            clean = clean.substring(spaceIdx + 1);
+        }
+        return clean.toLowerCase(Locale.ROOT);
     }
 
     public static PlayerCosmeticsData getCosmetics(String username) {
-        if (username == null || username.isBlank()) return null;
-        return COSMETICS_MAP.get(username.toLowerCase(Locale.ROOT));
+        String key = cleanUsername(username);
+        if (key == null || key.isBlank()) return null;
+        return COSMETICS_MAP.get(key);
     }
 
     public static PlayerEmoteData getActiveEmote(String username) {
-        if (username == null || username.isBlank()) return null;
-        PlayerEmoteData data = EMOTE_MAP.get(username.toLowerCase(Locale.ROOT));
+        String key = cleanUsername(username);
+        if (key == null || key.isBlank()) return null;
+        PlayerEmoteData data = EMOTE_MAP.get(key);
         if (data != null && data.isExpired()) {
-            EMOTE_MAP.remove(username.toLowerCase(Locale.ROOT));
+            EMOTE_MAP.remove(key);
             return null;
         }
         return data;
     }
 
     public static void onServerJoin() {
-        // Send initial cosmetics announcement upon joining a world
+        // Request existing players to send their cosmetics, and broadcast ours
+        sendRequestSync();
         broadcastLocalCosmetics();
     }
 
@@ -106,8 +129,28 @@ public class CaeserPlayerSyncManager {
         }
     }
 
+    public static void sendRequestSync() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.getSession() == null) return;
+        String localUsername = mc.getSession().getUsername();
+        if (localUsername == null || localUsername.isBlank()) return;
+
+        try {
+            JsonObject json = new JsonObject();
+            json.addProperty("v", 1);
+            json.addProperty("type", "REQUEST_SYNC");
+            json.addProperty("instanceId", LOCAL_INSTANCE_ID);
+            json.addProperty("name", localUsername);
+
+            String payload = json.toString();
+            CaeserLocalPeerSync.broadcast(payload);
+            if (mqttClient != null) {
+                mqttClient.publish(TOPIC, payload);
+            }
+        } catch (Throwable ignored) {}
+    }
+
     public static void broadcastLocalCosmetics() {
-        if (mqttClient == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.getSession() == null) return;
         String localUsername = mc.getSession().getUsername();
@@ -117,6 +160,7 @@ public class CaeserPlayerSyncManager {
             JsonObject json = new JsonObject();
             json.addProperty("v", 1);
             json.addProperty("type", "COSMETICS");
+            json.addProperty("instanceId", LOCAL_INSTANCE_ID);
             json.addProperty("name", localUsername);
             json.addProperty("wings", CosmeticsConfig.wings != null ? CosmeticsConfig.wings : "none");
             json.addProperty("head", CosmeticsConfig.head != null ? CosmeticsConfig.head : "none");
@@ -129,14 +173,17 @@ public class CaeserPlayerSyncManager {
             }
             json.add("acc", accArray);
 
-            mqttClient.publish(TOPIC, json.toString());
+            String payload = json.toString();
+            CaeserLocalPeerSync.broadcast(payload);
+            if (mqttClient != null) {
+                mqttClient.publish(TOPIC, payload);
+            }
         } catch (Throwable t) {
             LOGGER.debug("Failed to broadcast local cosmetics: {}", t.getMessage());
         }
     }
 
     public static void broadcastLocalEmote(EmoteType emote, boolean isStop) {
-        if (mqttClient == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.getSession() == null) return;
         String localUsername = mc.getSession().getUsername();
@@ -146,12 +193,17 @@ public class CaeserPlayerSyncManager {
             JsonObject json = new JsonObject();
             json.addProperty("v", 1);
             json.addProperty("type", "EMOTE");
+            json.addProperty("instanceId", LOCAL_INSTANCE_ID);
             json.addProperty("name", localUsername);
             json.addProperty("emote", (emote != null) ? emote.name() : "STOP");
             json.addProperty("action", isStop ? "STOP" : "PLAY");
             json.addProperty("time", System.currentTimeMillis());
 
-            mqttClient.publish(TOPIC, json.toString());
+            String payload = json.toString();
+            CaeserLocalPeerSync.broadcast(payload);
+            if (mqttClient != null) {
+                mqttClient.publish(TOPIC, payload);
+            }
         } catch (Throwable t) {
             LOGGER.debug("Failed to broadcast local emote: {}", t.getMessage());
         }
@@ -164,16 +216,21 @@ public class CaeserPlayerSyncManager {
             JsonObject root = JsonParser.parseString(payload).getAsJsonObject();
             String type = root.has("type") ? root.get("type").getAsString() : "";
             String name = root.has("name") ? root.get("name").getAsString() : "";
+            String senderInstanceId = root.has("instanceId") ? root.get("instanceId").getAsString() : "";
 
-            if (name.isBlank()) return;
-
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.getSession() != null && name.equalsIgnoreCase(mc.getSession().getUsername())) {
-                // Ignore our own echo from the broker
+            // Ignore our own echo (using unique instance ID so multiple local instances can communicate)
+            if (LOCAL_INSTANCE_ID.equals(senderInstanceId)) {
                 return;
             }
 
-            String key = name.toLowerCase(Locale.ROOT);
+            if ("REQUEST_SYNC".equalsIgnoreCase(type)) {
+                broadcastLocalCosmetics();
+                return;
+            }
+
+            if (name.isBlank()) return;
+            String key = cleanUsername(name);
+            if (key == null || key.isBlank()) return;
 
             if ("COSMETICS".equalsIgnoreCase(type)) {
                 PlayerCosmeticsData data = COSMETICS_MAP.computeIfAbsent(key, k -> {
@@ -206,7 +263,8 @@ public class CaeserPlayerSyncManager {
                         PlayerEmoteData emData = new PlayerEmoteData();
                         emData.username = name;
                         emData.emote = emType;
-                        emData.startTime = root.has("time") ? root.get("time").getAsLong() : System.currentTimeMillis();
+                        // Always start locally at receipt time for seamless async animation playback
+                        emData.startTime = System.currentTimeMillis();
                         EMOTE_MAP.put(key, emData);
                     }
                 }

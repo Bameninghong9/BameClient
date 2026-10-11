@@ -94,6 +94,37 @@ public class CosmeticsConfig {
 
     private static long lastCheck = 0;
     private static long lastModified = -1;
+    private static String cachedAccount = null;
+
+    public static String getAccountName() {
+        try {
+            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+            if (mc != null && mc.getSession() != null && mc.getSession().getUsername() != null) {
+                String u = mc.getSession().getUsername().trim().toLowerCase(java.util.Locale.ROOT);
+                if (!u.isBlank()) return u;
+            }
+        } catch (Throwable ignored) {}
+        return "default";
+    }
+
+    public static Path getAccountConfigFile() {
+        String acc = getAccountName();
+        if (!"default".equals(acc)) {
+            Path accFile = BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics_" + acc + ".json");
+            if (Files.exists(accFile)) {
+                return accFile;
+            }
+        }
+        return BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
+    }
+
+    public static Path getAccountSaveFile() {
+        String acc = getAccountName();
+        if (!"default".equals(acc)) {
+            return BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics_" + acc + ".json");
+        }
+        return BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
+    }
 
     static {
         load();
@@ -223,7 +254,7 @@ public class CosmeticsConfig {
 
     public static void save() {
         try {
-            Path file = BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
+            Path file = getAccountSaveFile();
             if (file.getParent() != null) {
                 Files.createDirectories(file.getParent());
             }
@@ -299,6 +330,13 @@ public class CosmeticsConfig {
             Files.writeString(file, root.toString());
             lastModified = Files.getLastModifiedTime(file).toMillis();
 
+            if ("default".equals(getAccountName())) {
+                Path baseFile = BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
+                if (!baseFile.equals(file)) {
+                    try { Files.writeString(baseFile, root.toString()); } catch (Throwable ignored) {}
+                }
+            }
+
             // Also keep launcher settings.json synchronized
             try {
                 Path launcherDir = CaeserSkinManager.getLauncherDir();
@@ -322,11 +360,18 @@ public class CosmeticsConfig {
 
     public static synchronized void checkReload() {
         long now = System.currentTimeMillis();
+        String currentAcc = getAccountName();
+        if (cachedAccount == null || !cachedAccount.equals(currentAcc)) {
+            cachedAccount = currentAcc;
+            lastCheck = 0;
+            lastModified = -1;
+        }
+
         if (lastCheck != 0 && now - lastCheck < 1000) return;
         lastCheck = now;
 
         try {
-            Path file = BameClientConfig.BASE_CONFIG_DIR.resolve("cosmetics.json");
+            Path file = getAccountConfigFile();
             JsonObject root = null;
             if (Files.exists(file)) {
                 long mod = Files.getLastModifiedTime(file).toMillis();

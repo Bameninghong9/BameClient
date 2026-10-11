@@ -34,4 +34,17 @@ public class PlayerEntityRenderStateMixin implements EmotePreviewHolder {
     public float bame$getPreviewTime() {
         return this.bame$previewTime;
     }
+
+    @Unique
+    private String caeser$playerUsername;
+
+    @Override
+    public void caeser$setPlayerUsername(String username) {
+        this.caeser$playerUsername = username;
+    }
+
+    @Override
+    public String caeser$getPlayerUsername() {
+        return this.caeser$playerUsername;
+    }
 }

@@ -394,19 +394,21 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
         } else {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player != null) {
-                boolean isLocal = false;
-                if (state.playerName != null && state.playerName.getString().equalsIgnoreCase(client.getSession().getUsername())) {
-                    isLocal = true;
-                } else if (state.id == client.player.getId()) {
-                    isLocal = true;
+                boolean isLocal = (state.id == client.player.getId());
+                String rawUsername = com.bame.client.cosmetics.CaeserCosmeticsRenderer.getPlayerUsername(state);
+                if (!isLocal && rawUsername != null && client.getSession() != null) {
+                    String cleanStateName = com.bame.client.cosmetics.CaeserPlayerSyncManager.cleanUsername(rawUsername);
+                    String cleanLocalName = com.bame.client.cosmetics.CaeserPlayerSyncManager.cleanUsername(client.getSession().getUsername());
+                    if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
+                        isLocal = true;
+                    }
                 }
                 if (isLocal && EmoteModule.isEmoting()) {
                     emote = EmoteModule.getCurrentEmote();
                     t = EmoteModule.getElapsedSeconds();
                 } else if (!isLocal) {
-                    String username = state.playerName != null ? state.playerName.getString() : null;
                     com.bame.client.cosmetics.CaeserPlayerSyncManager.PlayerEmoteData remoteEmote =
-                            com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(username);
+                            com.bame.client.cosmetics.CaeserPlayerSyncManager.getActiveEmote(rawUsername);
                     if (remoteEmote != null && !remoteEmote.isExpired()) {
                         emote = remoteEmote.emote;
                         t = remoteEmote.getElapsedSeconds();

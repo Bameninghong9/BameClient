@@ -5,4 +5,7 @@ public interface EmotePreviewHolder {
     EmoteType bame$getPreviewEmote();
     void bame$setPreviewTime(float time);
     float bame$getPreviewTime();
+
+    void caeser$setPlayerUsername(String username);
+    String caeser$getPlayerUsername();
 }
