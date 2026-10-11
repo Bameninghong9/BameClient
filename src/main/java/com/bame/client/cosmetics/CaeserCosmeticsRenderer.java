@@ -471,6 +471,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (model == null) return;
         matrices.push();
         this.getContextModel().head.applyTransform(matrices);
+        if (model == sunglassesModel) {
+            matrices.translate(0.0f, 0.11f, 0.0f);
+        }
         model.resetAllAnimations();
         RenderLayer layer = RenderLayers.entityCutoutNoCull(texture);
         queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
@@ -485,6 +488,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (model == null) return;
         matrices.push();
         if (playerModel != null) playerModel.head.applyTransform(matrices);
+        if (model == sunglassesModel) {
+            matrices.translate(0.0f, 0.11f, 0.0f);
+        }
         model.resetAllAnimations();
         model.render(matrices.peek(), vertexConsumers.getBuffer(RenderLayers.entityCutoutNoCull(texture)), light, 0, 1);
         matrices.pop();
@@ -577,7 +583,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             poseHangingChibiModel(handChibiModel, timeSec, walkSwing);
             matrices.push();
             this.getContextModel().leftArm.applyTransform(matrices);
-            matrices.translate(0.16f, 0.78f, 0.0f);
+            matrices.translate(0.15f, 0.68f, 0.0f);
             matrices.scale(0.28f, 0.28f, 0.28f);
             queue.submitModelPart(handChibiRoot, matrices, layer, light, OverlayTexture.DEFAULT_UV, null);
             matrices.pop();
@@ -589,7 +595,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             }
             matrices.push();
             this.getContextModel().rightArm.applyTransform(matrices);
-            matrices.translate(-0.16f, 0.78f, 0.0f);
+            matrices.translate(-0.15f, 0.68f, 0.0f);
             matrices.scale(0.28f, 0.28f, 0.28f);
             ModelPart part = (handRightChibiRoot != null) ? handRightChibiRoot : handChibiRoot;
             queue.submitModelPart(part, matrices, layer, light, OverlayTexture.DEFAULT_UV, null);
@@ -984,34 +990,35 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         m.rightPants.visible = true;
 
         // MiniMe Hand: Hängt an der Hand und schwingt wie ein Pendel – KEIN Beinezappeln!
-        float pendulum = (float) Math.sin(timeSec * 1.8f) * 0.06f + walkSwing * 0.5f;
+        float pendulum = (float) Math.sin(timeSec * 1.8f) * 0.04f + walkSwing * 0.3f;
 
-        m.body.roll = 0.22f + pendulum * 0.6f;
-        m.body.pitch = 0.04f + pendulum * 0.3f;
-        m.body.yaw = -0.06f;
+        m.body.roll = 0.12f + pendulum * 0.3f;
+        m.body.pitch = 0.04f + pendulum * 0.2f;
+        m.body.yaw = -0.15f;
 
-        // Rechter Arm: Hält die Hand des Spielers fest (matching Bild 3)
-        m.rightArm.pitch = 2.82f + pendulum * 0.15f;
-        m.rightArm.yaw = -0.22f;
-        m.rightArm.roll = -0.32f + pendulum * 0.2f;
+        // Rechter Arm: Hält die Hand des Spielers fest
+        // Pitch ~ 2.92f (reicht steil nach oben), Roll = 0.30f (neigt sich nach innen zur Hand des Spielers)
+        m.rightArm.pitch = 2.92f + pendulum * 0.05f;
+        m.rightArm.yaw = 0.05f;
+        m.rightArm.roll = 0.30f - pendulum * 0.08f;
 
         // Linker Arm: Hängt entspannt herunter und wiegt sich sanft
-        m.leftArm.pitch = 0.12f - pendulum * 1.2f;
+        m.leftArm.pitch = 0.10f - pendulum * 0.6f;
         m.leftArm.yaw = 0.04f;
-        m.leftArm.roll = 0.26f + (float) Math.cos(timeSec * 1.6f) * 0.04f;
+        m.leftArm.roll = 0.18f + (float) Math.cos(timeSec * 1.6f) * 0.04f;
 
         // Kopf: Schaut niedlich zum Spieler auf
-        m.head.roll = 0.18f + pendulum * 0.3f;
-        m.head.pitch = -0.12f;
-        m.head.yaw = 0.06f;
+        m.head.roll = -0.12f;
+        m.head.pitch = -0.32f;
+        m.head.yaw = -0.30f + pendulum * 0.1f;
 
         // Beine: Hängen vollkommen natürlich herunter und folgen nur dem sanften Pendelschwung
-        m.rightLeg.pitch = 0.08f + pendulum * 0.4f;
-        m.rightLeg.yaw = 0.05f;
+        m.rightLeg.pitch = 0.06f + pendulum * 0.3f;
+        m.rightLeg.yaw = 0.04f;
         m.rightLeg.roll = 0.0f;
 
-        m.leftLeg.pitch = -0.04f + pendulum * 0.4f;
-        m.leftLeg.yaw = -0.05f;
+        m.leftLeg.pitch = -0.04f + pendulum * 0.3f;
+        m.leftLeg.yaw = -0.04f;
         m.leftLeg.roll = 0.0f;
     }
 
@@ -1030,34 +1037,35 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         m.leftPants.visible = true;
         m.rightPants.visible = true;
 
-        float pendulum = (float) Math.sin(timeSec * 1.8f) * 0.06f + walkSwing * 0.5f;
+        float pendulum = (float) Math.sin(timeSec * 1.8f) * 0.04f + walkSwing * 0.3f;
 
-        m.body.roll = -0.22f - pendulum * 0.6f;
-        m.body.pitch = 0.04f + pendulum * 0.3f;
-        m.body.yaw = 0.06f;
+        m.body.roll = -0.12f - pendulum * 0.3f;
+        m.body.pitch = 0.04f + pendulum * 0.2f;
+        m.body.yaw = 0.15f;
 
-        // Left arm raised up, grasping player's right hand!
-        m.leftArm.pitch = 2.82f + pendulum * 0.15f;
-        m.leftArm.yaw = 0.22f;
-        m.leftArm.roll = 0.32f - pendulum * 0.2f;
+        // Linker Arm: Hält die rechte Hand des Spielers fest
+        // Pitch ~ 2.92f (reicht steil nach oben), Roll = -0.30f (neigt sich nach innen zur Hand des Spielers)
+        m.leftArm.pitch = 2.92f + pendulum * 0.05f;
+        m.leftArm.yaw = -0.05f;
+        m.leftArm.roll = -0.30f + pendulum * 0.08f;
 
-        // Right arm hangs down relaxed
-        m.rightArm.pitch = 0.12f - pendulum * 1.2f;
+        // Rechter Arm: Hängt entspannt herunter
+        m.rightArm.pitch = 0.10f - pendulum * 0.6f;
         m.rightArm.yaw = -0.04f;
-        m.rightArm.roll = -0.26f - (float) Math.cos(timeSec * 1.6f) * 0.04f;
+        m.rightArm.roll = -0.18f - (float) Math.cos(timeSec * 1.6f) * 0.04f;
 
-        // Head tilts towards player
-        m.head.roll = -0.18f - pendulum * 0.3f;
-        m.head.pitch = -0.12f;
-        m.head.yaw = -0.06f;
+        // Kopf: Schaut niedlich zum Spieler auf
+        m.head.roll = 0.12f;
+        m.head.pitch = -0.32f;
+        m.head.yaw = 0.30f - pendulum * 0.1f;
 
-        // Legs follow pendulum
-        m.leftLeg.pitch = 0.08f + pendulum * 0.4f;
-        m.leftLeg.yaw = -0.05f;
+        // Beine: Hängen natürlich herunter
+        m.leftLeg.pitch = 0.06f + pendulum * 0.3f;
+        m.leftLeg.yaw = -0.04f;
         m.leftLeg.roll = 0.0f;
 
-        m.rightLeg.pitch = -0.04f + pendulum * 0.4f;
-        m.rightLeg.yaw = 0.05f;
+        m.rightLeg.pitch = -0.04f + pendulum * 0.3f;
+        m.rightLeg.yaw = 0.04f;
         m.rightLeg.roll = 0.0f;
     }
 
@@ -1383,7 +1391,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                         poseHangingChibiModel(handChibiModel, timeSec, 0.0f);
                         matrices.push();
                         if (playerModel != null) playerModel.leftArm.applyTransform(matrices);
-                        matrices.translate(0.16f, 0.78f, 0.0f);
+                        matrices.translate(0.15f, 0.68f, 0.0f);
                         matrices.scale(0.28f, 0.28f, 0.28f);
                         handChibiRoot.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
                         matrices.pop();
@@ -1394,7 +1402,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                         }
                         matrices.push();
                         if (playerModel != null) playerModel.rightArm.applyTransform(matrices);
-                        matrices.translate(-0.16f, 0.78f, 0.0f);
+                        matrices.translate(-0.15f, 0.68f, 0.0f);
                         matrices.scale(0.28f, 0.28f, 0.28f);
                         ModelPart part = (handRightChibiRoot != null) ? handRightChibiRoot : handChibiRoot;
                         part.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
