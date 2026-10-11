@@ -55,13 +55,6 @@ public class EmoteModule {
         currentEmote = type;
         startTime = System.currentTimeMillis();
 
-        if (type == EmoteType.COIN_FLIP) {
-            java.util.Random rnd = new java.util.Random();
-            coinFlipIsKopf = rnd.nextBoolean();
-            coinFlipAmount = 1 + rnd.nextInt(99);
-            coinFlipAnnounced = false;
-        }
-
         com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(type, false);
     }
 
@@ -88,7 +81,7 @@ public class EmoteModule {
                 stopEmote();
             }
         } else {
-            // Mobile emotes (T-Pose, Wave, Clap, Headspin, Zombie, Dance, Juggle):
+            // Mobile emotes (T-Pose, Wave, Basketball, Wheelchair, Zombie, Juggle):
             // The player CAN WALK, SPRINT, AND JUMP freely!
             // Only stop if the player is actively using an item (eating, drinking, bow)
             // or attacks/swings after the initial trigger click (> 0.4s)
@@ -96,22 +89,6 @@ public class EmoteModule {
                 stopEmote();
                 return;
             }
-        }
-
-        if (currentEmote == EmoteType.COIN_FLIP && !coinFlipAnnounced && getElapsedSeconds() >= 2.3f) {
-            coinFlipAnnounced = true;
-            try {
-                client.getSoundManager().play(
-                    net.minecraft.client.sound.PositionedSoundInstance.master(
-                        net.minecraft.sound.SoundEvents.BLOCK_NOTE_BLOCK_CHIME.value(), 1.6f, 0.9f
-                    )
-                );
-            } catch (Throwable ignored) {}
-        }
-
-        // Auto-stop Coin Flip after flip is inspected (one-shot, do not loop)
-        if (currentEmote == EmoteType.COIN_FLIP && getElapsedSeconds() >= 3.8f) {
-            stopEmote();
         }
     }
 }

@@ -350,11 +350,8 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("t_pose", "EMOTES", "T-Pose", "Free Emote • T-Pose"),
                 new CosmeticItem("sit", "EMOTES", "Sitzen", "Free Emote • Sit down"),
                 new CosmeticItem("wheelchair", "EMOTES", "Rollstuhl", "Sports wheelchair with rotating wheels"),
-                new CosmeticItem("guitar", "EMOTES", "E-Gitarre", "Rockstar electric guitar solo"),
                 new CosmeticItem("basketball", "EMOTES", "Basketball", "Dribble, crossover and finger spin"),
-                new CosmeticItem("juggle", "EMOTES", "Jonglieren", "Juggle soccer ball with feet"),
-                new CosmeticItem("coin_flip", "EMOTES", "Münzwurf", "Flip gold coin heads or tails"),
-                new CosmeticItem("dance", "EMOTES", "Tanz", "Groovy dance moves")
+                new CosmeticItem("juggle", "EMOTES", "Jonglieren", "Juggle soccer ball with feet")
         )));
 
         // SKINS from Caeser Client Launcher

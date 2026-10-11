@@ -38,7 +38,7 @@ public class MovementTab implements ClientTab {
 
     public boolean emoteVisible(String search) {
         String q = search.toLowerCase(Locale.ROOT);
-        if (!q.isEmpty()) return "emote".contains(q) || "emotes".contains(q) || "animation".contains(q) || "animations".contains(q) || "wave".contains(q) || "dance".contains(q) || "sit".contains(q) || "guitar".contains(q) || "basketball".contains(q) || "coin".contains(q) || "wheel".contains(q) || "animator".contains(q);
+        if (!q.isEmpty()) return "emote".contains(q) || "emotes".contains(q) || "animation".contains(q) || "animations".contains(q) || "wave".contains(q) || "sit".contains(q) || "basketball".contains(q) || "wheel".contains(q) || "animator".contains(q);
         return true;
     }
 

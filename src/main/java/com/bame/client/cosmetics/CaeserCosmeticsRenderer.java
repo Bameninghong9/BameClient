@@ -42,6 +42,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static final Identifier GOLD_CHAIN_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/accessory/gold_chain.png");
     public static final Identifier BABY_DRAGON_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/baby_dragon.png");
     public static final Identifier JELLY_SLIME_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/jelly_slime.png");
+    public static final Identifier MINIME_HAND_DEFAULT_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/accessory/minimehand.png");
 
     // Models
     public static BedrockCosmeticModel goldWingsModel;
@@ -52,6 +53,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static BedrockCosmeticModel strawHatModel;
     public static BedrockCosmeticModel sunglassesModel;
     public static BedrockCosmeticModel skullMaskModel;
+    public static BedrockCosmeticModel miniMeHandModel;
 
     // Independent Chibi models for each accessory so they NEVER overwrite each other's pose!
     public static ModelPart sitChibiRoot;
@@ -245,6 +247,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
         if (skullMaskModel == null) {
             skullMaskModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/face/skull_mask.geo.json");
+        }
+        if (miniMeHandModel == null) {
+            miniMeHandModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/accessory/minimehand.geo.json");
         }
     }
 
@@ -568,7 +573,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     private void renderHandPet(MatrixStack matrices, OrderedRenderCommandQueue queue,
                                int light, PlayerEntityRenderState state, float limbAngle, float limbDistance) {
-        if (handChibiRoot == null) return;
+        if (miniMeHandModel == null) return;
         float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
         float walkSwing = (limbDistance > 0.01f) ? (float) Math.sin(limbAngle * 0.8f) * Math.min(limbDistance, 1.0f) * 0.35f : 0.0f;
 
@@ -580,25 +585,27 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         RenderLayer layer = RenderLayers.entityTranslucent(skinTexture);
 
         if (renderLeft) {
-            poseHangingChibiModel(handChibiModel, timeSec, walkSwing);
             matrices.push();
             this.getContextModel().leftArm.applyTransform(matrices);
-            matrices.translate(0.15f, 0.68f, 0.0f);
-            matrices.scale(0.28f, 0.28f, 0.28f);
-            queue.submitModelPart(handChibiRoot, matrices, layer, light, OverlayTexture.DEFAULT_UV, null);
+            matrices.translate(-0.3125f, -0.125f, 0.0f);
+            miniMeHandModel.resetAllAnimations();
+            applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
+            queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+                miniMeHandModel.render(entry, consumer, light, 0, 1);
+            });
             matrices.pop();
         }
 
         if (renderRight) {
-            if (handRightChibiRoot != null && handRightChibiModel != null) {
-                poseHangingRightChibiModel(handRightChibiModel, timeSec, walkSwing);
-            }
             matrices.push();
             this.getContextModel().rightArm.applyTransform(matrices);
-            matrices.translate(-0.15f, 0.68f, 0.0f);
-            matrices.scale(0.28f, 0.28f, 0.28f);
-            ModelPart part = (handRightChibiRoot != null) ? handRightChibiRoot : handChibiRoot;
-            queue.submitModelPart(part, matrices, layer, light, OverlayTexture.DEFAULT_UV, null);
+            matrices.scale(-1.0f, 1.0f, 1.0f);
+            matrices.translate(-0.3125f, -0.125f, 0.0f);
+            miniMeHandModel.resetAllAnimations();
+            applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
+            queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+                miniMeHandModel.render(entry, consumer, light, 0, 1);
+            });
             matrices.pop();
         }
     }
@@ -846,7 +853,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         if (isLocal) {
             String custom = CosmeticsConfig.getAccessoryCustomPlayer(accId);
-            if (custom != null && !custom.trim().isEmpty()) {
+            if ("default".equalsIgnoreCase(custom) && "minime_hand".equalsIgnoreCase(accId)) {
+                return MINIME_HAND_DEFAULT_TEXTURE;
+            }
+            if (custom != null && !custom.trim().isEmpty() && !"default".equalsIgnoreCase(custom)) {
                 return PlayerSkinResolver.resolve(custom);
             }
             if (SkinProtectModule.enabled) {
@@ -858,14 +868,23 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     return customTex.body().texturePath();
                 }
             }
+            if (mc.player != null && mc.player.getSkin() != null && mc.player.getSkin().body() != null) {
+                return mc.player.getSkin().body().texturePath();
+            }
         } else if (rawName != null) {
             CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(rawName);
             if (remote != null && remote.petCustomPlayer != null && !remote.petCustomPlayer.trim().isEmpty()) {
+                if ("default".equalsIgnoreCase(remote.petCustomPlayer) && "minime_hand".equalsIgnoreCase(accId)) {
+                    return MINIME_HAND_DEFAULT_TEXTURE;
+                }
                 return PlayerSkinResolver.resolve(remote.petCustomPlayer);
             }
         }
         if (state != null && state.skinTextures != null && state.skinTextures.body() != null) {
             return state.skinTextures.body().texturePath();
+        }
+        if ("minime_hand".equalsIgnoreCase(accId)) {
+            return MINIME_HAND_DEFAULT_TEXTURE;
         }
         return net.minecraft.client.util.DefaultSkinHelper.getTexture();
     }
@@ -1069,6 +1088,17 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         m.rightLeg.roll = 0.0f;
     }
 
+    public static void applyMiniMeHandAnimation(BedrockCosmeticModel model, float timeSec, float walkSwing) {
+        if (model == null) return;
+        float breath = (float) Math.cos(timeSec * 3.0f);
+        float swing = (float) Math.sin(timeSec * 1.8f) * 0.04f + walkSwing * 0.25f;
+        model.setBoneRotation("Head", -breath * 1.5f, 0.0f, breath * 1.0f);
+        model.setBoneRotation("Right Arm", 0.0f, 0.0f, breath * -1.0f);
+        model.setBoneRotation("Left Arm", 0.0f, 0.0f, breath * -2.0f - swing * 10.0f);
+        model.setBoneRotation("Right Leg", -breath * 2.0f + swing * 8.0f, 0.0f, 0.0f);
+        model.setBoneRotation("Left Leg", -breath * 2.5f - swing * 8.0f, 0.0f, 0.0f);
+    }
+
     public static void poseBabyDragon(float timeSec, boolean isAfk) {
         if (babyDragonRoot == null) return;
 
@@ -1247,7 +1277,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     public static Identifier getPetSkinDirect(String petType) {
         String custom = CosmeticsConfig.getAccessoryCustomPlayer(petType);
-        if (custom != null && !custom.trim().isEmpty()) {
+        if ("default".equalsIgnoreCase(custom) && "minime_hand".equalsIgnoreCase(petType)) {
+            return MINIME_HAND_DEFAULT_TEXTURE;
+        }
+        if (custom != null && !custom.trim().isEmpty() && !"default".equalsIgnoreCase(custom)) {
             return PlayerSkinResolver.resolve(custom);
         }
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -1262,6 +1295,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
         if (mc.player != null && mc.player.getSkin() != null && mc.player.getSkin().body() != null) {
             return mc.player.getSkin().body().texturePath();
+        }
+        if ("minime_hand".equalsIgnoreCase(petType)) {
+            return MINIME_HAND_DEFAULT_TEXTURE;
         }
         return net.minecraft.client.util.DefaultSkinHelper.getTexture();
     }
@@ -1382,30 +1418,28 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     headChibiRoot.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
                     matrices.pop();
                 } else if ("minime_hand".equalsIgnoreCase(accId)) {
-                    if (handChibiModel == null) continue;
+                    if (miniMeHandModel == null) continue;
                     String side = CosmeticsConfig.getAccessorySide("minime_hand");
                     boolean doLeftH = "left".equalsIgnoreCase(side) || "both".equalsIgnoreCase(side);
                     boolean doRightH = "right".equalsIgnoreCase(side) || "both".equalsIgnoreCase(side);
 
                     if (doLeftH) {
-                        poseHangingChibiModel(handChibiModel, timeSec, 0.0f);
                         matrices.push();
                         if (playerModel != null) playerModel.leftArm.applyTransform(matrices);
-                        matrices.translate(0.15f, 0.68f, 0.0f);
-                        matrices.scale(0.28f, 0.28f, 0.28f);
-                        handChibiRoot.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
+                        matrices.translate(-0.3125f, -0.125f, 0.0f);
+                        miniMeHandModel.resetAllAnimations();
+                        applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
+                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
                         matrices.pop();
                     }
                     if (doRightH) {
-                        if (handRightChibiRoot != null && handRightChibiModel != null) {
-                            poseHangingRightChibiModel(handRightChibiModel, timeSec, 0.0f);
-                        }
                         matrices.push();
                         if (playerModel != null) playerModel.rightArm.applyTransform(matrices);
-                        matrices.translate(-0.15f, 0.68f, 0.0f);
-                        matrices.scale(0.28f, 0.28f, 0.28f);
-                        ModelPart part = (handRightChibiRoot != null) ? handRightChibiRoot : handChibiRoot;
-                        part.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
+                        matrices.scale(-1.0f, 1.0f, 1.0f);
+                        matrices.translate(-0.3125f, -0.125f, 0.0f);
+                        miniMeHandModel.resetAllAnimations();
+                        applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
+                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
                         matrices.pop();
                     }
                 } else if ("minime_chain".equalsIgnoreCase(accId)) {
@@ -1590,16 +1624,18 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 matrices.pop();
             }
             case "minime_hand" -> {
-                if (handChibiModel == null) return;
+                if (miniMeHandModel == null) return;
                 matrices.push();
-                matrices.translate(-0.04f, 0.50f, 0.0f);
+                matrices.translate(0.0f, 0.48f, 0.0f);
                 matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-15.0f));
-                matrices.scale(1.05f, 1.05f, 1.05f);
-                poseHangingChibiModel(handChibiModel, timeSec, 0.0f);
+                matrices.scale(1.95f, 1.95f, 1.95f);
+                matrices.translate(-0.594f, -1.047f, 0.0f);
+                miniMeHandModel.resetAllAnimations();
+                applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                 Identifier skinTexture = getPetSkinDirect(cosmeticId);
                 RenderLayer layer = RenderLayers.entityTranslucent(skinTexture);
                 VertexConsumer consumer = vertexConsumers.getBuffer(layer);
-                handChibiModel.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV, -1);
+                miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
                 matrices.pop();
             }
             case "minime_chain" -> {

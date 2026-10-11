@@ -59,7 +59,6 @@ public class CaeserPlayerSyncManager {
 
         public boolean isExpired() {
             if (emote == null || emote == EmoteType.NONE || emote == EmoteType.STOP) return true;
-            if (emote == EmoteType.COIN_FLIP && getElapsedSeconds() > 4.0f) return true;
             if (emote == EmoteType.WAVE && getElapsedSeconds() > 3.5f) return true;
             // For looping/continuous emotes, safety timeout of 90 seconds
             return getElapsedSeconds() > 90.0f;
