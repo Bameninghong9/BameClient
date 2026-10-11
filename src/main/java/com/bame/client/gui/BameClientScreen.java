@@ -333,6 +333,11 @@ public class BameClientScreen extends Screen {
         itemModalOpen = false;
     }
 
+    // Zeilen der Cosmetics-Seitenleiste: zwischen Überschrift und Zurück-Knopf (py + ph - 36), mit 8 px Abstand
+    private java.util.List<CosmeticsTab.SidebarRow> cosmeticsSidebarRows() {
+        return CosmeticsTab.sidebarRows(py + 48, py + ph - 36 - 8);
+    }
+
     private void geometry() {
         if (currentView == ViewMode.COSMETICS) {
             pw = Math.min(width - 32, Math.max(760, (int) (width * 0.86)));
@@ -778,28 +783,39 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.drawShirtIcon(c, px + 12, py + 14, accent);
             c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), px + 34, py + 18, 0xFFFFFFFF, false);
 
-            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES"};
-            String[] cosLabels = {"All", "Wings", "Head", "Accessories", "Pets", "Emotes"};
-            String[] cosIcons = {"✦", "🪽", "👑", "🐾", "🐉", "💃"};
             int catBtnW = sidebar - 16;
-            int catBtnH = 26;
-            int startCatY = py + 48;
+            for (CosmeticsTab.SidebarRow row : cosmeticsSidebarRows()) {
+                CosmeticsTab.SidebarEntry entry = row.entry();
+                int by = row.y();
+                int bh = row.height();
+                int textY = by + (bh - 8) / 2;
+                boolean hover = inside(mx, my, px + 8, by, catBtnW, bh);
 
-            for (int i = 0; i < cosCats.length; i++) {
-                int by = startCatY + i * (catBtnH + 6);
-                boolean active = cosCats[i].equalsIgnoreCase(CosmeticsTab.subCategory);
-                boolean hover = inside(mx, my, px + 8, by, catBtnW, catBtnH);
-
-                int btnBg = active ? GuiTheme.alpha(accent, 45) : (hover ? 0xFF1E212D : 0x00000000);
-                int btnBorder = active ? accent : (hover ? 0xFF353C4E : 0x00000000);
-                if (active || hover) {
-                    CustomGuiUtils.fillUltraRounded(c, px + 8, by, catBtnW, catBtnH, btnBg, 4.0f);
-                    CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, by, catBtnW, catBtnH, btnBorder, 4.0f);
+                if (entry.isHeader()) {
+                    // Dropdown-Kopf COSMETICS: aufgeklappt mit Akzentbalken und Akzentfarbe
+                    boolean open = CosmeticsTab.cosmeticsExpanded;
+                    if (open) c.fill(px + 8, by + 2, px + 10, by + bh - 2, accent);
+                    int col = open ? accent : (hover ? 0xFFFFFFFF : 0xFFE2E8F0);
+                    c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 14, textY, col, false);
+                } else if (entry.indent() > 0) {
+                    // Unterkategorie: ▪ grau, gewählte mit ▸ und Akzentfarbe
+                    boolean active = entry.id().equalsIgnoreCase(CosmeticsTab.subCategory);
+                    int markerCol = active ? accent : 0xFF6B7280;
+                    int col = active ? accent : (hover ? 0xFFFFFFFF : 0xFFCBD5E1);
+                    c.drawText(textRenderer, CustomGuiUtils.getFontText(active ? "▸" : "▪"), px + 20, textY, markerCol, false);
+                    c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 30, textY, col, false);
+                } else {
+                    // ALL und EMOTES im bisherigen Knopf-Stil
+                    boolean active = entry.id().equalsIgnoreCase(CosmeticsTab.subCategory);
+                    int btnBg = active ? GuiTheme.alpha(accent, 45) : (hover ? 0xFF1E212D : 0x00000000);
+                    int btnBorder = active ? accent : (hover ? 0xFF353C4E : 0x00000000);
+                    if (active || hover) {
+                        CustomGuiUtils.fillUltraRounded(c, px + 8, by, catBtnW, bh, btnBg, 4.0f);
+                        CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, by, catBtnW, bh, btnBorder, 4.0f);
+                    }
+                    int col = active ? 0xFFFFFFFF : (hover ? 0xFFE2E8F0 : 0xFF8E95A4);
+                    c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 16, textY, col, false);
                 }
-
-                String display = cosIcons[i] + " " + cosLabels[i];
-                int col = active ? 0xFFFFFFFF : (hover ? 0xFFE2E8F0 : 0xFF8E95A4);
-                c.drawText(textRenderer, CustomGuiUtils.getFontText(display), px + 16, by + 8, col, false);
             }
 
             // Bottom: [← Back]
@@ -961,9 +977,10 @@ public class BameClientScreen extends Screen {
             // Active Category Label
             String catTitle = switch (CosmeticsTab.subCategory) {
                 case "WINGS" -> "WINGS";
-                case "HEAD" -> "HEAD";
+                case "HEAD" -> "HAT";
                 case "ACCESSORIES" -> "ACCESSORIES";
-                case "PETS" -> "PETS";
+                case "PETS" -> "PET";
+                case "FACE" -> "FACE";
                 case "EMOTES" -> "EMOTES";
                 case "SKINS" -> "SKINS";
                 default -> "ALL COSMETICS";
@@ -1589,14 +1606,10 @@ public class BameClientScreen extends Screen {
                 return CosmeticsTab.handleModalClick(this, localClick, twice);
             }
             // Dedicated Sidebar Categories Clicks
-            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES"};
             int catBtnW = sidebar - 16;
-            int catBtnH = 26;
-            int startCatY = py + 48;
-            for (int i = 0; i < cosCats.length; i++) {
-                int by = startCatY + i * (catBtnH + 6);
-                if (inside(mx, my, px + 8, by, catBtnW, catBtnH)) {
-                    CosmeticsTab.subCategory = cosCats[i];
+            for (CosmeticsTab.SidebarRow row : cosmeticsSidebarRows()) {
+                if (inside(mx, my, px + 8, row.y(), catBtnW, row.height())) {
+                    CosmeticsTab.onSidebarClick(row.entry());
                     scroll = 0;
                     com.bame.client.sound.ClientSoundManager.playClick();
                     layout();
@@ -1629,6 +1642,7 @@ public class BameClientScreen extends Screen {
                 } else {
                     com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
                     com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
+                    com.bame.client.cosmetics.CosmeticsConfig.setFace("none");
                     com.bame.client.cosmetics.CosmeticsConfig.accessories.clear();
                     com.bame.client.cosmetics.CosmeticsConfig.setPet("none", "");
                     CosmeticsTab.resetPreview();

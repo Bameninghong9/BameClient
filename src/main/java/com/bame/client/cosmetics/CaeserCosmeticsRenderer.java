@@ -35,6 +35,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static final Identifier DRAGON_WINGS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/wings/dragon_wings.png");
     public static final Identifier ANGEL_HALO_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/angel_halo.png");
     public static final Identifier DEMON_HORNS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/demon_horns.png");
+    public static final Identifier WITCH_HAT_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/witch_hat.png");
+    public static final Identifier STRAW_HAT_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/straw_hat.png");
+    public static final Identifier SUNGLASSES_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/sunglasses.png");
+    public static final Identifier SKULL_MASK_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/skull_mask.png");
     public static final Identifier GOLD_CHAIN_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/accessory/gold_chain.png");
     public static final Identifier BABY_DRAGON_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/baby_dragon.png");
     public static final Identifier JELLY_SLIME_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/jelly_slime.png");
@@ -44,6 +48,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static BedrockCosmeticModel dragonWingsModel;
     public static BedrockCosmeticModel angelHaloModel;
     public static BedrockCosmeticModel demonHornsModel;
+    public static BedrockCosmeticModel witchHatModel;
+    public static BedrockCosmeticModel strawHatModel;
+    public static BedrockCosmeticModel sunglassesModel;
+    public static BedrockCosmeticModel skullMaskModel;
 
     // Independent Chibi models for each accessory so they NEVER overwrite each other's pose!
     public static ModelPart sitChibiRoot;
@@ -226,6 +234,18 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (demonHornsModel == null) {
             demonHornsModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/demon_horns.geo.json");
         }
+        if (witchHatModel == null) {
+            witchHatModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/witch_hat.geo.json");
+        }
+        if (strawHatModel == null) {
+            strawHatModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/straw_hat.geo.json");
+        }
+        if (sunglassesModel == null) {
+            sunglassesModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/face/sunglasses.geo.json");
+        }
+        if (skullMaskModel == null) {
+            skullMaskModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/face/skull_mask.geo.json");
+        }
     }
 
     public static String getPlayerUsername(PlayerEntityRenderState state) {
@@ -258,6 +278,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         String wings = null;
         String head = null;
+        String face = null;
         String pet = null;
         Set<String> accessories = null;
 
@@ -266,6 +287,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             CosmeticsConfig.checkReload();
             wings = CosmeticsConfig.wings;
             head = CosmeticsConfig.head;
+            face = CosmeticsConfig.face;
             pet = CosmeticsConfig.pet;
             accessories = CosmeticsConfig.accessories;
         } else {
@@ -273,40 +295,64 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             if (remote != null) {
                 wings = remote.wings;
                 head = remote.head;
+                face = remote.face;
                 pet = remote.pet;
                 accessories = remote.accessories;
             }
         }
 
-        if (wings != null || head != null || pet != null || (accessories != null && !accessories.isEmpty())) {
-            // 1. Wings
-            if ("angel".equalsIgnoreCase(wings)) {
-                renderAngelWings(matrices, queue, light);
-            } else if ("dragon".equalsIgnoreCase(wings)) {
-                renderDragonWings(matrices, queue, light);
+        if (wings != null || head != null || face != null || pet != null || (accessories != null && !accessories.isEmpty())) {
+            boolean inFirstPerson = isLocal && (mc.options != null && mc.options.getPerspective().isFirstPerson());
+            boolean renderHead = this.getContextModel().head.visible && !inFirstPerson;
+            boolean renderBody = this.getContextModel().body.visible && !inFirstPerson;
+
+            // 1. Wings (nur wenn Körper sichtbar und nicht in Ego-Perspektive)
+            if (renderBody) {
+                if ("angel".equalsIgnoreCase(wings)) {
+                    renderAngelWings(matrices, queue, light);
+                } else if ("dragon".equalsIgnoreCase(wings)) {
+                    renderDragonWings(matrices, queue, light);
+                }
             }
 
-            // 2. Head Accessories (Halo, Horns)
-            if ("halo".equalsIgnoreCase(head)) {
-                renderHalo(matrices, queue, light);
-            } else if ("horns".equalsIgnoreCase(head)) {
-                renderDemonHorns(matrices, queue, light);
+            // 2. Head Accessories (Halo, Horns, Witch Hat, Straw Hat) - nicht in Ego-Perspektive!
+            if (renderHead) {
+                if ("halo".equalsIgnoreCase(head)) {
+                    renderHalo(matrices, queue, light);
+                } else if ("horns".equalsIgnoreCase(head)) {
+                    renderDemonHorns(matrices, queue, light);
+                } else if ("witch_hat".equalsIgnoreCase(head)) {
+                    renderHeadModel(matrices, queue, light, witchHatModel, WITCH_HAT_TEXTURE);
+                } else if ("straw_hat".equalsIgnoreCase(head)) {
+                    renderHeadModel(matrices, queue, light, strawHatModel, STRAW_HAT_TEXTURE);
+                }
             }
 
-            // 3. Accessories & Pets - Multi-equip enabled!
-            boolean hasSit = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
-            boolean hasHead = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_head") : ((accessories != null && accessories.contains("minime_head")) || "minime_head".equalsIgnoreCase(pet));
-            boolean hasHand = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_hand") : ((accessories != null && accessories.contains("minime_hand")) || "minime_hand".equalsIgnoreCase(pet));
-            boolean hasChain = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_chain") : ((accessories != null && accessories.contains("minime_chain")) || "minime_chain".equalsIgnoreCase(pet));
-            boolean hasDragon = isLocal ? CosmeticsConfig.isAccessoryEquipped("baby_dragon") : ((accessories != null && accessories.contains("baby_dragon")) || "baby_dragon".equalsIgnoreCase(pet));
-            boolean hasSlime = isLocal ? CosmeticsConfig.isAccessoryEquipped("jelly_slime") : ((accessories != null && accessories.contains("jelly_slime")) || "jelly_slime".equalsIgnoreCase(pet));
+            // 2b. Gesichts-Cosmetics (Sunglasses, Skull Mask) - nicht in Ego-Perspektive!
+            if (renderHead) {
+                if ("sunglasses".equalsIgnoreCase(face)) {
+                    renderHeadModel(matrices, queue, light, sunglassesModel, SUNGLASSES_TEXTURE);
+                } else if ("skull_mask".equalsIgnoreCase(face)) {
+                    renderHeadModel(matrices, queue, light, skullMaskModel, SKULL_MASK_TEXTURE);
+                }
+            }
 
-            if (hasSit) renderShoulderPet(matrices, queue, light, state);
-            if (hasHead) renderHeadPet(matrices, queue, light, state);
-            if (hasHand) renderHandPet(matrices, queue, light, state, limbAngle, limbDistance);
-            if (hasChain) renderChainPet(matrices, queue, light, state);
-            if (hasDragon) renderBabyDragon(matrices, queue, light, state);
-            if (hasSlime) renderJellySlime(matrices, queue, light, state);
+            // 3. Accessories & Pets - Multi-equip enabled (nicht in Ego-Perspektive)!
+            if (!inFirstPerson) {
+                boolean hasSit = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
+                boolean hasHead = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_head") : ((accessories != null && accessories.contains("minime_head")) || "minime_head".equalsIgnoreCase(pet));
+                boolean hasHand = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_hand") : ((accessories != null && accessories.contains("minime_hand")) || "minime_hand".equalsIgnoreCase(pet));
+                boolean hasChain = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_chain") : ((accessories != null && accessories.contains("minime_chain")) || "minime_chain".equalsIgnoreCase(pet));
+                boolean hasDragon = isLocal ? CosmeticsConfig.isAccessoryEquipped("baby_dragon") : ((accessories != null && accessories.contains("baby_dragon")) || "baby_dragon".equalsIgnoreCase(pet));
+                boolean hasSlime = isLocal ? CosmeticsConfig.isAccessoryEquipped("jelly_slime") : ((accessories != null && accessories.contains("jelly_slime")) || "jelly_slime".equalsIgnoreCase(pet));
+
+                if (hasSit) renderShoulderPet(matrices, queue, light, state);
+                if (hasHead && renderHead) renderHeadPet(matrices, queue, light, state);
+                if (hasHand) renderHandPet(matrices, queue, light, state, limbAngle, limbDistance);
+                if (hasChain) renderChainPet(matrices, queue, light, state);
+                if (hasDragon) renderBabyDragon(matrices, queue, light, state);
+                if (hasSlime) renderJellySlime(matrices, queue, light, state);
+            }
         }
 
         // 4. Active Emote Props (for local AND remote players!)
@@ -414,6 +460,48 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             demonHornsModel.render(entry, consumer, light, 0, 1);
         });
 
+        matrices.pop();
+    }
+
+    // ==========================================
+    // Statische Kopf-Modelle (Hüte, Brille, Maske): im Kopf-Bone, folgen Drehung, Nicken und Schleichen
+    // ==========================================
+    private void renderHeadModel(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                 BedrockCosmeticModel model, Identifier texture) {
+        if (model == null) return;
+        matrices.push();
+        this.getContextModel().head.applyTransform(matrices);
+        model.resetAllAnimations();
+        RenderLayer layer = RenderLayers.entityCutoutNoCull(texture);
+        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+            model.render(entry, consumer, light, 0, 1);
+        });
+        matrices.pop();
+    }
+
+    private static void renderHeadModelDirect(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
+                                              PlayerEntityModel playerModel, int light,
+                                              BedrockCosmeticModel model, Identifier texture) {
+        if (model == null) return;
+        matrices.push();
+        if (playerModel != null) playerModel.head.applyTransform(matrices);
+        model.resetAllAnimations();
+        model.render(matrices.peek(), vertexConsumers.getBuffer(RenderLayers.entityCutoutNoCull(texture)), light, 0, 1);
+        matrices.pop();
+    }
+
+    // Karten-Vorschau: Modell allein, leicht gedreht, auf Kartengröße skaliert
+    private static void renderCardHeadModel(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
+                                            BedrockCosmeticModel model, Identifier texture,
+                                            float translateY, float pitch, float yaw, float scale) {
+        if (model == null) return;
+        matrices.push();
+        matrices.translate(0.0f, translateY, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        model.resetAllAnimations();
+        model.render(matrices.peek(), vertexConsumers.getBuffer(RenderLayers.entityCutoutNoCull(texture)), light, 0, 1);
         matrices.pop();
     }
 
@@ -1172,7 +1260,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     public static void renderCosmeticsDirect(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
                                              PlayerEntityModel playerModel, int light,
-                                             String activeWings, String activeHead, String activePet) {
+                                             String activeWings, String activeHead, String activeFace, String activePet) {
         initModels();
 
         // 1. Wings (anchored to torso)
@@ -1249,6 +1337,17 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             demonHornsModel.render(matrices.peek(), consumer, light, 0, 1);
 
             matrices.pop();
+        } else if ("witch_hat".equalsIgnoreCase(activeHead)) {
+            renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, witchHatModel, WITCH_HAT_TEXTURE);
+        } else if ("straw_hat".equalsIgnoreCase(activeHead)) {
+            renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, strawHatModel, STRAW_HAT_TEXTURE);
+        }
+
+        // 2b. Gesichts-Cosmetics
+        if ("sunglasses".equalsIgnoreCase(activeFace)) {
+            renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, sunglassesModel, SUNGLASSES_TEXTURE);
+        } else if ("skull_mask".equalsIgnoreCase(activeFace)) {
+            renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, skullMaskModel, SKULL_MASK_TEXTURE);
         }
 
         // 3. Accessories (Sit, Head, Hand, Chain) - Multi-equip in Live GUI Preview!
@@ -1452,6 +1551,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 demonHornsModel.render(matrices.peek(), consumer, light, 0, 1);
                 matrices.pop();
             }
+            case "witch_hat" -> renderCardHeadModel(matrices, vertexConsumers, light, witchHatModel, WITCH_HAT_TEXTURE, 1.395f, 10.0f, -15.0f, 1.55f);
+            case "straw_hat" -> renderCardHeadModel(matrices, vertexConsumers, light, strawHatModel, STRAW_HAT_TEXTURE, 0.85f, 22.0f, -20.0f, 1.4f);
+            case "sunglasses" -> renderCardHeadModel(matrices, vertexConsumers, light, sunglassesModel, SUNGLASSES_TEXTURE, 0.55f, 5.0f, -25.0f, 2.4f);
+            case "skull_mask" -> renderCardHeadModel(matrices, vertexConsumers, light, skullMaskModel, SKULL_MASK_TEXTURE, 0.55f, 8.0f, -20.0f, 2.0f);
             case "self", "minime_sit", "custom" -> {
                 if (sitChibiModel == null) return;
                 matrices.push();

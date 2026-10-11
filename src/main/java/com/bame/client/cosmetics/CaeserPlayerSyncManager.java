@@ -31,6 +31,7 @@ public class CaeserPlayerSyncManager {
         public String username;
         public String wings = "none";
         public String head = "none";
+        public String face = "none";
         public String pet = "none";
         public String petCustomPlayer = "";
         public String tabBadge = "c";
@@ -40,6 +41,7 @@ public class CaeserPlayerSyncManager {
         public boolean hasAny() {
             return !"none".equalsIgnoreCase(wings) ||
                    !"none".equalsIgnoreCase(head) ||
+                   !"none".equalsIgnoreCase(face) ||
                    !"none".equalsIgnoreCase(pet) ||
                    !accessories.isEmpty();
         }
@@ -215,6 +217,7 @@ public class CaeserPlayerSyncManager {
             json.addProperty("tabBadge", com.bame.client.module.TabBadgeModule.badgeType != null ? com.bame.client.module.TabBadgeModule.badgeType : "c");
             json.addProperty("wings", CosmeticsConfig.wings != null ? CosmeticsConfig.wings : "none");
             json.addProperty("head", CosmeticsConfig.head != null ? CosmeticsConfig.head : "none");
+            json.addProperty("face", CosmeticsConfig.face != null ? CosmeticsConfig.face : "none");
             json.addProperty("pet", CosmeticsConfig.pet != null ? CosmeticsConfig.pet : "none");
             json.addProperty("petCustom", CosmeticsConfig.petCustomPlayer != null ? CosmeticsConfig.petCustomPlayer : "");
 
@@ -301,6 +304,8 @@ public class CaeserPlayerSyncManager {
                 data.tabBadge = root.has("tabBadge") ? root.get("tabBadge").getAsString() : "c";
                 data.wings = root.has("wings") ? root.get("wings").getAsString() : "none";
                 data.head = root.has("head") ? root.get("head").getAsString() : "none";
+                // Ältere Clients senden kein "face"
+                data.face = root.has("face") && root.get("face").isJsonPrimitive() ? root.get("face").getAsString() : "none";
                 data.pet = root.has("pet") ? root.get("pet").getAsString() : "none";
                 data.petCustomPlayer = root.has("petCustom") ? root.get("petCustom").getAsString() : "";
                 data.lastUpdated = System.currentTimeMillis();

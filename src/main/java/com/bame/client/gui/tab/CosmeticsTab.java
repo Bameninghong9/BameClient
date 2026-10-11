@@ -36,19 +36,99 @@ import java.util.Set;
 
 public class CosmeticsTab implements ClientTab {
 
-    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES", "SKINS"
-    private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES", "SKINS"};
+    // Interne IDs bleiben "HEAD" und "PETS" (Config-Schlüssel head/pet), angezeigt werden "HAT" und "PET".
+    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "EMOTES", "SKINS"
+    private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "EMOTES", "SKINS"};
     public static int assigningToWheelSlot = -1;
+
+    // ==========================================
+    // Seitenleiste: einmal definiert, für Zeichnen UND Klicken genutzt
+    // ==========================================
+    public record SidebarEntry(String id, String label, int indent, boolean isHeader) {}
+    public record SidebarRow(SidebarEntry entry, int y, int height) {}
+
+    public static final String DROPDOWN_ID = "COSMETICS";
+    /** Aufgeklappt-Zustand des COSMETICS-Dropdowns; bleibt erhalten, solange das Spiel läuft. */
+    public static boolean cosmeticsExpanded = true;
+
+    private static final List<SidebarEntry> SIDEBAR_ENTRIES = List.of(
+            new SidebarEntry("ALL", "✦ All", 0, false),
+            new SidebarEntry(DROPDOWN_ID, "COSMETICS", 0, true),
+            new SidebarEntry("WINGS", "WINGS", 1, false),
+            new SidebarEntry("HEAD", "HAT", 1, false),
+            new SidebarEntry("PETS", "PET", 1, false),
+            new SidebarEntry("ACCESSORIES", "ACCESSORIES", 1, false),
+            new SidebarEntry("FACE", "FACE", 1, false),
+            new SidebarEntry("EMOTES", "💃 Emotes", 0, false)
+    );
+
+    /**
+     * Berechnet die sichtbaren Seitenleisten-Zeilen zwischen top und bottom. Passt die normale Höhe nicht,
+     * werden Zeilen und Abstände kompakter, damit nichts über den Zurück-Knopf ragt.
+     */
+    public static List<SidebarRow> sidebarRows(int top, int bottom) {
+        List<SidebarEntry> visible = new ArrayList<>();
+        for (SidebarEntry e : SIDEBAR_ENTRIES) {
+            if (e.indent() == 0 || cosmeticsExpanded) visible.add(e);
+        }
+        int[][] sizes = {{26, 16, 6}, {20, 14, 4}, {16, 12, 2}}; // {Hauptzeile, Unterzeile, Abstand}
+        int[] chosen = sizes[sizes.length - 1];
+        for (int[] s : sizes) {
+            if (sidebarHeight(visible, s) <= bottom - top) { chosen = s; break; }
+        }
+        List<SidebarRow> rows = new ArrayList<>();
+        int y = top;
+        SidebarEntry prev = null;
+        for (SidebarEntry e : visible) {
+            if (prev != null && !(e.indent() > 0 && (prev.indent() > 0 || prev.isHeader()))) y += chosen[2];
+            int h = e.indent() > 0 ? chosen[1] : chosen[0];
+            rows.add(new SidebarRow(e, y, h));
+            y += h;
+            prev = e;
+        }
+        return rows;
+    }
+
+    private static int sidebarHeight(List<SidebarEntry> visible, int[] s) {
+        int total = 0;
+        SidebarEntry prev = null;
+        for (SidebarEntry e : visible) {
+            if (prev != null && !(e.indent() > 0 && (prev.indent() > 0 || prev.isHeader()))) total += s[2];
+            total += e.indent() > 0 ? s[1] : s[0];
+            prev = e;
+        }
+        return total;
+    }
+
+    /** Reagiert auf einen Klick in eine Seitenleisten-Zeile (Dropdown auf/zu oder Kategorie wählen). */
+    public static void onSidebarClick(SidebarEntry entry) {
+        if (entry.isHeader()) {
+            cosmeticsExpanded = !cosmeticsExpanded;
+            // Zugeklappt: Inhalt zeigt wieder alle Cosmetics
+            if (!cosmeticsExpanded && isDropdownCategory(subCategory)) subCategory = "ALL";
+        } else {
+            subCategory = entry.id();
+        }
+    }
+
+    public static boolean isDropdownCategory(String id) {
+        for (SidebarEntry e : SIDEBAR_ENTRIES) {
+            if (e.indent() > 0 && e.id().equalsIgnoreCase(id)) return true;
+        }
+        return false;
+    }
 
     // Preview state (what is shown on the 3D player right now)
     public static String previewWings = null;
     public static String previewHead = null;
+    public static String previewFace = null;
     public static String previewPet = null;
     public static String previewSkin = null;
 
     public static void resetPreview() {
         previewWings = "none";
         previewHead = "none";
+        previewFace = "none";
         previewPet = "none";
         previewSkin = null;
         customizingAccessory = null;
@@ -104,7 +184,7 @@ public class CosmeticsTab implements ClientTab {
     // Cosmetic Item Definition
     public static class CosmeticItem {
         public final String id;
-        public final String category; // "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS"
+        public final String category; // "WINGS", "HEAD", "FACE", "ACCESSORIES", "PETS", "EMOTES", "SKINS"
         public final String name;
         public final String desc;
 
@@ -124,6 +204,7 @@ public class CosmeticsTab implements ClientTab {
             return switch (category) {
                 case "WINGS" -> id.equalsIgnoreCase(CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(CosmeticsConfig.head);
+                case "FACE" -> id.equalsIgnoreCase(CosmeticsConfig.face);
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(CaeserSkinManager.getActiveSkinId());
@@ -135,6 +216,7 @@ public class CosmeticsTab implements ClientTab {
             return switch (category) {
                 case "WINGS" -> id.equalsIgnoreCase(previewWings != null ? previewWings : CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(previewHead != null ? previewHead : CosmeticsConfig.head);
+                case "FACE" -> id.equalsIgnoreCase(previewFace != null ? previewFace : CosmeticsConfig.face);
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(previewSkin != null ? previewSkin : CaeserSkinManager.getActiveSkinId());
@@ -146,6 +228,7 @@ public class CosmeticsTab implements ClientTab {
             switch (category) {
                 case "WINGS" -> previewWings = id;
                 case "HEAD" -> previewHead = id;
+                case "FACE" -> previewFace = id;
                 case "ACCESSORIES", "PETS", "PET" -> previewPet = id;
                 case "SKINS" -> previewSkin = id;
             }
@@ -176,6 +259,16 @@ public class CosmeticsTab implements ClientTab {
                     } else {
                         CosmeticsConfig.setHead(id);
                         previewHead = id;
+                    }
+                }
+                case "FACE" -> {
+                    // höchstens ein Gesichts-Cosmetic; erneuter Klick legt es ab
+                    if (isEquipped()) {
+                        CosmeticsConfig.setFace("none");
+                        previewFace = "none";
+                    } else {
+                        CosmeticsConfig.setFace(id);
+                        previewFace = id;
                     }
                 }
                 case "ACCESSORIES", "PETS", "PET" -> {
@@ -233,9 +326,11 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("angel", "WINGS", "Gold Wings", "Golden wings with shimmer animation"),
                 new CosmeticItem("dragon", "WINGS", "Dragon Wings", "Ender dragon wings with flapping animation")
         )));
-        sections.add(new CosmeticSection("HEAD", "HEAD", List.of(
+        sections.add(new CosmeticSection("HAT", "HEAD", List.of(
                 new CosmeticItem("halo", "HEAD", "Angel Halo", "Floating glowing angel halo"),
-                new CosmeticItem("horns", "HEAD", "Demon Horns", "Symmetric 3D demon horns")
+                new CosmeticItem("horns", "HEAD", "Demon Horns", "Symmetric 3D demon horns"),
+                new CosmeticItem("witch_hat", "HEAD", "Witch Hat", "Pointy witch hat with a bent tip"),
+                new CosmeticItem("straw_hat", "HEAD", "Straw Hat", "Wide-brimmed summer straw hat")
         )));
         sections.add(new CosmeticSection("ACCESSORIES", "ACCESSORIES", List.of(
                 new CosmeticItem("minime_sit", "ACCESSORIES", "MiniMe Sit", "Miniature player sitting on shoulder"),
@@ -243,9 +338,13 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("minime_hand", "ACCESSORIES", "MiniMe Hand", "Miniature player holding onto hand"),
                 new CosmeticItem("minime_chain", "ACCESSORIES", "MiniMe Chain", "Miniature player hanging on a gold chain")
         )));
-        sections.add(new CosmeticSection("PETS", "PETS", List.of(
+        sections.add(new CosmeticSection("PET", "PETS", List.of(
                 new CosmeticItem("baby_dragon", "PETS", "Baby Dragon", "Sits on your shoulder and breathes tiny smoke puffs"),
                 new CosmeticItem("jelly_slime", "PETS", "Jelly Slime", "Squash & stretch physics, sits on your head or shoulder")
+        )));
+        sections.add(new CosmeticSection("FACE", "FACE", List.of(
+                new CosmeticItem("sunglasses", "FACE", "Sunglasses", "Cool black shades"),
+                new CosmeticItem("skull_mask", "FACE", "Skull Mask", "Spooky skull face mask")
         )));
         sections.add(new CosmeticSection("EMOTES", "EMOTES", List.of(
                 new CosmeticItem("t_pose", "EMOTES", "T-Pose", "Free Emote • T-Pose"),
@@ -360,7 +459,32 @@ public class CosmeticsTab implements ClientTab {
                 || "kopf".contains(q) || "head".contains(q) || "halo".contains(q)
                 || "horns".contains(q) || "pet".contains(q) || "accessories".contains(q)
                 || "begleiter".contains(q) || "mini".contains(q) || "skin".contains(q)
-                || "emote".contains(q) || "emotes".contains(q);
+                || "emote".contains(q) || "emotes".contains(q)
+                || "hat".contains(q) || "hut".contains(q) || "face".contains(q) || "gesicht".contains(q)
+                || "brille".contains(q) || "maske".contains(q);
+    }
+
+    // Zusätzliche Suchbegriffe (DE/EN) pro Kategorie
+    private static String searchKeywords(String category) {
+        return switch (category) {
+            case "HEAD" -> "hat hut kopf head";
+            case "FACE" -> "face gesicht brille maske glasses mask";
+            case "PETS" -> "pet pets begleiter";
+            default -> "";
+        };
+    }
+
+    // Anzeigename eines Hut- oder Gesichts-Cosmetics für die Liste im Vorschaufenster
+    private static String equippedLabel(String id) {
+        return switch (id.toLowerCase(Locale.ROOT)) {
+            case "halo" -> "ANGEL HALO";
+            case "horns" -> "DEMON HORNS";
+            case "witch_hat" -> "WITCH HAT";
+            case "straw_hat" -> "STRAW HAT";
+            case "sunglasses" -> "SUNGLASSES";
+            case "skull_mask" -> "SKULL MASK";
+            default -> id.toUpperCase(Locale.ROOT);
+        };
     }
 
     private List<CosmeticSection> getActiveSections(String search) {
@@ -380,7 +504,8 @@ public class CosmeticsTab implements ClientTab {
                     boolean match = item.name.toLowerCase(Locale.ROOT).contains(q)
                             || item.category.toLowerCase(Locale.ROOT).contains(q)
                             || item.desc.toLowerCase(Locale.ROOT).contains(q)
-                            || sec.title.toLowerCase(Locale.ROOT).contains(q);
+                            || sec.title.toLowerCase(Locale.ROOT).contains(q)
+                            || searchKeywords(item.category).contains(q);
                     if (!match) continue;
                 }
                 filteredItems.add(item);
@@ -660,13 +785,17 @@ public class CosmeticsTab implements ClientTab {
         // Top-Right: Equipped Items List in English (All equipped accessories + wings + head, matching NoRisk Bild 3/4)
         String curW = previewWings != null ? previewWings : CosmeticsConfig.wings;
         String curH = previewHead != null ? previewHead : CosmeticsConfig.head;
+        String curF = previewFace != null ? previewFace : CosmeticsConfig.face;
 
         List<String> equippedList = new ArrayList<>();
         if (!"none".equalsIgnoreCase(curW)) {
             equippedList.add("angel".equalsIgnoreCase(curW) ? "GOLD WINGS" : "DRAGON WINGS");
         }
         if (!"none".equalsIgnoreCase(curH)) {
-            equippedList.add("halo".equalsIgnoreCase(curH) ? "ANGEL HALO" : "DEMON HORNS");
+            equippedList.add(equippedLabel(curH));
+        }
+        if (curF != null && !"none".equalsIgnoreCase(curF)) {
+            equippedList.add(equippedLabel(curF));
         }
         if (CosmeticsConfig.accessories != null) {
             for (String acc : CosmeticsConfig.accessories) {

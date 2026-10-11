@@ -33,8 +33,9 @@ public abstract class PlayerSkinGuiElementRendererMixin extends SpecialGuiElemen
         } else {
             String w = CosmeticsTab.previewWings != null ? CosmeticsTab.previewWings : CosmeticsConfig.wings;
             String h = CosmeticsTab.previewHead != null ? CosmeticsTab.previewHead : CosmeticsConfig.head;
+            String f = CosmeticsTab.previewFace != null ? CosmeticsTab.previewFace : CosmeticsConfig.face;
             String p = CosmeticsTab.previewPet != null ? CosmeticsTab.previewPet : CosmeticsConfig.pet;
-            CaeserCosmeticsRenderer.renderCosmeticsDirect(matrices, this.vertexConsumers, state.playerModel(), 15728880, w, h, p);
+            CaeserCosmeticsRenderer.renderCosmeticsDirect(matrices, this.vertexConsumers, state.playerModel(), 15728880, w, h, f, p);
         }
     }
 }

@@ -249,7 +249,7 @@ public class EmoteUnlockManager {
 
     /**
      * Checks if the currently active player has unlocked the given cosmetic/emote.
-     * Supports categories: "EMOTES", "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS".
+     * Supports categories: "EMOTES", "WINGS", "HEAD", "FACE", "ACCESSORIES", "PETS", "SKINS".
      */
     public static boolean isCosmeticUnlocked(String category, String id) {
         if (id == null || id.isBlank() || "none".equalsIgnoreCase(id)) {

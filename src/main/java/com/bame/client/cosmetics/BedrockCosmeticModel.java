@@ -200,7 +200,7 @@ public class BedrockCosmeticModel {
 
             // Build hierarchy (excluding mannequin dummy bones)
             java.util.Set<String> dummyBones = java.util.Set.of(
-                "bb_main", "effect", "bipedhead", "armorhead", "bipedbody", "armorbody",
+                "bb_main", "effect", "bipedrig", "bipedhead", "armorhead", "bipedbody", "armorbody",
                 "bipedrightarm", "armorrightarm", "bipedleftarm", "armorleftarm",
                 "bipedrightleg", "armorrightleg", "armorrightboot",
                 "bipedleftleg", "armorleftleg", "armorleftboot"
@@ -209,9 +209,8 @@ public class BedrockCosmeticModel {
                 if (dummyBones.contains(b.name.toLowerCase(java.util.Locale.ROOT))) {
                     continue;
                 }
-                if (b.parent == null || !model.bonesByName.containsKey(b.parent) ||
-                    "armorBody".equals(b.parent) || "bipedBody".equals(b.parent) ||
-                    "armorHead".equals(b.parent) || "bipedHead".equals(b.parent)) {
+                String p = b.parent != null ? b.parent.toLowerCase(java.util.Locale.ROOT) : "";
+                if (b.parent == null || !model.bonesByName.containsKey(b.parent) || dummyBones.contains(p)) {
                     model.rootBones.add(b);
                 } else {
                     model.bonesByName.get(b.parent).children.add(b);

@@ -9,6 +9,8 @@ import java.nio.file.Path;
 public class CosmeticsConfig {
     public static String wings = "none";
     public static String head = "none";
+    // Gesichts-Cosmetic (Brille, Maske): eigener Slot, unabhängig vom Hut
+    public static String face = "none";
     public static String pet = "none";
     public static String petCustomPlayer = "";
     public static final java.util.Set<String> accessories = new java.util.LinkedHashSet<>();
@@ -146,6 +148,11 @@ public class CosmeticsConfig {
         save();
     }
 
+    public static void setFace(String type) {
+        face = (type == null || type.isBlank()) ? "none" : type;
+        save();
+    }
+
     public static boolean isAccessoryEquipped(String id) {
         if (id == null || id.isBlank()) return false;
         String key = id.toLowerCase(java.util.Locale.ROOT);
@@ -269,6 +276,11 @@ public class CosmeticsConfig {
             h.addProperty("type", head);
             h.addProperty("id", head);
             root.add("head", h);
+
+            JsonObject fc = new JsonObject();
+            fc.addProperty("type", face);
+            fc.addProperty("id", face);
+            root.add("face", fc);
 
             JsonObject p = new JsonObject();
             p.addProperty("type", pet);
@@ -398,6 +410,13 @@ public class CosmeticsConfig {
             if (root.has("head")) {
                 JsonObject h = root.getAsJsonObject("head");
                 head = h.has("type") ? h.get("type").getAsString() : "none";
+            }
+            // Ältere Configs kennen "face" noch nicht: dann bleibt kein Gesichts-Cosmetic aktiv.
+            if (root.has("face") && root.get("face").isJsonObject()) {
+                JsonObject fc = root.getAsJsonObject("face");
+                face = fc.has("type") && fc.get("type").isJsonPrimitive() ? fc.get("type").getAsString() : "none";
+            } else {
+                face = "none";
             }
             if (root.has("pet")) {
                 JsonObject p = root.getAsJsonObject("pet");
