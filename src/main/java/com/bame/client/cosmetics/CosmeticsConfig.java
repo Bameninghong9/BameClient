@@ -12,6 +12,23 @@ public class CosmeticsConfig {
     public static String pet = "none";
     public static String petCustomPlayer = "";
     public static final java.util.Set<String> accessories = new java.util.LinkedHashSet<>();
+    public static final java.util.Set<String> equippedEmotes = new java.util.LinkedHashSet<>();
+
+    public static boolean isEmoteEquipped(String id) {
+        if (id == null || id.isBlank()) return false;
+        return equippedEmotes.contains(id.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    public static void toggleEmote(String id) {
+        if (id == null || id.isBlank()) return;
+        String key = id.toLowerCase(java.util.Locale.ROOT);
+        if (equippedEmotes.contains(key)) {
+            equippedEmotes.remove(key);
+        } else {
+            equippedEmotes.add(key);
+        }
+        save();
+    }
 
     private static long lastCheck = 0;
     private static long lastModified = -1;
@@ -201,6 +218,12 @@ public class CosmeticsConfig {
             }
             root.add("petPlacements", placementsObj);
 
+            com.google.gson.JsonArray emotesArr = new com.google.gson.JsonArray();
+            for (String em : equippedEmotes) {
+                emotesArr.add(em);
+            }
+            root.add("emotes", emotesArr);
+
             Files.writeString(file, root.toString());
             lastModified = Files.getLastModifiedTime(file).toMillis();
 
@@ -323,6 +346,15 @@ public class CosmeticsConfig {
                 for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : obj.entrySet()) {
                     if (e.getValue().isJsonPrimitive()) {
                         petPlacements.put(e.getKey().toLowerCase(java.util.Locale.ROOT), e.getValue().getAsString());
+                    }
+                }
+            }
+
+            if (root.has("emotes") && root.get("emotes").isJsonArray()) {
+                equippedEmotes.clear();
+                for (com.google.gson.JsonElement el : root.getAsJsonArray("emotes")) {
+                    if (el.isJsonPrimitive()) {
+                        equippedEmotes.add(el.getAsString().toLowerCase(java.util.Locale.ROOT));
                     }
                 }
             }

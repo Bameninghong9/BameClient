@@ -71,8 +71,9 @@ public class PlayerSkinResolver {
 
                     if (conn.getResponseCode() == 200) {
                         try (InputStream in = conn.getInputStream()) {
-                            NativeImage image = NativeImage.read(in);
-                            if (image != null) {
+                            NativeImage rawImage = NativeImage.read(in);
+                            if (rawImage != null) {
+                                NativeImage image = CaeserSkinManager.remapSkin(rawImage);
                                 mc.execute(() -> {
                                     try {
                                         NativeImageBackedTexture texture = new NativeImageBackedTexture(() -> "skin_" + key, image);

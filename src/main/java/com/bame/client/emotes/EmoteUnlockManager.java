@@ -247,16 +247,55 @@ public class EmoteUnlockManager {
         return isEmoteUnlocked(emote, username, uuidStr);
     }
 
-    public static boolean isEmoteUnlocked(EmoteType emote, String username, String uuidStr) {
-        if (emote == null || emote == EmoteType.NONE || emote == EmoteType.STOP) {
+    /**
+     * Checks if the currently active player has unlocked the given cosmetic/emote.
+     * Supports categories: "EMOTES", "WINGS", "HEAD", "ACCESSORIES", "PETS", "SKINS".
+     */
+    public static boolean isCosmeticUnlocked(String category, String id) {
+        if (id == null || id.isBlank() || "none".equalsIgnoreCase(id)) {
+            return true;
+        }
+        if (category != null && "SKINS".equalsIgnoreCase(category)) {
+            return true;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        String username = null;
+        String uuidStr = null;
+
+        if (client.player != null) {
+            username = client.player.getName().getString();
+            if (client.player.getUuid() != null) {
+                uuidStr = client.player.getUuid().toString();
+            }
+        } else if (client.getSession() != null) {
+            username = client.getSession().getUsername();
+            try {
+                UUID u = client.getSession().getUuidOrNull();
+                if (u != null) uuidStr = u.toString();
+            } catch (Throwable ignored) {}
+        }
+
+        return isCosmeticUnlocked(category, id, username, uuidStr);
+    }
+
+    public static boolean isCosmeticUnlocked(String category, String id, String username, String uuidStr) {
+        if (id == null || id.isBlank() || "none".equalsIgnoreCase(id)) {
+            return true;
+        }
+        if (category != null && "SKINS".equalsIgnoreCase(category)) {
             return true;
         }
 
         UnlockData data = currentData;
-        String emoteName = emote.name().toUpperCase(Locale.ROOT);
+        String cleanIdUpper = id.trim().toUpperCase(Locale.ROOT);
+        String cleanIdLower = id.trim().toLowerCase(Locale.ROOT);
+        String cleanCatLower = category != null ? category.trim().toLowerCase(Locale.ROOT) : "";
 
-        // 1. Check default free unlocked emotes
-        if (data.defaultUnlocked.contains(emoteName) ||
+        // 1. Check default free unlocked items
+        if (data.defaultUnlocked.contains(cleanIdUpper) ||
+            data.defaultUnlocked.contains(cleanIdLower) ||
+            (!cleanCatLower.isEmpty() && data.defaultUnlocked.contains(cleanCatLower.toUpperCase(Locale.ROOT))) ||
             data.defaultUnlocked.contains("*") ||
             data.defaultUnlocked.contains("ALL")) {
             return true;
@@ -265,7 +304,7 @@ public class EmoteUnlockManager {
         String cleanUser = cleanKey(username);
         String cleanUuid = cleanKey(uuidStr);
 
-        // 2. Check Admin role (Admins always have 100% of all emotes unlocked)
+        // 2. Check Admin role (Admins always have 100% of all cosmetics and emotes unlocked)
         if (!cleanUser.isEmpty() && data.admins.contains(cleanUser)) {
             return true;
         }
@@ -277,7 +316,9 @@ public class EmoteUnlockManager {
         if (!cleanUser.isEmpty()) {
             Set<String> unlocked = data.playerEmotes.get(cleanUser);
             if (unlocked != null) {
-                if (unlocked.contains("*") || unlocked.contains("ALL") || unlocked.contains(emoteName)) {
+                if (unlocked.contains("*") || unlocked.contains("ALL") ||
+                    unlocked.contains(cleanIdUpper) || unlocked.contains(cleanIdLower) ||
+                    (!cleanCatLower.isEmpty() && (unlocked.contains(cleanCatLower.toUpperCase(Locale.ROOT)) || unlocked.contains(cleanCatLower)))) {
                     return true;
                 }
             }
@@ -287,12 +328,21 @@ public class EmoteUnlockManager {
         if (!cleanUuid.isEmpty()) {
             Set<String> unlocked = data.playerEmotes.get(cleanUuid);
             if (unlocked != null) {
-                if (unlocked.contains("*") || unlocked.contains("ALL") || unlocked.contains(emoteName)) {
+                if (unlocked.contains("*") || unlocked.contains("ALL") ||
+                    unlocked.contains(cleanIdUpper) || unlocked.contains(cleanIdLower) ||
+                    (!cleanCatLower.isEmpty() && (unlocked.contains(cleanCatLower.toUpperCase(Locale.ROOT)) || unlocked.contains(cleanCatLower)))) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    public static boolean isEmoteUnlocked(EmoteType emote, String username, String uuidStr) {
+        if (emote == null || emote == EmoteType.NONE || emote == EmoteType.STOP) {
+            return true;
+        }
+        return isCosmeticUnlocked("EMOTES", emote.name(), username, uuidStr);
     }
 }

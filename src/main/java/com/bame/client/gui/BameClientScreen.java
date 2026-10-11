@@ -778,9 +778,9 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.drawShirtIcon(c, px + 12, py + 14, accent);
             c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), px + 34, py + 18, 0xFFFFFFFF, false);
 
-            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES"};
-            String[] cosLabels = {"All", "Wings", "Head", "Accessories"};
-            String[] cosIcons = {"✦", "🪽", "👑", "🐾"};
+            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES"};
+            String[] cosLabels = {"All", "Wings", "Head", "Accessories", "Pets", "Emotes"};
+            String[] cosIcons = {"✦", "🪽", "👑", "🐾", "🐉", "💃"};
             int catBtnW = sidebar - 16;
             int catBtnH = 26;
             int startCatY = py + 48;
@@ -963,6 +963,8 @@ public class BameClientScreen extends Screen {
                 case "WINGS" -> "WINGS";
                 case "HEAD" -> "HEAD";
                 case "ACCESSORIES" -> "ACCESSORIES";
+                case "PETS" -> "PETS";
+                case "EMOTES" -> "EMOTES";
                 case "SKINS" -> "SKINS";
                 default -> "ALL COSMETICS";
             };
@@ -1587,7 +1589,7 @@ public class BameClientScreen extends Screen {
                 return CosmeticsTab.handleModalClick(this, localClick, twice);
             }
             // Dedicated Sidebar Categories Clicks
-            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES"};
+            String[] cosCats = {"ALL", "WINGS", "HEAD", "ACCESSORIES", "PETS", "EMOTES"};
             int catBtnW = sidebar - 16;
             int catBtnH = 26;
             int startCatY = py + 48;

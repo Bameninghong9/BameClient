@@ -46,4 +46,15 @@ public enum EmoteType {
         return this == T_POSE || this == WAVE || this == GUITAR || this == BASKETBALL
                 || this == COIN_FLIP || this == WHEELCHAIR || this == ZOMBIE || this == DANCE || this == JUGGLE;
     }
+
+    public static EmoteType fromId(String id) {
+        if (id == null || id.isBlank()) return null;
+        String clean = id.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
+        for (EmoteType type : values()) {
+            if (type.name().equalsIgnoreCase(clean) || type.nameEn.equalsIgnoreCase(clean) || type.name().replace("_", "").equalsIgnoreCase(clean.replace("_", ""))) {
+                return type;
+            }
+        }
+        return null;
+    }
 }

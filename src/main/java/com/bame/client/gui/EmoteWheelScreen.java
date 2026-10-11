@@ -23,21 +23,38 @@ public class EmoteWheelScreen extends Screen {
     // 5 pages x 8 slots
     private static final EmoteType[][] PAGES = new EmoteType[PAGE_COUNT][SLOTS_PER_PAGE];
 
-    static {
-        // Page 1: Active Emotes (8 unique emotes)
-        PAGES[0][0] = EmoteType.T_POSE;      // Top (T-Pose)
-        PAGES[0][1] = EmoteType.GUITAR;      // Top-Right (🎸 E-Gitarre Solo)
-        PAGES[0][2] = EmoteType.DANCE;       // Right (💃 Tanz)
-        PAGES[0][3] = EmoteType.WHEELCHAIR;  // Bottom-Right (♿ Rollstuhl)
-        PAGES[0][4] = EmoteType.SIT;         // Bottom (Sitzen)
-        PAGES[0][5] = EmoteType.JUGGLE;      // Bottom-Left (⚽ Freestyle Juggle)
-        PAGES[0][6] = EmoteType.BASKETBALL;  // Left (🏀 Basketball Dribble & Spin)
-        PAGES[0][7] = EmoteType.COIN_FLIP;   // Top-Left (🪙 Münzwurf)
+    public static int getActiveEmoteCount() {
+        int count = 0;
+        for (int p = 0; p < PAGE_COUNT; p++) {
+            for (int s = 0; s < SLOTS_PER_PAGE; s++) {
+                if (PAGES[p][s] != null) count++;
+            }
+        }
+        return count;
+    }
 
-        // Other pages empty (no duplicates, no wave, no zombie)
-        for (int p = 1; p < PAGE_COUNT; p++) {
+    public static void rebuildPages() {
+        for (int p = 0; p < PAGE_COUNT; p++) {
             for (int s = 0; s < SLOTS_PER_PAGE; s++) {
                 PAGES[p][s] = null;
+            }
+        }
+
+        java.util.List<EmoteType> activeEmotes = new java.util.ArrayList<>();
+        for (String id : com.bame.client.cosmetics.CosmeticsConfig.equippedEmotes) {
+            EmoteType type = EmoteType.fromId(id);
+            if (type != null && com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(type)) {
+                activeEmotes.add(type);
+            }
+        }
+
+        int slotIdx = 0;
+        for (EmoteType em : activeEmotes) {
+            int page = slotIdx / SLOTS_PER_PAGE;
+            int slot = slotIdx % SLOTS_PER_PAGE;
+            if (page < PAGE_COUNT) {
+                PAGES[page][slot] = em;
+                slotIdx++;
             }
         }
     }
@@ -61,7 +78,12 @@ public class EmoteWheelScreen extends Screen {
     public EmoteWheelScreen() {
         super(Text.literal("Caeser Client Emote Wheel"));
         this.openTime = System.currentTimeMillis();
+        com.bame.client.cosmetics.CosmeticsConfig.checkReload();
         com.bame.client.emotes.EmoteUnlockManager.checkRefresh();
+        rebuildPages();
+        if (currentPage >= getActivePageCount()) {
+            currentPage = 0;
+        }
     }
 
     @Override
@@ -90,6 +112,7 @@ public class EmoteWheelScreen extends Screen {
 
         // Pre-check direct box hover
         for (int i = 0; i < SLOTS_PER_PAGE; i++) {
+            if (PAGES[currentPage][i] == null) continue;
             double angle = -Math.PI / 2.0 + (i * 2.0 * Math.PI / SLOTS_PER_PAGE);
             int sx = (int) Math.round(cx + Math.cos(angle) * radius);
             int sy = (int) Math.round(cy + Math.sin(angle) * radius);
@@ -109,13 +132,16 @@ public class EmoteWheelScreen extends Screen {
             double angle = Math.atan2(dy, dx) + Math.PI / 2.0;
             if (angle < 0) angle += 2.0 * Math.PI;
             double seg = (2.0 * Math.PI) / SLOTS_PER_PAGE;
-            hoveredSlot = (int) Math.round(angle / seg) % SLOTS_PER_PAGE;
+            int candidate = (int) Math.round(angle / seg) % SLOTS_PER_PAGE;
+            if (PAGES[currentPage][candidate] != null) {
+                hoveredSlot = candidate;
+            }
         }
 
         EmoteType hoveredEmote = (hoveredSlot >= 0 && hoveredSlot < SLOTS_PER_PAGE) ? PAGES[currentPage][hoveredSlot] : null;
 
         // Render Center 3D Player Preview
-        if (client != null && client.player != null) {
+        if (client != null && client.player != null && getActiveEmoteCount() > 0) {
             EmoteType centerEmote = hoveredEmote != null ? hoveredEmote : (EmoteModule.isEmoting() ? EmoteModule.getCurrentEmote() : null);
             EmotePreviewRenderer.drawPlayerPreview(
                     context,
@@ -127,6 +153,16 @@ public class EmoteWheelScreen extends Screen {
                     centerEmote,
                     animTime
             );
+        } else if (getActiveEmoteCount() == 0) {
+            String msg1 = "§cKeine Emotes ausgerüstet!";
+            String msg2 = "§7Öffne das Cosmetics-Menü (Rechts-Shift -> Cosmetics),";
+            String msg3 = "§7um deine freigeschalteten Emotes auszurüsten.";
+            int w1 = textRenderer.getWidth(CustomGuiUtils.getFontText(msg1));
+            int w2 = textRenderer.getWidth(CustomGuiUtils.getFontText(msg2));
+            int w3 = textRenderer.getWidth(CustomGuiUtils.getFontText(msg3));
+            context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(msg1), cx - w1 / 2, cy - 20, 0xFFEF4444);
+            context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(msg2), cx - w2 / 2, cy + 2, 0xFF94A3B8);
+            context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(msg3), cx - w3 / 2, cy + 16, 0xFF64748B);
         }
 
         // Center Page Indicator below player: "< 1 / 1 >"
@@ -134,16 +170,21 @@ public class EmoteWheelScreen extends Screen {
         String pageStr = totalPages > 1 ? ("<  " + (currentPage + 1) + " / " + totalPages + "  >") : "1 / 1";
         int pageW = textRenderer.getWidth(CustomGuiUtils.getFontText(pageStr));
         boolean pageHovered = totalPages > 1 && mouseX >= cx - pageW / 2 - 4 && mouseX <= cx + pageW / 2 + 4 && mouseY >= cy + 30 && mouseY <= cy + 42;
-        context.drawTextWithShadow(
-                textRenderer,
-                CustomGuiUtils.getFontText(pageStr),
-                cx - pageW / 2,
-                cy + 32,
-                pageHovered ? accent : 0xFFFFFFFF
-        );
+        if (getActiveEmoteCount() > 0) {
+            context.drawTextWithShadow(
+                    textRenderer,
+                    CustomGuiUtils.getFontText(pageStr),
+                    cx - pageW / 2,
+                    cy + 32,
+                    pageHovered ? accent : 0xFFFFFFFF
+            );
+        }
 
-        // Render the 8 Circular Slots
+        // Render the Active Circular Slots
         for (int i = 0; i < SLOTS_PER_PAGE; i++) {
+            EmoteType emote = PAGES[currentPage][i];
+            if (emote == null) continue; // Unlocked & equipped only!
+
             double angle = -Math.PI / 2.0 + (i * 2.0 * Math.PI / SLOTS_PER_PAGE);
             int sx = (int) Math.round(cx + Math.cos(angle) * radius);
             int sy = (int) Math.round(cy + Math.sin(angle) * radius);
@@ -153,25 +194,14 @@ public class EmoteWheelScreen extends Screen {
             int y2 = y1 + slotSize;
 
             boolean isHovered = (i == hoveredSlot);
-            EmoteType emote = PAGES[currentPage][i];
-            boolean isUnlocked = (emote == null || com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(emote));
-
-            // Slot Box
-            int bgCol;
-            int borderCol;
-            if (!isUnlocked) {
-                bgCol = isHovered ? 0x992B151C : 0x75160E14;
-                borderCol = isHovered ? 0xFFEF4444 : 0x55EF4444;
-            } else {
-                bgCol = isHovered ? 0x99222736 : 0x750E1018;
-                borderCol = isHovered ? (accent | 0xFF000000) : 0x55FFFFFF;
-            }
+            int bgCol = isHovered ? 0x99222736 : 0x750E1018;
+            int borderCol = isHovered ? (accent | 0xFF000000) : 0x55FFFFFF;
 
             CustomGuiUtils.fillUltraRounded(context, x1, y1, slotSize, slotSize, bgCol, 6.0F);
             CustomGuiUtils.drawUltraRoundedOutline(context, x1, y1, slotSize, slotSize, borderCol, 6.0F);
 
             // Render live 3D player preview inside slot
-            if (emote != null && client != null && client.player != null) {
+            if (client != null && client.player != null) {
                 EmotePreviewRenderer.drawPlayerPreview(
                         context,
                         x1 + 3, y1 + 3,
@@ -183,20 +213,11 @@ public class EmoteWheelScreen extends Screen {
                         animTime
                 );
 
-                // If locked, render sleek lock badge overlay on the top right
-                if (!isUnlocked) {
-                    CustomGuiUtils.fillUltraRounded(context, x2 - 16, y1 + 3, 13, 13, 0xEE111827, 3.0F);
-                    CustomGuiUtils.drawUltraRoundedOutline(context, x2 - 16, y1 + 3, 13, 13, 0xAAEF4444, 3.0F);
-                    context.drawTextWithShadow(textRenderer, Text.literal("🔒"), x2 - 14, y1 + 5, 0xFFFFFFFF);
-                }
-
                 // Render emote label in uppercase centered below the slot box
-                String label = isUnlocked ? emote.getNameEn().toUpperCase(Locale.ROOT) : ("🔒 " + emote.getNameEn().toUpperCase(Locale.ROOT));
+                String label = emote.getNameEn().toUpperCase(Locale.ROOT);
                 int labelW = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
                 int labelCol;
-                if (!isUnlocked) {
-                    labelCol = isHovered ? 0xFFF87171 : 0xFFA1A1AA;
-                } else if (emote == EmoteType.STOP && isHovered) {
+                if (emote == EmoteType.STOP && isHovered) {
                     labelCol = 0xFFF87171;
                 } else {
                     labelCol = isHovered ? accent : 0xFFFFFFFF;
@@ -210,13 +231,6 @@ public class EmoteWheelScreen extends Screen {
                         labelCol
                 );
             }
-        }
-
-        // Hovered locked warning hint in center
-        if (hoveredEmote != null && !com.bame.client.emotes.EmoteUnlockManager.isEmoteUnlocked(hoveredEmote)) {
-            String lockedBanner = "§c🔒 " + hoveredEmote.getNameEn() + " ist gesperrt • Freischaltung erforderlich";
-            int bannerW = textRenderer.getWidth(CustomGuiUtils.getFontText(lockedBanner));
-            context.drawTextWithShadow(textRenderer, CustomGuiUtils.getFontText(lockedBanner), cx - bannerW / 2, cy + 48, 0xFFF87171);
         }
 
         // Subtitle / Controls guide at the bottom

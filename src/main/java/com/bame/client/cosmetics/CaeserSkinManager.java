@@ -99,6 +99,57 @@ public class CaeserSkinManager {
         return a1 == 0 && a2 == 0;
     }
 
+    public static NativeImage remapSkin(NativeImage image) {
+        if (image == null) return null;
+        int width = image.getWidth();
+        int height = image.getHeight();
+        if (width != 64 || (height != 32 && height != 64)) {
+            return image;
+        }
+
+        boolean isLegacy = (height == 32);
+        if (isLegacy) {
+            NativeImage expanded = new NativeImage(64, 64, true);
+            expanded.copyFrom(image);
+            image.close();
+            image = expanded;
+            image.fillRect(0, 32, 64, 32, 0);
+
+            // Copy right leg to left leg
+            image.copyRect(4, 16, 16, 32, 4, 4, true, false);
+            image.copyRect(8, 16, 16, 32, 4, 4, true, false);
+            image.copyRect(0, 20, 24, 32, 4, 12, true, false);
+            image.copyRect(4, 20, 16, 32, 4, 12, true, false);
+            image.copyRect(8, 20, 8, 32, 4, 12, true, false);
+            image.copyRect(12, 20, 16, 32, 4, 12, true, false);
+
+            // Copy right arm to left arm
+            image.copyRect(44, 16, -8, 32, 4, 4, true, false);
+            image.copyRect(48, 16, -8, 32, 4, 4, true, false);
+            image.copyRect(40, 20, 0, 32, 4, 12, true, false);
+            image.copyRect(44, 20, -8, 32, 4, 12, true, false);
+            image.copyRect(48, 20, -16, 32, 4, 12, true, false);
+            image.copyRect(52, 20, -8, 32, 4, 12, true, false);
+        }
+
+        // Vanilla Minecraft stripAlpha: The base layer (head, torso, legs, arms)
+        // MUST be fully opaque (alpha = 255) so no transparent holes or floating limbs occur
+        stripAlpha(image, 0, 0, 32, 16);    // Head base
+        stripAlpha(image, 0, 16, 64, 32);   // Torso, right arm base, right leg base
+        stripAlpha(image, 16, 48, 48, 64);  // Left leg base, left arm base
+
+        return image;
+    }
+
+    private static void stripAlpha(NativeImage image, int x0, int y0, int x1, int y1) {
+        for (int x = x0; x < x1; x++) {
+            for (int y = y0; y < y1; y++) {
+                int col = image.getColorArgb(x, y);
+                image.setColorArgb(x, y, col | 0xFF000000);
+            }
+        }
+    }
+
     public static void ensureTextureLoaded(LauncherSkinEntry entry) {
         if (entry == null || (entry.textureLoaded && entry.textureId != null)) return;
         if (entry.base64Data == null || entry.base64Data.isBlank()) return;
@@ -112,14 +163,9 @@ public class CaeserSkinManager {
             NativeImage image = NativeImage.read(bytes);
             if (image == null) return;
 
-            if (image.getWidth() == 64 && image.getHeight() == 32) {
-                NativeImage expanded = new NativeImage(image.getFormat(), 64, 64, true);
-                expanded.copyRect(image, 0, 0, 0, 0, 64, 32, false, false);
-                image.close();
-                image = expanded;
-            }
-
             boolean slim = isSlimSkin(image);
+            image = remapSkin(image);
+
             entry.skinType = slim ? PlayerSkinType.SLIM : PlayerSkinType.WIDE;
 
             String safeId = entry.id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_");
