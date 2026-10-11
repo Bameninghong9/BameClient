@@ -587,7 +587,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (renderLeft) {
             matrices.push();
             this.getContextModel().leftArm.applyTransform(matrices);
-            matrices.translate(-0.160f, -0.060f, 0.0f);
+            matrices.translate(-0.375f, -0.156f, 0.0f);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
@@ -600,7 +600,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             matrices.push();
             this.getContextModel().rightArm.applyTransform(matrices);
             matrices.scale(-1.0f, 1.0f, 1.0f);
-            matrices.translate(-0.160f, -0.060f, 0.0f);
+            matrices.translate(-0.375f, -0.156f, 0.0f);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
@@ -1090,23 +1090,49 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     public static void applyMiniMeHandAnimation(BedrockCosmeticModel model, float timeSec, float walkSwing) {
         if (model == null) return;
-        float idlePhase = timeSec * 1.745f;
-        float headBreath = (float) Math.cos(idlePhase - 0.87f) * 1.0f;
-        float headPosY = ((float) Math.cos(idlePhase) * 0.06f - 0.06f);
-        float bodyPosY = ((float) Math.cos(idlePhase) * 0.08f - 0.08f);
-        float armSwing = (float) Math.cos(idlePhase) * 2.0f;
-        float rLegRot = (float) Math.cos(idlePhase - 0.35f) * 2.0f;
-        float lLegRot = (float) Math.cos(idlePhase - 0.35f) * 4.0f;
+        float idlePhase = (float) Math.toRadians(timeSec * 100.0f);
+        float headRotX = (float) -Math.cos(idlePhase - Math.toRadians(50.0f)) * 2.0f;
+        float headPosX = (float) Math.cos(idlePhase) * 0.075f;
+        float headPosY = (float) Math.cos(idlePhase) * 0.075f;
 
-        float legWalk = walkSwing * 22.0f;
+        float bodyPosX = (float) Math.cos(idlePhase) * 0.1f;
+        float bodyPosY = (float) Math.cos(idlePhase) * 0.1f;
 
-        model.setBoneRotation("Head", -headBreath + walkSwing * 8.0f, 0.0f, 0.0f);
-        model.setBoneTranslation("Head", 0.0f, headPosY, 0.0f);
-        model.setBoneTranslation("Body", 0.0f, bodyPosY, 0.0f);
-        model.setBoneRotation("Right Arm", armSwing - walkSwing * 5.0f, 0.0f, 0.0f);
-        model.setBoneRotation("Left Arm", armSwing + walkSwing * 12.0f, 0.0f, 0.0f);
-        model.setBoneRotation("Right Leg", rLegRot + legWalk, 0.0f, 0.0f);
-        model.setBoneRotation("Left Leg", lLegRot - legWalk, 0.0f, 0.0f);
+        float rArmRotZ = (float) Math.cos(idlePhase) * -2.0f;
+        float rArmPosX = (float) Math.cos(idlePhase) * 0.075f;
+        float rArmPosY = (float) Math.cos(idlePhase) * 0.075f;
+
+        float lArmRotZ = (float) Math.cos(idlePhase) * -3.0f;
+        float lArmPosX = (float) Math.cos(idlePhase) * 0.075f;
+        float lArmPosY = (float) Math.cos(idlePhase) * 0.075f;
+
+        float rLegRotX = (float) Math.cos(idlePhase) * 2.5f;
+        float rLegRotZ = (float) Math.cos(idlePhase) * -2.5f;
+        float rLegPosX = (float) Math.cos(idlePhase) * 0.125f;
+        float rLegPosY = (float) Math.cos(idlePhase) * 0.125f;
+
+        float lLegRotX = (float) Math.cos(idlePhase) * 3.5f;
+        float lLegRotZ = (float) Math.cos(idlePhase) * -3.5f;
+        float lLegPosX = (float) Math.cos(idlePhase) * 0.075f;
+        float lLegPosY = (float) Math.cos(idlePhase) * 0.075f;
+
+        model.setBoneRotation("minime", walkSwing * 12.0f, 0.0f, 0.0f);
+        model.setBoneRotation("Head", headRotX, 0.0f, 0.0f);
+        model.setBoneTranslation("Head", headPosX, headPosY, 0.0f);
+
+        model.setBoneTranslation("Body", bodyPosX, bodyPosY, 0.0f);
+
+        model.setBoneRotation("Right Arm", 0.0f, 0.0f, rArmRotZ);
+        model.setBoneTranslation("Right Arm", rArmPosX, rArmPosY, 0.0f);
+
+        model.setBoneRotation("Left Arm", 0.0f, 0.0f, lArmRotZ);
+        model.setBoneTranslation("Left Arm", lArmPosX, lArmPosY, 0.0f);
+
+        model.setBoneRotation("Right Leg", rLegRotX + walkSwing * 18.0f, 0.0f, rLegRotZ);
+        model.setBoneTranslation("Right Leg", rLegPosX, rLegPosY, 0.0f);
+
+        model.setBoneRotation("Left Leg", lLegRotX - walkSwing * 18.0f, 0.0f, lLegRotZ);
+        model.setBoneTranslation("Left Leg", lLegPosX, lLegPosY, 0.0f);
     }
 
     public static void poseBabyDragon(float timeSec, boolean isAfk) {
@@ -1439,7 +1465,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     if (doLeftH) {
                         matrices.push();
                         if (playerModel != null) playerModel.leftArm.applyTransform(matrices);
-                        matrices.translate(-0.160f, -0.060f, 0.0f);
+                        matrices.translate(-0.375f, -0.156f, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                         miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
@@ -1449,7 +1475,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                         matrices.push();
                         if (playerModel != null) playerModel.rightArm.applyTransform(matrices);
                         matrices.scale(-1.0f, 1.0f, 1.0f);
-                        matrices.translate(-0.160f, -0.060f, 0.0f);
+                        matrices.translate(-0.375f, -0.156f, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
                         miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
