@@ -253,14 +253,19 @@ public class BedrockCosmeticModel {
 
     public void render(MatrixStack.Entry entry, VertexConsumer consumer, int light,
                        int frameIndex, int totalFrames) {
+        render(entry, consumer, light, frameIndex, totalFrames, false);
+    }
+
+    public void render(MatrixStack.Entry entry, VertexConsumer consumer, int light,
+                       int frameIndex, int totalFrames, boolean mirrorX) {
         Matrix4f rootMat = new Matrix4f().identity();
         for (ModelBone root : rootBones) {
-            renderBone(root, rootMat, entry, consumer, light, frameIndex, totalFrames);
+            renderBone(root, rootMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
         }
     }
 
     private void renderBone(ModelBone bone, Matrix4f parentMat, MatrixStack.Entry entry,
-                            VertexConsumer consumer, int light, int frameIndex, int totalFrames) {
+                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX) {
         Matrix4f boneMat = new Matrix4f(parentMat);
 
         float px = bone.px;
@@ -288,17 +293,17 @@ public class BedrockCosmeticModel {
                 }
                 cubeMat.translate(-cube.px, -cube.py, -cube.pz);
             }
-            renderCube(cube, cubeMat, entry, consumer, light, frameIndex, totalFrames);
+            renderCube(cube, cubeMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
         }
 
         // Render children
         for (ModelBone child : bone.children) {
-            renderBone(child, boneMat, entry, consumer, light, frameIndex, totalFrames);
+            renderBone(child, boneMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
         }
     }
 
     private void renderCube(ModelCube cube, Matrix4f mat, MatrixStack.Entry entry,
-                            VertexConsumer consumer, int light, int frameIndex, int totalFrames) {
+                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX) {
         float inf = cube.inflate;
         float x0 = cube.ox - inf;
         float x1 = cube.ox + cube.sx + inf;
@@ -370,10 +375,20 @@ public class BedrockCosmeticModel {
             toJava(v2);
             toJava(v3);
 
+            if (mirrorX) {
+                v0.x = -v0.x;
+                v1.x = -v1.x;
+                v2.x = -v2.x;
+                v3.x = -v3.x;
+            }
+
             // Calculate face normal from transformed Java vertices
             Vector3f e1 = new Vector3f(v1).sub(v0);
             Vector3f e2 = new Vector3f(v3).sub(v0);
             Vector3f normal = new Vector3f(e1).cross(e2);
+            if (mirrorX) {
+                normal.negate();
+            }
             if (normal.lengthSquared() > 1e-6f) {
                 normal.normalize();
             } else {
@@ -389,10 +404,17 @@ public class BedrockCosmeticModel {
             float texV1 = (frameIndex + rawV1) / (float) totalFrames;
             float texV2 = (frameIndex + rawV2) / (float) totalFrames;
 
-            emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z);
-            emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z);
-            emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z);
-            emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z);
+            if (mirrorX) {
+                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z);
+            } else {
+                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z);
+            }
         }
     }
 

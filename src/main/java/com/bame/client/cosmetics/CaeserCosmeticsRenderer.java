@@ -587,11 +587,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (renderLeft) {
             matrices.push();
             this.getContextModel().leftArm.applyTransform(matrices);
-            matrices.translate(-0.375f, -0.156f, 0.0f);
+            matrices.translate(-0.3125f, -0.125f, 0.0f);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
-                miniMeHandModel.render(entry, consumer, light, 0, 1);
+                miniMeHandModel.render(entry, consumer, light, 0, 1, false);
             });
             matrices.pop();
         }
@@ -599,12 +599,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (renderRight) {
             matrices.push();
             this.getContextModel().rightArm.applyTransform(matrices);
-            matrices.scale(-1.0f, 1.0f, 1.0f);
-            matrices.translate(-0.375f, -0.156f, 0.0f);
+            matrices.translate(0.3125f, -0.125f, 0.0f);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
             queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
-                miniMeHandModel.render(entry, consumer, light, 0, 1);
+                miniMeHandModel.render(entry, consumer, light, 0, 1, true);
             });
             matrices.pop();
         }
@@ -1465,20 +1464,19 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     if (doLeftH) {
                         matrices.push();
                         if (playerModel != null) playerModel.leftArm.applyTransform(matrices);
-                        matrices.translate(-0.375f, -0.156f, 0.0f);
+                        matrices.translate(-0.3125f, -0.125f, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
-                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
+                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1, false);
                         matrices.pop();
                     }
                     if (doRightH) {
                         matrices.push();
                         if (playerModel != null) playerModel.rightArm.applyTransform(matrices);
-                        matrices.scale(-1.0f, 1.0f, 1.0f);
-                        matrices.translate(-0.375f, -0.156f, 0.0f);
+                        matrices.translate(0.3125f, -0.125f, 0.0f);
                         miniMeHandModel.resetAllAnimations();
                         applyMiniMeHandAnimation(miniMeHandModel, timeSec, 0.0f);
-                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1);
+                        miniMeHandModel.render(matrices.peek(), consumer, light, 0, 1, true);
                         matrices.pop();
                     }
                 } else if ("minime_chain".equalsIgnoreCase(accId)) {
