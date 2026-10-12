@@ -108,26 +108,41 @@ public class CombatTab implements ClientTab {
                        int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
         // Left Column: AutoClicker, ReachDisplay
         if (autoClickerVisible(search)) {
-            renderAutoClicker(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getAutoClickerHeight() + 12;
+            int h = getAutoClickerHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderAutoClicker(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (reachDisplayVisible(search)) {
-            renderReachDisplay(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getReachDisplayHeight() + 12;
+            int h = getReachDisplayHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderReachDisplay(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
 
         // Right Column: HitColor, LowShield, CustomHitboxes
         if (hitColorVisible(search)) {
-            renderHitColor(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getHitColorHeight() + 12;
+            int h = getHitColorHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderHitColor(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (lowShieldVisible(search)) {
-            renderLowShield(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getLowShieldHeight() + 12;
+            int h = getLowShieldHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderLowShield(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (customHitboxesVisible(search)) {
-            renderCustomHitboxes(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getCustomHitboxesHeight() + 12;
+            int h = getCustomHitboxesHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderCustomHitboxes(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
     }
 

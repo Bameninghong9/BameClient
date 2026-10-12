@@ -20,18 +20,13 @@ public class CustomCrosshairRenderer {
         int startX = centerX - CustomCrosshairModule.CENTER * pixelSize;
         int startY = centerY - CustomCrosshairModule.CENTER * pixelSize;
 
-        for (int r = 0; r < CustomCrosshairModule.GRID_SIZE; r++) {
-            for (int c = 0; c < CustomCrosshairModule.GRID_SIZE; c++) {
-                if (CustomCrosshairModule.grid[r][c]) {
-                    context.fill(
-                        startX + c * pixelSize,
-                        startY + r * pixelSize,
-                        startX + (c + 1) * pixelSize,
-                        startY + (r + 1) * pixelSize,
-                        color
-                    );
-                }
-            }
-        }
+        // One fill per horizontal run of set cells (same pixels as one fill per cell)
+        CustomCrosshairModule.forEachRun(CustomCrosshairModule.grid, true, (r, c0, c1) -> context.fill(
+            startX + c0 * pixelSize,
+            startY + r * pixelSize,
+            startX + c1 * pixelSize,
+            startY + (r + 1) * pixelSize,
+            color
+        ));
     }
 }

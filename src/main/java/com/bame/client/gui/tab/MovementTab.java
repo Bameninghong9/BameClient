@@ -81,17 +81,25 @@ public class MovementTab implements ClientTab {
     public void render(BameClientScreen screen, DrawContext c, int mx, int my, float delta,
                        int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
         if (invMoveVisible(search)) {
-            renderInvMove(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getInvMoveHeight() + 12;
+            int h = getInvMoveHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderInvMove(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (freelookVisible(search)) {
-            renderFreelook(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getFreelookHeight() + 12;
+            int h = getFreelookHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderFreelook(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (emoteVisible(search)) {
             int targetX = (tracker.leftY <= tracker.rightY) ? leftX : rightX;
             int targetY = (tracker.leftY <= tracker.rightY) ? tracker.leftY : tracker.rightY;
-            renderEmote(screen, c, mx, my, delta, targetX, targetY, columnWidth);
+            if (screen.isVisibleRow(targetY, getEmoteHeight())) {
+                renderEmote(screen, c, mx, my, delta, targetX, targetY, columnWidth);
+            }
             if (targetX == leftX) {
                 tracker.leftY += getEmoteHeight() + 12;
             } else {

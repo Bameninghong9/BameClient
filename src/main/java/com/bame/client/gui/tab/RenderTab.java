@@ -1,6 +1,7 @@
 package com.bame.client.gui.tab;
 
 import com.bame.client.BameClientConfig;
+import com.bame.client.gui.AlphaMaskTexture;
 import com.bame.client.gui.BameClientScreen;
 import com.bame.client.gui.CustomGuiUtils;
 import com.bame.client.gui.GuiTheme;
@@ -8,6 +9,7 @@ import com.bame.client.gui.HudEditorScreen;
 import com.bame.client.module.*;
 import com.bame.client.render.CustomCrosshairRenderer;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.KeyInput;
@@ -50,6 +52,21 @@ public class RenderTab implements ClientTab {
     private int gridDragMode = -1;
     private int lastEditedCol = -1;
     private int lastEditedRow = -1;
+
+    // Crosshair editor grid lines: 15 x 15 cells of 7 px, last row and last column of every cell at alpha 0x1E
+    private static final int GRID_CELL = 7;
+    private static final int GRID_PIXELS = 15 * GRID_CELL;
+    private static final AlphaMaskTexture GRID_LINES = new AlphaMaskTexture(
+            Identifier.of("bameclient", "dynamic/crosshair_grid_lines"), GRID_PIXELS, GRID_PIXELS, () -> {
+                int[] alpha = new int[GRID_PIXELS * GRID_PIXELS];
+                for (int py = 0; py < GRID_PIXELS; py++) {
+                    for (int px = 0; px < GRID_PIXELS; px++) {
+                        boolean line = px % GRID_CELL == GRID_CELL - 1 || py % GRID_CELL == GRID_CELL - 1;
+                        alpha[py * GRID_PIXELS + px] = line ? 0x1E : 0;
+                    }
+                }
+                return alpha;
+            });
 
     @Override
     public String getCategory() {
@@ -195,48 +212,79 @@ public class RenderTab implements ClientTab {
     @Override
     public void render(BameClientScreen screen, DrawContext c, int mx, int my, float delta,
                        int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
+        // Cards outside the visible content area are skipped; the trackers still advance so layout and clicks match.
         // Left Column
         if (showHudVisible(search)) {
-            renderShowHud(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getShowHudHeight() + 12;
+            int h = getShowHudHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderShowHud(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (scoreboardVisible(search)) {
-            renderScoreboard(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getScoreboardHeight() + 12;
+            int h = getScoreboardHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderScoreboard(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (blockOutlineVisible(search)) {
-            renderBlockOutline(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getBlockOutlineHeight() + 12;
+            int h = getBlockOutlineHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderBlockOutline(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (handPositionVisible(search)) {
-            renderHandPosition(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getHandPositionHeight() + 12;
+            int h = getHandPositionHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderHandPosition(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
         if (tabBadgeVisible(search)) {
-            renderTabBadge(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
-            tracker.leftY += getTabBadgeHeight() + 12;
+            int h = getTabBadgeHeight();
+            if (screen.isVisibleRow(tracker.leftY, h)) {
+                renderTabBadge(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            }
+            tracker.leftY += h + 12;
         }
 
         // Right Column
         if (fullbrightVisible(search)) {
-            renderFullbright(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getFullbrightHeight() + 12;
+            int h = getFullbrightHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderFullbright(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (zoomVisible(search)) {
-            renderZoom(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getZoomHeight() + 12;
+            int h = getZoomHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderZoom(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (spotifyHudVisible(search)) {
-            renderSpotifyHud(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getSpotifyHudHeight() + 12;
+            int h = getSpotifyHudHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderSpotifyHud(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (customCrosshairVisible(search)) {
-            renderCustomCrosshair(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getCustomCrosshairHeight() + 12;
+            int h = getCustomCrosshairHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderCustomCrosshair(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
         if (itemSizeVisible(search)) {
-            renderItemSize(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
-            tracker.rightY += getItemSizeHeight() + 12;
+            int h = getItemSizeHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderItemSize(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
         }
     }
 
@@ -487,25 +535,30 @@ public class RenderTab implements ClientTab {
         CustomGuiUtils.fillUltraRounded(c, gridX - 1, gridY - 1, gridW + 2, gridH + 2, 0xFF14171E, 3);
         CustomGuiUtils.drawUltraRoundedOutline(c, gridX - 1, gridY - 1, gridW + 2, gridH + 2, 0xFF353C4D, 3);
 
-        for (int r = 0; r < 15; r++) {
-            for (int col = 0; col < 15; col++) {
-                int cellX = gridX + col * cellSize;
-                int cellY = gridY + r * cellSize;
-                boolean active = CustomCrosshairModule.grid[r][col];
-                int cellBg = active ? CustomCrosshairModule.color : 0xFF16181F;
-                c.fill(cellX, cellY, cellX + cellSize, cellY + cellSize, cellBg);
-                c.fill(cellX, cellY + cellSize - 1, cellX + cellSize, cellY + cellSize, 0x1EFFFFFF);
-                c.fill(cellX + cellSize - 1, cellY, cellX + cellSize, cellY + cellSize - 1, 0x1EFFFFFF);
-
-                if (col == 7 && r == 7) {
-                    int blue = 0xFF3B82F6;
-                    c.fill(cellX, cellY, cellX + cellSize, cellY + 1, blue);
-                    c.fill(cellX, cellY + cellSize - 1, cellX + cellSize, cellY + cellSize, blue);
-                    c.fill(cellX, cellY + 1, cellX + 1, cellY + cellSize - 1, blue);
-                    c.fill(cellX + cellSize - 1, cellY + 1, cellX + cellSize, cellY + cellSize - 1, blue);
-                }
-            }
+        // Cell backgrounds: one fill for the whole grid plus one per run of active cells. With a translucent
+        // crosshair colour the inactive runs are filled separately so active cells still blend over the same backdrop.
+        int crosshairColor = CustomCrosshairModule.color;
+        boolean opaqueColor = (crosshairColor >>> 24) == 0xFF;
+        if (opaqueColor) {
+            c.fill(gridX, gridY, gridX + gridW, gridY + gridH, 0xFF16181F);
+        } else {
+            CustomCrosshairModule.forEachRun(CustomCrosshairModule.grid, false, (r, c0, c1) ->
+                    c.fill(gridX + c0 * cellSize, gridY + r * cellSize, gridX + c1 * cellSize, gridY + (r + 1) * cellSize, 0xFF16181F));
         }
+        CustomCrosshairModule.forEachRun(CustomCrosshairModule.grid, true, (r, c0, c1) ->
+                c.fill(gridX + c0 * cellSize, gridY + r * cellSize, gridX + c1 * cellSize, gridY + (r + 1) * cellSize, crosshairColor));
+
+        // Grid lines (bottom and right pixel line of every cell, 0x1EFFFFFF) as one textured quad: plain line fills
+        // would blend twice where horizontal and vertical lines cross
+        c.drawTexture(RenderPipelines.GUI_TEXTURED, GRID_LINES.id(), gridX, gridY, 0, 0, gridW, gridH, gridW, gridH, 0xFFFFFFFF);
+
+        int centerCellX = gridX + 7 * cellSize;
+        int centerCellY = gridY + 7 * cellSize;
+        int blue = 0xFF3B82F6;
+        c.fill(centerCellX, centerCellY, centerCellX + cellSize, centerCellY + 1, blue);
+        c.fill(centerCellX, centerCellY + cellSize - 1, centerCellX + cellSize, centerCellY + cellSize, blue);
+        c.fill(centerCellX, centerCellY + 1, centerCellX + 1, centerCellY + cellSize - 1, blue);
+        c.fill(centerCellX + cellSize - 1, centerCellY + 1, centerCellX + cellSize, centerCellY + cellSize - 1, blue);
 
         int prevX = gridX + gridW + 12;
         int prevW = Math.max(50, w - gridW - 24);
@@ -528,14 +581,8 @@ public class RenderTab implements ClientTab {
             boolean hoverP = screen.inside(mx, my, bx, by, pBtnSize, pBtnSize);
             c.fill(bx, by, bx + pBtnSize, by + pBtnSize, 0xFF151820);
             CustomGuiUtils.drawUltraRoundedOutline(c, bx, by, pBtnSize, pBtnSize, hoverP ? GuiTheme.accent() : 0xFF2A2E39, 2);
-            boolean[][] tmpl = CustomCrosshairModule.getPresetTemplate(i);
-            for (int r = 0; r < 15; r++) {
-                for (int col = 0; col < 15; col++) {
-                    if (tmpl[r][col]) {
-                        c.fill(bx + 1 + col, by + 1 + r, bx + 2 + col, by + 2 + r, 0xFFFFFFFF);
-                    }
-                }
-            }
+            CustomCrosshairModule.forEachPresetRun(i, (r, c0, c1) ->
+                    c.fill(bx + 1 + c0, by + 1 + r, bx + 1 + c1, by + 2 + r, 0xFFFFFFFF));
         }
 
         int actY = pY + 23;

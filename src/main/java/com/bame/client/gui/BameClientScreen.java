@@ -149,6 +149,28 @@ public class BameClientScreen extends Screen {
         }
 
         int maxDescW = w - 90;
+        String d = truncatedDescription(desc, maxDescW);
+        c.drawText(textRenderer, CustomGuiUtils.getFontText(d), x + 48, descY, 0xFF8E95A4, false);
+
+        int toggleX = x + w - 38;
+        int toggleY = y + 17;
+        CustomToggleWidget.draw(c, toggleX, toggleY, 26, 14, enabled);
+
+        if (expanded) {
+            c.fill(x + 8, y + 49, x + w - 8, y + 50, 0xFF242735);
+        }
+    }
+
+    private record DescKey(String desc, int maxWidth) {}
+    // Result of the description shortening per (desc, maxDescW); cleared in init() (resize, font reload)
+    private final Map<DescKey, String> truncatedDescriptions = new java.util.HashMap<>();
+
+    private String truncatedDescription(String desc, int maxDescW) {
+        DescKey key = new DescKey(desc, maxDescW);
+        String cached = truncatedDescriptions.get(key);
+        if (cached != null) return cached;
+        if (truncatedDescriptions.size() > 256) truncatedDescriptions.clear();
+
         String d = desc;
         if (textRenderer.getWidth(CustomGuiUtils.getFontText(d)) > maxDescW) {
             while (d.length() > 3 && textRenderer.getWidth(CustomGuiUtils.getFontText(d + "...")) > maxDescW) {
@@ -156,15 +178,8 @@ public class BameClientScreen extends Screen {
             }
             d = d + "...";
         }
-        c.drawText(textRenderer, CustomGuiUtils.getFontText(d), x + 48, descY, 0xFF8E95A4, false);
-
-        int toggleX = x + w - 38;
-        int toggleY = y + 17;
-        new CustomToggleWidget(toggleX, toggleY, 26, 14, enabled).render(c, mx, my, 0);
-
-        if (expanded) {
-            c.fill(x + 8, y + 49, x + w - 8, y + 50, 0xFF242735);
-        }
+        truncatedDescriptions.put(key, d);
+        return d;
     }
 
     public boolean handleCardHeaderClick(int mx, int my, int x, int y, int w,
@@ -207,7 +222,7 @@ public class BameClientScreen extends Screen {
     }
 
     public void toggle(DrawContext c, int x, int y, boolean on, int mx, int my, float delta) {
-        new CustomToggleWidget(x, y, 26, 14, on).render(c, mx, my, delta);
+        CustomToggleWidget.draw(c, x, y, 26, 14, on);
     }
 
     public void drawCustomSlider(DrawContext c, int sx, int sy, int sw, float normVal) {
@@ -254,6 +269,15 @@ public class BameClientScreen extends Screen {
     public int getContentRightX() { return cx + (cw - 16) / 2 + 16; }
     public int getCy() { return cy; }
     public int getCh() { return ch; }
+
+    /**
+     * Whether a card row from y to y + h overlaps the visible content area, so tabs can skip rendering cards that are
+     * scrolled out of view (they still have to advance their ColumnTracker). Range cy - 2 .. cy + ch covers the content
+     * scissor box of both the mods and the cosmetics view.
+     */
+    public boolean isVisibleRow(int y, int h) {
+        return y + h > cy - 2 && y < cy + ch;
+    }
 
     private static List<Item> getAllItems() {
         if (ALL_ITEMS == null) {
@@ -378,6 +402,7 @@ public class BameClientScreen extends Screen {
     @Override
     protected void init() {
         if (openTime == 0) openTime = System.currentTimeMillis();
+        truncatedDescriptions.clear();
         geometry();
         search = new CustomTextFieldWidget(cx + cw - 128, py + 8, 120, 18, Text.literal("Search"));
         search.setPlaceholder("Search...");
@@ -753,6 +778,22 @@ public class BameClientScreen extends Screen {
 
     @Override
     public void render(DrawContext c, int mx, int my, float delta) {
+        if (!GuiProfiler.ENABLED) {
+            renderScreen(c, mx, my, delta);
+            return;
+        }
+        long start = GuiProfiler.beginFrame();
+        try {
+            renderScreen(c, mx, my, delta);
+        } finally {
+            String view = currentView == ViewMode.MODS
+                    ? "MODS/" + selectedCategory + (search != null && !search.getText().trim().isEmpty() ? " (search)" : "")
+                    : currentView.name();
+            GuiProfiler.endFrame(start, view);
+        }
+    }
+
+    private void renderScreen(DrawContext c, int mx, int my, float delta) {
         if (currentView == ViewMode.HUB) {
             renderHub(c, mx, my, delta);
             return;

@@ -5,10 +5,9 @@ import net.minecraft.text.Style;
 import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class CustomGuiUtils {
     public static void fillRounded(DrawContext context, int x, int y, int width, int height, int color) {
@@ -36,119 +35,40 @@ public class CustomGuiUtils {
         context.fill(x + width - 2, y + height - 2, x + width - 1, y + height - 1, color);
     }
 
-    // Precomputed corner geometry data for ultra-fast zero-alloc rendering with anti-aliasing
-    private static class CornerData {
-        final int ir;
-        final int[] solidStart;
-        final int[] fillEdgeCx;
-        final int[] fillEdgeCy;
-        final float[] fillEdgeAlpha;
-        final int[] outlineCx;
-        final int[] outlineCy;
-        final float[] outlineAlpha;
-
-        CornerData(float r) {
-            this.ir = (int) Math.ceil(r);
-            this.solidStart = new int[ir];
-            List<Integer> fCx = new ArrayList<>();
-            List<Integer> fCy = new ArrayList<>();
-            List<Float> fA = new ArrayList<>();
-            List<Integer> oCx = new ArrayList<>();
-            List<Integer> oCy = new ArrayList<>();
-            List<Float> oA = new ArrayList<>();
-
-            float thickness = 1.0f;
-
-            for (int cy = 0; cy < ir; cy++) {
-                int firstSolid = ir;
-                for (int cx = 0; cx < ir; cx++) {
-                    float dx = r - cx - 0.5f;
-                    float dy = r - cy - 0.5f;
-                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
-                    float fillAlpha = Math.max(0.0f, Math.min(1.0f, r + 0.5f - dist));
-
-                    if (fillAlpha >= 0.999f) {
-                        if (firstSolid == ir) firstSolid = cx;
-                    } else if (fillAlpha > 0.001f) {
-                        fCx.add(cx);
-                        fCy.add(cy);
-                        fA.add(fillAlpha);
-                    }
-
-                    float distToEdge = Math.abs(dist - r);
-                    float outlineAlpha = Math.max(0.0f, Math.min(1.0f, 0.5f + (thickness / 2.0f) - distToEdge));
-                    if (outlineAlpha > 0.001f) {
-                        oCx.add(cx);
-                        oCy.add(cy);
-                        oA.add(outlineAlpha);
-                    }
-                }
-                solidStart[cy] = firstSolid;
-            }
-
-            this.fillEdgeCx = fCx.stream().mapToInt(Integer::intValue).toArray();
-            this.fillEdgeCy = fCy.stream().mapToInt(Integer::intValue).toArray();
-            this.fillEdgeAlpha = new float[fA.size()];
-            for (int i = 0; i < fA.size(); i++) fillEdgeAlpha[i] = fA.get(i);
-
-            this.outlineCx = oCx.stream().mapToInt(Integer::intValue).toArray();
-            this.outlineCy = oCy.stream().mapToInt(Integer::intValue).toArray();
-            this.outlineAlpha = new float[oA.size()];
-            for (int i = 0; i < oA.size(); i++) outlineAlpha[i] = oA.get(i);
-        }
-    }
-
-    private static final CornerData[] CACHED_CORNERS = new CornerData[20];
+    // Anti-aliased rounded rectangles: geometry lives in RoundedRectGeometry, the corners are drawn as small
+    // tinted alpha-mask textures (one per radius, for fill and outline) instead of one fill per edge pixel.
+    private static final AlphaMaskTexture[] CORNER_FILL_TEXTURES = new AlphaMaskTexture[RoundedRectGeometry.MAX_RADIUS + 1];
+    private static final AlphaMaskTexture[] CORNER_OUTLINE_TEXTURES = new AlphaMaskTexture[RoundedRectGeometry.MAX_RADIUS + 1];
     static {
-        for (int i = 1; i <= 16; i++) {
-            CACHED_CORNERS[i] = new CornerData((float) i);
+        for (int i = 1; i <= RoundedRectGeometry.MAX_RADIUS; i++) {
+            final int r = i;
+            CORNER_FILL_TEXTURES[i] = new AlphaMaskTexture(Identifier.of("bameclient", "dynamic/corner_fill_" + r),
+                2 * r, 2 * r, () -> RoundedRectGeometry.buildCornerAlpha(r, false));
+            CORNER_OUTLINE_TEXTURES[i] = new AlphaMaskTexture(Identifier.of("bameclient", "dynamic/corner_outline_" + r),
+                2 * r, 2 * r, () -> RoundedRectGeometry.buildCornerAlpha(r, true));
         }
     }
 
-    private static CornerData getCornerData(float radius, int width, int height) {
-        float r = Math.min(radius, Math.min(width / 2.0f, height / 2.0f));
-        int ir = Math.clamp(Math.round(r), 1, 16);
-        CornerData cd = CACHED_CORNERS[ir];
-        return cd != null ? cd : CACHED_CORNERS[4];
-    }
+    private static final RoundedRectGeometry.Target<DrawContext> DRAW_TARGET = new RoundedRectGeometry.Target<>() {
+        @Override
+        public void fill(DrawContext context, int x1, int y1, int x2, int y2, int color) {
+            context.fill(x1, y1, x2, y2, color);
+        }
+
+        @Override
+        public void corner(DrawContext context, boolean outline, int ir, int x, int y, int u, int v, int w, int h, int color) {
+            Identifier id = (outline ? CORNER_OUTLINE_TEXTURES : CORNER_FILL_TEXTURES)[ir].id();
+            context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
+                id, x, y, u, v, w, h, 2 * ir, 2 * ir, color);
+        }
+    };
 
     public static void fillUltraRounded(DrawContext context, int x, int y, int width, int height, int color) {
         fillUltraRounded(context, x, y, width, height, color, 8.0f);
     }
 
     public static void fillUltraRounded(DrawContext context, int x, int y, int width, int height, int color, float radius) {
-        int a = (color >> 24) & 0xFF;
-        if (a == 0) return;
-        int rgb = color & 0x00FFFFFF;
-
-        CornerData cd = getCornerData(radius, width, height);
-        int ir = cd.ir;
-
-        // Draw horizontal solid spans across both corners and center
-        for (int cy = 0; cy < ir; cy++) {
-            int ss = cd.solidStart[cy];
-            if (ss < width - ss) {
-                context.fill(x + ss, y + cy, x + width - ss, y + cy + 1, color);
-                context.fill(x + ss, y + height - 1 - cy, x + width - ss, y + height - cy, color);
-            }
-        }
-
-        // Draw central body
-        if (y + ir < y + height - ir) {
-            context.fill(x, y + ir, x + width, y + height - ir, color);
-        }
-
-        // Draw anti-aliased corner edge pixels
-        for (int i = 0; i < cd.fillEdgeCx.length; i++) {
-            int cx = cd.fillEdgeCx[i];
-            int cy = cd.fillEdgeCy[i];
-            int newColor = (((int) (a * cd.fillEdgeAlpha[i])) << 24) | rgb;
-
-            context.fill(x + cx, y + cy, x + cx + 1, y + cy + 1, newColor);
-            context.fill(x + width - 1 - cx, y + cy, x + width - cx, y + cy + 1, newColor);
-            context.fill(x + cx, y + height - 1 - cy, x + cx + 1, y + height - cy, newColor);
-            context.fill(x + width - 1 - cx, y + height - 1 - cy, x + width - cx, y + height - cy, newColor);
-        }
+        RoundedRectGeometry.fill(DRAW_TARGET, context, x, y, width, height, color, radius);
     }
 
     public static void drawUltraRoundedOutline(DrawContext context, int x, int y, int width, int height, int color) {
@@ -156,30 +76,7 @@ public class CustomGuiUtils {
     }
 
     public static void drawUltraRoundedOutline(DrawContext context, int x, int y, int width, int height, int color, float radius) {
-        int a = (color >> 24) & 0xFF;
-        if (a == 0) return;
-        int rgb = color & 0x00FFFFFF;
-
-        CornerData cd = getCornerData(radius, width, height);
-        int ir = cd.ir;
-
-        // Draw straight edges
-        context.fill(x + ir, y, x + width - ir, y + 1, color);
-        context.fill(x + ir, y + height - 1, x + width - ir, y + height, color);
-        context.fill(x, y + ir, x + 1, y + height - ir, color);
-        context.fill(x + width - 1, y + ir, x + width, y + height - ir, color);
-
-        // Draw outline corners
-        for (int i = 0; i < cd.outlineCx.length; i++) {
-            int cx = cd.outlineCx[i];
-            int cy = cd.outlineCy[i];
-            int newColor = (((int) (a * cd.outlineAlpha[i])) << 24) | rgb;
-
-            context.fill(x + cx, y + cy, x + cx + 1, y + cy + 1, newColor);
-            context.fill(x + width - 1 - cx, y + cy, x + width - cx, y + cy + 1, newColor);
-            context.fill(x + cx, y + height - 1 - cy, x + cx + 1, y + height - cy, newColor);
-            context.fill(x + width - 1 - cx, y + height - 1 - cy, x + width - cx, y + height - cy, newColor);
-        }
+        RoundedRectGeometry.outline(DRAW_TARGET, context, x, y, width, height, color, radius);
     }
 
     public static void drawSmoothRing(DrawContext context, int cx, int cy, float r, float thickness, int color) {
@@ -327,13 +224,17 @@ public class CustomGuiUtils {
 
     public static final Style SANS_STYLE = Style.EMPTY
         .withFont(new StyleSpriteSource.Font(Identifier.of("bameclient", "sans")));
-    private static final Map<String, Text> TEXT_CACHE = new ConcurrentHashMap<>();
+    private static final int TEXT_CACHE_SIZE = 1024;
+    // Small LRU cache: frequently used labels stay, rarely used strings (e.g. changing numbers) are evicted one by one
+    private static final Map<String, Text> TEXT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Text> eldest) {
+            return size() > TEXT_CACHE_SIZE;
+        }
+    });
 
     public static Text getFontText(String text) {
         if (text == null) return Text.empty();
-        if (TEXT_CACHE.size() > 1000) {
-            TEXT_CACHE.clear();
-        }
         return TEXT_CACHE.computeIfAbsent(text, t -> Text.literal(normalizeFancyText(t)).setStyle(SANS_STYLE));
     }
 

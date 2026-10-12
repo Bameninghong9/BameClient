@@ -81,3 +81,9 @@ tasks.withType(Test).configureEach {
     }
 }
 tasks.named('check') { dependsOn 'plannerTest' }
+tasks.register('guiGeometryTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.gui.GuiGeometryTest'
+}
+tasks.named('check') { dependsOn 'guiGeometryTest' }

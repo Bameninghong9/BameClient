@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.bame.client.profiler.mixin",
+  "plugin": "com.bame.client.profiler.GuiProfilerMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "DrawContextProfilerMixin",
+    "GuiRenderStateProfilerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

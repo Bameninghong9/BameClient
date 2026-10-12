@@ -15,6 +15,11 @@ public class CustomToggleWidget {
     }
 
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        draw(context, x, y, width, height, enabled);
+    }
+
+    /** Draws a toggle without allocating a widget (used every frame by the mod menu). */
+    public static void draw(DrawContext context, int x, int y, int width, int height, boolean enabled) {
         int bgColor = enabled ? GuiTheme.accent() : 0xFF242732;
         int knobColor = enabled ? 0xFFFFFFFF : 0xFF6C7284;
         

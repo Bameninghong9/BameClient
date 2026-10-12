@@ -110,7 +110,57 @@ public class CustomCrosshairModule {
         grid[10][10] = grid[10][9] = grid[9][10] = true;
     }
 
+    public static final int PRESET_COUNT = 9;
+
+    // The preset templates never change: computed once, handed out only as copies or read-only runs
+    private static final boolean[][][] PRESET_TEMPLATES = new boolean[PRESET_COUNT][][];
+    static {
+        for (int i = 0; i < PRESET_COUNT; i++) {
+            PRESET_TEMPLATES[i] = buildPresetTemplate(i);
+        }
+    }
+
+    /** Returns a fresh, modifiable copy of the preset template (all cells false for an unknown index). */
     public static boolean[][] getPresetTemplate(int index) {
+        boolean[][] t = new boolean[GRID_SIZE][GRID_SIZE];
+        if (index >= 0 && index < PRESET_COUNT) {
+            for (int r = 0; r < GRID_SIZE; r++) {
+                System.arraycopy(PRESET_TEMPLATES[index][r], 0, t[r], 0, GRID_SIZE);
+            }
+        }
+        return t;
+    }
+
+    /** Receives one horizontal run of equal cells: row, first column, column after the last one. */
+    @FunctionalInterface
+    public interface RunConsumer {
+        void accept(int row, int startCol, int endCol);
+    }
+
+    /** Calls {@code consumer} for every maximal horizontal run of cells equal to {@code value}, row by row. */
+    public static void forEachRun(boolean[][] cells, boolean value, RunConsumer consumer) {
+        for (int r = 0; r < cells.length; r++) {
+            boolean[] row = cells[r];
+            int c = 0;
+            while (c < row.length) {
+                if (row[c] != value) {
+                    c++;
+                    continue;
+                }
+                int start = c;
+                while (c < row.length && row[c] == value) c++;
+                consumer.accept(r, start, c);
+            }
+        }
+    }
+
+    /** Runs of set pixels of the cached preset template (read-only view, nothing for an unknown index). */
+    public static void forEachPresetRun(int index, RunConsumer consumer) {
+        if (index < 0 || index >= PRESET_COUNT) return;
+        forEachRun(PRESET_TEMPLATES[index], true, consumer);
+    }
+
+    private static boolean[][] buildPresetTemplate(int index) {
         boolean[][] t = new boolean[GRID_SIZE][GRID_SIZE];
         switch (index) {
             case 0 -> {
