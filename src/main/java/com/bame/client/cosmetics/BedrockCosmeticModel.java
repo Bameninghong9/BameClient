@@ -104,6 +104,13 @@ public class BedrockCosmeticModel {
     // Nur fuer Modelle aktivieren, die nicht per Hand auf die alte Konvention nachjustiert wurden.
     public boolean blockbenchAxisFix = false;
 
+    /**
+     * Optional: feste Normale (Java-Modellraum, z. B. {@code {0, -1, 0}} = nach oben) statt der Flächennormale. Für
+     * flache, selbst leuchtende Ebenen (Flammen), die sonst je nach Ausrichtung von der Entity-Beleuchtung abgedunkelt
+     * würden. {@code null} = Flächennormale (Standard, bestehende Modelle unverändert).
+     */
+    public float[] fixedNormal = null;
+
     public BedrockCosmeticModel(float textureWidth, float textureHeight) {
         this.textureWidth = textureWidth;
         this.textureHeight = textureHeight;
@@ -262,14 +269,30 @@ public class BedrockCosmeticModel {
 
     public void render(MatrixStack.Entry entry, VertexConsumer consumer, int light,
                        int frameIndex, int totalFrames, boolean mirrorX) {
+        render(entry, consumer, light, frameIndex, totalFrames, mirrorX, 0xFFFFFFFF, null);
+    }
+
+    /**
+     * Wie {@link #render(MatrixStack.Entry, VertexConsumer, int, int, int, boolean)}, mit Farb-Tint und optional nur
+     * einem Knochen samt Kindern.
+     *
+     * @param argb     Vertex-Farbe (wird mit der Textur multipliziert); {@code 0xFFFFFFFF} = unverändert
+     * @param onlyBone nur diesen Knochen (und seine Kinder) zeichnen; {@code null} = alle
+     */
+    public void render(MatrixStack.Entry entry, VertexConsumer consumer, int light,
+                       int frameIndex, int totalFrames, boolean mirrorX, int argb, String onlyBone) {
         Matrix4f rootMat = new Matrix4f().identity();
         for (ModelBone root : rootBones) {
-            renderBone(root, rootMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
+            renderBone(root, rootMat, entry, consumer, light, frameIndex, totalFrames, mirrorX, argb, onlyBone);
         }
     }
 
     private void renderBone(ModelBone bone, Matrix4f parentMat, MatrixStack.Entry entry,
-                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX) {
+                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX,
+                            int argb, String onlyBone) {
+        // Knochen-Filter: außerhalb des gesuchten Teilbaums nichts zeichnen, aber die Transformation weitergeben
+        boolean draw = onlyBone == null || onlyBone.equals(bone.name);
+        String childFilter = draw ? null : onlyBone;
         Matrix4f boneMat = new Matrix4f(parentMat);
 
         float px = bone.px;
@@ -286,7 +309,7 @@ public class BedrockCosmeticModel {
         boneMat.translate(-px, -py, -pz);
 
         // Render cubes of this bone
-        for (ModelCube cube : bone.cubes) {
+        if (draw) for (ModelCube cube : bone.cubes) {
             Matrix4f cubeMat = boneMat;
             if (cube.hasRot || cube.hasPivot) {
                 cubeMat = new Matrix4f(boneMat);
@@ -298,17 +321,18 @@ public class BedrockCosmeticModel {
                 }
                 cubeMat.translate(-cube.px, -cube.py, -cube.pz);
             }
-            renderCube(cube, cubeMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
+            renderCube(cube, cubeMat, entry, consumer, light, frameIndex, totalFrames, mirrorX, argb);
         }
 
         // Render children
         for (ModelBone child : bone.children) {
-            renderBone(child, boneMat, entry, consumer, light, frameIndex, totalFrames, mirrorX);
+            renderBone(child, boneMat, entry, consumer, light, frameIndex, totalFrames, mirrorX, argb, childFilter);
         }
     }
 
     private void renderCube(ModelCube cube, Matrix4f mat, MatrixStack.Entry entry,
-                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX) {
+                            VertexConsumer consumer, int light, int frameIndex, int totalFrames, boolean mirrorX,
+                            int argb) {
         float inf = cube.inflate;
         float x0 = cube.ox - inf;
         float x1 = cube.ox + cube.sx + inf;
@@ -394,7 +418,9 @@ public class BedrockCosmeticModel {
             if (mirrorX) {
                 normal.negate();
             }
-            if (normal.lengthSquared() > 1e-6f) {
+            if (fixedNormal != null) {
+                normal.set(fixedNormal[0], fixedNormal[1], fixedNormal[2]);
+            } else if (normal.lengthSquared() > 1e-6f) {
                 normal.normalize();
             } else {
                 normal.set(0, 1, 0);
@@ -410,15 +436,15 @@ public class BedrockCosmeticModel {
             float texV2 = (frameIndex + rawV2) / (float) totalFrames;
 
             if (mirrorX) {
-                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z, argb);
             } else {
-                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z);
-                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z);
+                emitVertex(consumer, entry, v0.x, v0.y, v0.z, texU1, texV1, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v1.x, v1.y, v1.z, texU1, texV2, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v2.x, v2.y, v2.z, texU2, texV2, light, normal.x, normal.y, normal.z, argb);
+                emitVertex(consumer, entry, v3.x, v3.y, v3.z, texU2, texV1, light, normal.x, normal.y, normal.z, argb);
             }
         }
     }
@@ -431,9 +457,9 @@ public class BedrockCosmeticModel {
 
     private static void emitVertex(VertexConsumer consumer, MatrixStack.Entry entry,
                                    float x, float y, float z, float u, float v,
-                                   int light, float nx, float ny, float nz) {
+                                   int light, float nx, float ny, float nz, int argb) {
         consumer.vertex(entry, x, y, z)
-                .color(255, 255, 255, 255)
+                .color((argb >>> 16) & 0xFF, (argb >>> 8) & 0xFF, argb & 0xFF, (argb >>> 24) & 0xFF)
                 .texture(u, v)
                 .overlay(OverlayTexture.DEFAULT_UV)
                 .light(light)

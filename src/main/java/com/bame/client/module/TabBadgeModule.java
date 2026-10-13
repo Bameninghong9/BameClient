@@ -1,38 +1,34 @@
 package com.bame.client.module;
 
+/**
+ * Caeser-Badge vor dem Namen in der Tab-Liste. Es gibt nur noch ein Design: "Caeser Bold (C)" ({@code c_bold}).
+ * Das Modul lässt sich nur ein- und ausschalten; ausgeschaltet wird {@code none} synchronisiert.
+ */
 public class TabBadgeModule {
     public static boolean enabled = true;
     public static boolean expanded = false;
-    public static String badgeType = "c"; // "c", "c_bracket", "c_bold", "bolt", "crown", "fire", "star"
     public static int keyBind = -1;
 
-    public static final String[] BADGE_TYPES = {"c", "c_bracket", "c_bold", "bolt", "crown", "fire", "star"};
+    /** Einziger Badge-Wert im Sync ({@code state.tabBadge}). Ältere gespeicherte Werte werden ignoriert. */
+    public static final String BADGE_TYPE = "c_bold";
+    private static final String BADGE_SYMBOL = "§6§lC §r";
 
-    public static String getBadgeName(String type) {
-        return switch (type != null ? type.toLowerCase(java.util.Locale.ROOT) : "c") {
-            case "c" -> "Caeser (ⓒ)";
-            case "c_bracket" -> "Caeser ([C])";
-            case "c_bold" -> "Caeser Bold (C)";
-            case "bolt" -> "Bolt (⚡)";
-            case "crown" -> "Crown (👑)";
-            case "fire" -> "Fire (🔥)";
-            case "star" -> "Star (✦)";
-            default -> "Caeser (ⓒ)";
-        };
+    /** Eigenes Badge in der Tab-Liste, {@code null} wenn ausgeschaltet. */
+    public static String getBadgeSymbol() {
+        return enabled ? BADGE_SYMBOL : null;
     }
 
-    public static String getBadgeSymbol() {
-        if (!enabled) return null;
-        return switch (badgeType != null ? badgeType.toLowerCase(java.util.Locale.ROOT) : "c") {
-            case "c" -> "§6ⓒ ";
-            case "c_bracket" -> "§6[§eC§6] ";
-            case "c_bold" -> "§6§lC §r";
-            case "bolt" -> "§b⚡ ";
-            case "crown" -> "§e👑 ";
-            case "fire" -> "§6🔥 ";
-            case "star" -> "§e✦ ";
-            case "none" -> null;
-            default -> "§6ⓒ ";
-        };
+    /** Wert für {@code state.tabBadge}: {@code c_bold} oder {@code none}. */
+    public static String syncValue() {
+        return enabled ? BADGE_TYPE : "none";
+    }
+
+    /**
+     * Badge eines anderen Caeser-Spielers. Jeder Wert außer {@code none} (auch alte Designs wie {@code c} oder
+     * {@code crown} älterer Clients) wird einheitlich als Caeser Bold gezeigt.
+     */
+    public static String symbolForRemote(String remoteBadge) {
+        if (remoteBadge != null && "none".equalsIgnoreCase(remoteBadge.trim())) return null;
+        return BADGE_SYMBOL;
     }
 }

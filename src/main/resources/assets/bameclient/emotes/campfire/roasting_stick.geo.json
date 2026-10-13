@@ -1,0 +1,53 @@
+{
+	"format_version": "1.12.0",
+	"minecraft:geometry": [
+		{
+			"description": {
+				"identifier": "geometry.roasting_stick",
+				"texture_width": 32,
+				"texture_height": 16,
+				"visible_bounds_width": 2,
+				"visible_bounds_height": 2,
+				"visible_bounds_offset": [0, 1, 0]
+			},
+			"bones": [
+				{
+					"name": "stick",
+					"pivot": [0, 24, 0],
+					"cubes": [
+						{
+							"origin": [-0.5, 23.5, -13],
+							"size": [1, 1, 14],
+							"uv": {
+								"north": {"uv": [18, 0], "uv_size": [1, 1]},
+								"east": {"uv": [0, 0], "uv_size": [14, 1]},
+								"south": {"uv": [18, 1], "uv_size": [1, 1]},
+								"west": {"uv": [0, 1], "uv_size": [14, 1]},
+								"up": {"uv": [16, 0], "uv_size": [1, 14]},
+								"down": {"uv": [17, 0], "uv_size": [1, 14]}
+							}
+						}
+					]
+				},
+				{
+					"name": "marshmallow",
+					"pivot": [0, 24, -12.5],
+					"cubes": [
+						{
+							"origin": [-1.5, 22.5, -14],
+							"size": [3, 3, 3],
+							"uv": {
+								"north": {"uv": [20, 0], "uv_size": [3, 3]},
+								"east": {"uv": [23, 0], "uv_size": [3, 3]},
+								"south": {"uv": [26, 0], "uv_size": [3, 3]},
+								"west": {"uv": [20, 3], "uv_size": [3, 3]},
+								"up": {"uv": [23, 3], "uv_size": [3, 3]},
+								"down": {"uv": [26, 3], "uv_size": [3, 3]}
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}

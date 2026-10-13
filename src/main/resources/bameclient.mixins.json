@@ -17,6 +17,7 @@
     "InGameHudMixin",
     "ScoreboardMixin",
     "ClientPlayNetworkHandlerMixin",
+    "KillFxEntityStatusMixin",
     "MinecraftClientAccessor",
     "MinecraftClientSessionAccessor",
     "RealmsClientAccessor",

@@ -33,6 +33,15 @@ public class ClientPlayerInteractionManagerMixin {
         }
     }
 
+    // Kill-Effekte: Treffer merken. Eigener Inject am Ende, die Logik oben bleibt unverändert; abgebrochene Angriffe
+    // (Durability Guard) erreichen diesen Punkt nicht.
+    @Inject(method = "attackEntity", at = @At("RETURN"))
+    private void caeser$killFxAttack(PlayerEntity player, Entity target, CallbackInfo ci) {
+        try {
+            com.bame.client.killfx.KillDetector.onAttack(target);
+        } catch (Throwable ignored) {}
+    }
+
     @Inject(method = "attackBlock", at = @At("HEAD"), cancellable = true)
     private void onAttackBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (AutoToolModule.enabled && pos != null) {

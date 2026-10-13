@@ -147,7 +147,8 @@ public class RenderTab implements ClientTab {
     }
 
     public int getTabBadgeHeight() {
-        return TabBadgeModule.expanded ? 115 : 50;
+        // Nur noch ein Badge-Design (Caeser Bold): keine Einstellungen, nur der Ein/Aus-Schalter
+        return 50;
     }
 
     public int getShowHudHeight() {
@@ -868,23 +869,8 @@ public class RenderTab implements ClientTab {
 
     private void renderTabBadge(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getTabBadgeHeight();
-        screen.moduleCard(c, x, y, w, h, TabBadgeModule.enabled, TabBadgeModule.expanded,
-                "Tablist Badge", "Caeser 'C' symbol in front of name", "NEW", "visuals", mx, my);
-
-        if (!TabBadgeModule.expanded) return;
-
-        int curY = y + 54;
-        screen.text(c, "Badge Symbol:", x + 14, curY + 5, 0xFF8E95A4);
-        String name = TabBadgeModule.getBadgeName(TabBadgeModule.badgeType);
-        screen.button(c, name, x + 92, curY, w - 106, 18, mx, my);
-        curY += 26;
-
-        screen.text(c, "Preview:", x + 14, curY + 4, 0xFF8E95A4);
-        String sym = TabBadgeModule.getBadgeSymbol();
-        MinecraftClient mc = MinecraftClient.getInstance();
-        String playerName = (mc != null && mc.getSession() != null) ? mc.getSession().getUsername() : "Player";
-        String previewText = (sym != null ? sym : "") + "§f" + playerName;
-        screen.text(c, previewText, x + 70, curY + 4, 0xFFFFFFFF);
+        screen.moduleCard(c, x, y, w, h, TabBadgeModule.enabled, false,
+                "Tablist Badge", "Caeser Bold 'C' in front of name", "NEW", "visuals", mx, my);
     }
 
     private void clearKeyListeners() {
@@ -1368,38 +1354,15 @@ public class RenderTab implements ClientTab {
         if (tabBadgeVisible(search)) {
             int y = tracker.leftY;
             int h = getTabBadgeHeight();
-            if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth,
-                    () -> {
-                        TabBadgeModule.enabled = !TabBadgeModule.enabled;
-                        com.bame.client.notification.NotificationManager.showModuleToggle("Tablist Badge", TabBadgeModule.enabled);
-                        com.bame.client.sound.ClientSoundManager.playClick();
-                        BameClientConfig.save();
-                        com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
-                    },
-                    () -> {
-                        TabBadgeModule.expanded = !TabBadgeModule.expanded;
-                        com.bame.client.sound.ClientSoundManager.playClick();
-                        BameClientConfig.save();
-                    })) {
+            // Keine Einstellungen mehr: Schalter und Klick auf die Karte schalten das Badge ein/aus
+            Runnable toggleBadge = () -> {
+                TabBadgeModule.enabled = !TabBadgeModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Tablist Badge", TabBadgeModule.enabled);
+                BameClientConfig.save();
+                com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
+            };
+            if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth, toggleBadge, toggleBadge)) {
                 return true;
-            }
-            if (TabBadgeModule.expanded) {
-                int curY = y + 54;
-                if (screen.inside(mx, my, leftX + 92, curY, columnWidth - 106, 18)) {
-                    String[] types = TabBadgeModule.BADGE_TYPES;
-                    int idx = 0;
-                    for (int i = 0; i < types.length; i++) {
-                        if (types[i].equalsIgnoreCase(TabBadgeModule.badgeType)) {
-                            idx = i;
-                            break;
-                        }
-                    }
-                    TabBadgeModule.badgeType = types[(idx + 1) % types.length];
-                    com.bame.client.sound.ClientSoundManager.playClick();
-                    BameClientConfig.save();
-                    com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
-                    return true;
-                }
             }
             tracker.leftY += h + 12;
         }

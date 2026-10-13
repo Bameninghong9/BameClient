@@ -17,6 +17,20 @@ public class CosmeticsConfig {
     public static final java.util.Set<String> equippedEmotes = new java.util.LinkedHashSet<>();
     public static final String[] wheelSlots = new String[40];
 
+    // Kill-Effekte: höchstens einer ausgerüstet (Item-ID wie KILL_TOTEM, sonst "none") und die Schalter der Ansicht
+    public static String killEffect = "none";
+    public static boolean killFxShowOthers = true;
+    public static boolean killFxMobs = false;
+    public static boolean killFxScreen = true;
+    public static boolean killFxSounds = true;
+    public static boolean killFxChat = true;
+
+    public static void setKillEffect(String id) {
+        killEffect = (id == null || id.isBlank()) ? "none" : id.trim().toUpperCase(java.util.Locale.ROOT);
+        if ("NONE".equals(killEffect)) killEffect = "none";
+        save();
+    }
+
     public static String getEmoteAtSlot(int slot) {
         if (slot < 0 || slot >= wheelSlots.length) return null;
         return wheelSlots[slot];
@@ -339,7 +353,19 @@ public class CosmeticsConfig {
             }
             root.add("wheel_slots", wheelArr);
 
+            root.addProperty("killEffect", killEffect);
+            JsonObject killSettings = buildKillFxSettings();
+            root.add("killEffectSettings", killSettings);
+
             Files.writeString(file, root.toString());
+            // Eigene Kopie der Kill-Effekt-Einstellungen: der Launcher schreibt cosmetics.json beim Start neu und kennt
+            // diese Schlüssel nicht; so gehen sie dabei nicht verloren.
+            try {
+                JsonObject side = new JsonObject();
+                side.addProperty("killEffect", killEffect);
+                side.add("killEffectSettings", killSettings);
+                Files.writeString(killFxSidecarFile(), side.toString());
+            } catch (Throwable ignored) {}
             lastModified = Files.getLastModifiedTime(file).toMillis();
 
             if ("default".equals(getAccountName())) {
@@ -515,11 +541,78 @@ public class CosmeticsConfig {
                 }
             }
 
+            // Kill-Effekte: fehlen die Schlüssel (z. B. weil der Launcher die Datei neu geschrieben hat), gilt die eigene
+            // Kopie; gibt es auch die nicht, die Standardwerte (z. B. neuer Account)
+            JsonObject killSrc = root.has("killEffect") ? root : readKillFxSidecar();
+            applyKillFx(killSrc);
+
             for (String user : accessoryCustomPlayers.values()) {
                 if (user != null && !user.isBlank()) {
                     PlayerSkinResolver.resolve(user);
                 }
             }
         } catch (Exception ignored) {}
+    }
+
+    private static Path killFxSidecarFile() {
+        String acc = getAccountName();
+        String name = "default".equals(acc) ? "killeffects.json" : "killeffects_" + acc + ".json";
+        return BameClientConfig.BASE_CONFIG_DIR.resolve(name);
+    }
+
+    private static JsonObject readKillFxSidecar() {
+        try {
+            Path f = killFxSidecarFile();
+            if (Files.exists(f)) {
+                com.google.gson.JsonElement el = JsonParser.parseString(Files.readString(f));
+                if (el.isJsonObject()) return el.getAsJsonObject();
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static JsonObject buildKillFxSettings() {
+        JsonObject s = new JsonObject();
+        s.addProperty("showOthers", killFxShowOthers);
+        s.addProperty("mobs", killFxMobs);
+        s.addProperty("screen", killFxScreen);
+        s.addProperty("sounds", killFxSounds);
+        s.addProperty("chat", killFxChat);
+        return s;
+    }
+
+    /** Übernimmt killEffect und die Schalter; {@code null} bzw. fehlende Werte = Standard. */
+    private static void applyKillFx(JsonObject src) {
+        String effect = "none";
+        boolean others = true, mobs = false, screen = true, sounds = true, chat = true;
+        if (src != null) {
+            if (src.has("killEffect") && src.get("killEffect").isJsonPrimitive()) {
+                // Unbekannte bzw. entfernte Effekte (KILL_FIREWORK, KILL_SOUL, KILL_CONFETTI) gelten als "none"
+                com.bame.client.killfx.KillEffectType type =
+                        com.bame.client.killfx.KillEffectType.fromId(src.get("killEffect").getAsString());
+                effect = type != null ? type.id : "none";
+            }
+            if (src.has("killEffectSettings") && src.get("killEffectSettings").isJsonObject()) {
+                JsonObject s = src.getAsJsonObject("killEffectSettings");
+                others = bool(s, "showOthers", true);
+                mobs = bool(s, "mobs", false);
+                screen = bool(s, "screen", true);
+                sounds = bool(s, "sounds", true);
+                chat = bool(s, "chat", true);
+            }
+        }
+        killEffect = effect;
+        killFxShowOthers = others;
+        killFxMobs = mobs;
+        killFxScreen = screen;
+        killFxSounds = sounds;
+        killFxChat = chat;
+    }
+
+    private static boolean bool(JsonObject o, String key, boolean def) {
+        try {
+            if (o.has(key) && o.get(key).isJsonPrimitive()) return o.get(key).getAsBoolean();
+        } catch (Throwable ignored) {}
+        return def;
     }
 }

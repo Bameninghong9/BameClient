@@ -44,7 +44,8 @@ public class EmoteWheelScreen extends Screen {
                 int idx = p * SLOTS_PER_PAGE + s;
                 String id = CosmeticsConfig.getEmoteAtSlot(idx);
                 EmoteType type = EmoteType.fromId(id);
-                if (type != null && EmoteUnlockManager.isEmoteUnlocked(type)) {
+                // Interne Emotes (High-Five annehmen) sind nie auswählbar, auch nicht über eine alte Konfiguration
+                if (type != null && !type.isHidden() && EmoteUnlockManager.isEmoteUnlocked(type)) {
                     PAGES[p][s] = type;
                 } else {
                     PAGES[p][s] = null;
@@ -174,7 +175,7 @@ public class EmoteWheelScreen extends Screen {
                     );
 
                     // Render emote label in uppercase centered below the slot box
-                    String label = emote.getNameEn().toUpperCase(Locale.ROOT);
+                    String label = emote.getDisplayName().toUpperCase(Locale.ROOT);
                     int labelW = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
                     int labelCol = (emote == EmoteType.STOP && isHovered) ? 0xFFF87171 : (isHovered ? accent : 0xFFFFFFFF);
 
@@ -235,7 +236,7 @@ public class EmoteWheelScreen extends Screen {
             if (emote == null) {
                 // Empty slot clicked -> open Cosmetics Screen at Emotes tab targeting this slot
                 CosmeticsTab.assigningToWheelSlot = slotIdx;
-                CosmeticsTab.subCategory = "EMOTES";
+                CosmeticsTab.openEmotesView();
                 BameClientScreen.currentView = BameClientScreen.ViewMode.COSMETICS;
                 if (client != null) {
                     client.setScreen(new BameClientScreen());
@@ -294,7 +295,7 @@ public class EmoteWheelScreen extends Screen {
                 // Empty slot -> assign
                 int slotIdx = currentPage * SLOTS_PER_PAGE + slot;
                 CosmeticsTab.assigningToWheelSlot = slotIdx;
-                CosmeticsTab.subCategory = "EMOTES";
+                CosmeticsTab.openEmotesView();
                 BameClientScreen.currentView = BameClientScreen.ViewMode.COSMETICS;
                 if (client != null) {
                     client.setScreen(new BameClientScreen());

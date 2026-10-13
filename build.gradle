@@ -87,3 +87,42 @@ tasks.register('guiGeometryTest', JavaExec) {
     mainClass = 'com.bame.client.gui.GuiGeometryTest'
 }
 tasks.named('check') { dependsOn 'guiGeometryTest' }
+tasks.register('butterflyKnifeTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.ButterflyKnifeAnimationTest'
+}
+tasks.named('check') { dependsOn 'butterflyKnifeTest' }
+tasks.register('highFivePushUpTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.HighFivePushUpTest'
+}
+tasks.named('check') { dependsOn 'highFivePushUpTest' }
+tasks.register('campfireTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.CampfireTest'
+}
+tasks.named('check') { dependsOn 'campfireTest' }
+
+tasks.register('hammockTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.HammockTest'
+}
+tasks.named('check') { dependsOn 'hammockTest' }
+
+tasks.register('swingPicnicTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.SwingPicnicTest'
+}
+tasks.named('check') { dependsOn 'swingPicnicTest' }
+
+tasks.register('killEffectsTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.killfx.KillLogicTest'
+}
+tasks.named('check') { dependsOn 'killEffectsTest' }

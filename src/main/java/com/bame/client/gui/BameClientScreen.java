@@ -76,6 +76,7 @@ public class BameClientScreen extends Screen {
     private final ThemeSettingsPanel themeSettings = new ThemeSettingsPanel();
     private final AmbientLighting ambient = new AmbientLighting();
     private PlayerSkinWidget leftSkinWidget;
+    private ViewMode lastRenderedView = null;
 
     public BameClientScreen() {
         super(Text.literal("Caeser Client"));
@@ -606,6 +607,8 @@ public class BameClientScreen extends Screen {
 
     private double maxScroll() { return Math.max(0, contentHeight() - ch); }
     public double getScroll() { return scroll; }
+    /** Aktueller Suchtext (getrimmt), leer ohne Suche. */
+    public String getSearchQuery() { return search != null ? search.getText().trim() : ""; }
     public void setScroll(double s) { this.scroll = Math.clamp(s, 0, maxScroll()); }
     public double getMaxScroll() { return maxScroll(); }
     public int baseY() { return cy - (int) scroll; }
@@ -794,6 +797,17 @@ public class BameClientScreen extends Screen {
     }
 
     private void renderScreen(DrawContext c, int mx, int my, float delta) {
+        // Jeton-Shop: Öffnen der Cosmetics-Ansicht erkennen (alle Wege: Hub, Seitenleiste, /cosmetics, Emote-Rad)
+        if (currentView == ViewMode.COSMETICS) {
+            if (lastRenderedView != ViewMode.COSMETICS) {
+                ShopOverlay.onCosmeticsViewOpened();
+            }
+            ShopOverlay.tickOpen();
+        } else if (lastRenderedView == ViewMode.COSMETICS) {
+            ShopOverlay.close();
+        }
+        lastRenderedView = currentView;
+
         if (currentView == ViewMode.HUB) {
             renderHub(c, mx, my, delta);
             return;
@@ -836,35 +850,18 @@ public class BameClientScreen extends Screen {
                 boolean hover = inside(mx, my, px + 8, by, catBtnW, bh);
 
                 if (entry.isHeader()) {
-                    // Dropdown-Kopf COSMETICS: aufgeklappt mit Akzentbalken und Akzentfarbe
-                    boolean open = CosmeticsTab.cosmeticsExpanded;
+                    // Dropdown-Kopf (COSMETICS / EMOTES): aufgeklappt mit Akzentbalken und Akzentfarbe
+                    boolean open = CosmeticsTab.isExpanded(entry.id());
                     if (open) c.fill(px + 8, by + 2, px + 10, by + bh - 2, accent);
                     int col = open ? accent : (hover ? 0xFFFFFFFF : 0xFFE2E8F0);
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 14, textY, col, false);
-                } else if (entry.indent() > 0) {
-                    // Unterkategorie: ▪ grau, gewählte mit ▸ und Akzentfarbe
-                    String activeCat = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
-                            ? CosmeticsTab.currentScrolledCategory
-                            : CosmeticsTab.subCategory;
-                    boolean active = entry.id().equalsIgnoreCase(activeCat);
+                } else {
+                    // Unterkategorie: ▪ grau, aktuelle (Scroll-Spy der offenen Ansicht) mit ▸ und Akzentfarbe
+                    boolean active = CosmeticsTab.isSidebarEntryActive(entry);
                     int markerCol = active ? accent : 0xFF6B7280;
                     int col = active ? accent : (hover ? 0xFFFFFFFF : 0xFFCBD5E1);
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(active ? "▸" : "▪"), px + 20, textY, markerCol, false);
                     c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 30, textY, col, false);
-                } else {
-                    // ALL und EMOTES im bisherigen Knopf-Stil
-                    String activeCat = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
-                            ? CosmeticsTab.currentScrolledCategory
-                            : CosmeticsTab.subCategory;
-                    boolean active = entry.id().equalsIgnoreCase(activeCat) || (entry.id().equalsIgnoreCase("ALL") && "ALL".equalsIgnoreCase(CosmeticsTab.subCategory));
-                    int btnBg = active ? GuiTheme.alpha(accent, 45) : (hover ? 0xFF1E212D : 0x00000000);
-                    int btnBorder = active ? accent : (hover ? 0xFF353C4E : 0x00000000);
-                    if (active || hover) {
-                        CustomGuiUtils.fillUltraRounded(c, px + 8, by, catBtnW, bh, btnBg, 4.0f);
-                        CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, by, catBtnW, bh, btnBorder, 4.0f);
-                    }
-                    int col = active ? 0xFFFFFFFF : (hover ? 0xFFE2E8F0 : 0xFF8E95A4);
-                    c.drawText(textRenderer, CustomGuiUtils.getFontText(entry.label()), px + 16, textY, col, false);
                 }
             }
 
@@ -1025,19 +1022,7 @@ public class BameClientScreen extends Screen {
             search.render(c, mx, my, delta);
 
             // Active Category Label
-            String catToDisplay = "ALL".equalsIgnoreCase(CosmeticsTab.subCategory)
-                    ? CosmeticsTab.currentScrolledCategory
-                    : CosmeticsTab.subCategory;
-            String catTitle = switch (catToDisplay) {
-                case "WINGS" -> "WINGS";
-                case "HEAD" -> "HAT";
-                case "ACCESSORIES" -> "ACCESSORIES";
-                case "PETS" -> "PET";
-                case "FACE" -> "FACE";
-                case "EMOTES" -> "EMOTES";
-                case "SKINS" -> "SKINS";
-                default -> "ALL COSMETICS";
-            };
+            String catTitle = CosmeticsTab.currentViewTitle();
             text(c, catTitle, searchBoxX + searchBoxW + 16, py + 14, 0xFF94A3B8);
 
             // Top-Right: Quick Unequip All Button
@@ -1050,6 +1035,9 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.drawUltraRoundedOutline(c, unequipX, unequipY, unequipW, unequipH, hoverUnequip ? 0xFFF43F5E : 0xFF2D2430, 4.0f);
             int twUnequip = textRenderer.getWidth(CustomGuiUtils.getFontText("✕ Unequip All"));
             text(c, "✕ Unequip All", unequipX + (unequipW - twUnequip) / 2, unequipY + 6, hoverUnequip ? 0xFFFCA5A5 : 0xFFCBD5E1);
+
+            // Jeton-Kontostand links neben "Unequip All"
+            ShopOverlay.renderChip(this, c, unequipX - 8, unequipY, unequipH, mx, my);
 
             // Divider line below top bar
             c.fill(cx, py + 34, cx + cw, py + 35, 0xFF222530);
@@ -1095,6 +1083,10 @@ public class BameClientScreen extends Screen {
 
         if (currentView == ViewMode.COSMETICS && CosmeticsTab.customSkinModalOpen) {
             CosmeticsTab.renderCustomSkinModal(this, c, mx, my, delta);
+        }
+
+        if (currentView == ViewMode.COSMETICS) {
+            ShopOverlay.renderOverlay(this, c, mx, my);
         }
 
         com.bame.client.notification.NotificationManager.render(c, delta);
@@ -1655,6 +1647,9 @@ public class BameClientScreen extends Screen {
         }
 
         if (currentView == ViewMode.COSMETICS) {
+            if (ShopOverlay.isModalOpen()) {
+                return ShopOverlay.handleModalClick(this, mx, my);
+            }
             if (CosmeticsTab.customSkinModalOpen) {
                 return CosmeticsTab.handleModalClick(this, localClick, twice);
             }
@@ -1662,17 +1657,8 @@ public class BameClientScreen extends Screen {
             int catBtnW = sidebar - 16;
             for (CosmeticsTab.SidebarRow row : cosmeticsSidebarRows()) {
                 if (inside(mx, my, px + 8, row.y(), catBtnW, row.height())) {
-                    CosmeticsTab.onSidebarClick(row.entry());
-                    if (row.entry().id().equalsIgnoreCase("ALL")) {
-                        scroll = 0;
-                    } else if (!row.entry().isHeader()) {
-                        Integer targetY = CosmeticsTab.SECTION_Y_MAP.get(row.entry().id().toUpperCase(java.util.Locale.ROOT));
-                        if (targetY != null) {
-                            setScroll(targetY);
-                        } else {
-                            scroll = 0;
-                        }
-                    }
+                    // Ansicht wechseln, Dropdown auf-/zuklappen bzw. zum Abschnitt springen (setzt den Scroll-Stand)
+                    CosmeticsTab.onSidebarClick(this, row.entry(), getSearchQuery());
                     com.bame.client.sound.ClientSoundManager.playClick();
                     layout();
                     return true;
@@ -1701,6 +1687,9 @@ public class BameClientScreen extends Screen {
                     java.util.Arrays.fill(com.bame.client.cosmetics.CosmeticsConfig.wheelSlots, null);
                     com.bame.client.cosmetics.CosmeticsConfig.syncEquippedEmotesFromSlots();
                     com.bame.client.cosmetics.CosmeticsConfig.save();
+                } else if (CosmeticsTab.isKillEffectsView()) {
+                    // Kill-Effekt-Ansicht: nur den Kill-Effekt ablegen
+                    com.bame.client.cosmetics.CosmeticsConfig.setKillEffect("none");
                 } else {
                     com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
                     com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
@@ -2051,6 +2040,9 @@ public class BameClientScreen extends Screen {
         double[] localPos = ThreeDGuiManager.screenToLocal(mx, my);
         double lmx = localPos[0], lmy = localPos[1];
 
+        if (currentView == ViewMode.COSMETICS && ShopOverlay.isModalOpen()) {
+            return true;
+        }
         if (itemModalOpen) {
             int modalW = 350;
             int modalH = 285;
@@ -2083,6 +2075,9 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (currentView == ViewMode.COSMETICS && ShopOverlay.handleKey(input)) {
+            return true;
+        }
         if (currentView == ViewMode.COSMETICS && CosmeticsTab.customSkinModalOpen) {
             if (CosmeticsTab.handleModalKeyPressed(this, input)) {
                 return true;
@@ -2161,6 +2156,7 @@ public class BameClientScreen extends Screen {
     @Override
     public void removed() {
         CosmeticsTab.resetPreview();
+        ShopOverlay.close();
         themeSettings.close();
         BameClientConfig.save();
         super.removed();

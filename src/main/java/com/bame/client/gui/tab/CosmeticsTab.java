@@ -44,23 +44,76 @@ public class CosmeticsTab implements ClientTab {
     // ==========================================
     // Seitenleiste: einmal definiert, für Zeichnen UND Klicken genutzt
     // ==========================================
-    public record SidebarEntry(String id, String label, int indent, boolean isHeader) {}
+    /**
+     * Eine Zeile der Seitenleiste. {@code parent}: Dropdown-Kopf, unter dem die Unterzeile hängt (null bei Köpfen).
+     * Unterzeilen tragen die Abschnitts-ID ({@link CosmeticSection#id}), zu der gesprungen wird.
+     */
+    public record SidebarEntry(String id, String label, int indent, boolean isHeader, String parent) {}
     public record SidebarRow(SidebarEntry entry, int y, int height) {}
 
+    /** Dropdown-Kopf COSMETICS: Gesamtansicht aller Cosmetics (interne Unterkategorie "ALL", ohne Emotes/Skins). */
     public static final String DROPDOWN_ID = "COSMETICS";
-    /** Aufgeklappt-Zustand des COSMETICS-Dropdowns; bleibt erhalten, solange das Spiel läuft. */
+    /** Dropdown-Kopf EMOTES: eigene Emote-Ansicht (Unterkategorie "EMOTES"), gruppiert in Abschnitte. */
+    public static final String EMOTES_DROPDOWN_ID = "EMOTES";
+    /** Kopfzeile KILLEFFECTS: ohne Unterzeilen, ein Klick öffnet die Kill-Effekt-Ansicht (Unterkategorie "KILLEFFECTS"). */
+    public static final String KILLEFFECTS_DROPDOWN_ID = com.bame.client.killfx.KillEffectType.CATEGORY;
+    /** Aufgeklappt-Zustand der Dropdowns; bleibt erhalten, solange das Spiel läuft. */
     public static boolean cosmeticsExpanded = true;
+    public static boolean emotesExpanded = true;
+
+    // Abschnitte der Emote-Ansicht (IDs für Sprung, Scroll-Spy und Seitenleiste)
+    public static final String EMOTES_BASIC = "EMOTES_BASIC";
+    public static final String EMOTES_SPORT = "EMOTES_SPORT";
+    public static final String EMOTES_PARTNER = "EMOTES_PARTNER";
+    public static final String EMOTES_SPECIAL = "EMOTES_SPECIAL";
 
     private static final List<SidebarEntry> SIDEBAR_ENTRIES = List.of(
-            new SidebarEntry("ALL", "✦ All", 0, false),
-            new SidebarEntry(DROPDOWN_ID, "COSMETICS", 0, true),
-            new SidebarEntry("WINGS", "WINGS", 1, false),
-            new SidebarEntry("HEAD", "HAT", 1, false),
-            new SidebarEntry("PETS", "PET", 1, false),
-            new SidebarEntry("ACCESSORIES", "ACCESSORIES", 1, false),
-            new SidebarEntry("FACE", "FACE", 1, false),
-            new SidebarEntry("EMOTES", "💃 Emotes", 0, false)
+            new SidebarEntry(DROPDOWN_ID, "COSMETICS", 0, true, null),
+            new SidebarEntry("WINGS", "WINGS", 1, false, DROPDOWN_ID),
+            new SidebarEntry("HEAD", "HAT", 1, false, DROPDOWN_ID),
+            new SidebarEntry("PETS", "PET", 1, false, DROPDOWN_ID),
+            new SidebarEntry("ACCESSORIES", "ACCESSORIES", 1, false, DROPDOWN_ID),
+            new SidebarEntry("FACE", "FACE", 1, false, DROPDOWN_ID),
+            new SidebarEntry(EMOTES_DROPDOWN_ID, "EMOTES", 0, true, null),
+            new SidebarEntry(EMOTES_BASIC, "BASIC", 1, false, EMOTES_DROPDOWN_ID),
+            new SidebarEntry(EMOTES_SPORT, "SPORT", 1, false, EMOTES_DROPDOWN_ID),
+            new SidebarEntry(EMOTES_PARTNER, "PARTNER", 1, false, EMOTES_DROPDOWN_ID),
+            new SidebarEntry(EMOTES_SPECIAL, "SPECIAL", 1, false, EMOTES_DROPDOWN_ID),
+            new SidebarEntry(KILLEFFECTS_DROPDOWN_ID, "KILLEFFECTS", 0, true, null)
     );
+
+    /** Ist das Dropdown mit dieser Kopf-ID aufgeklappt? (KILLEFFECTS hat keine Unterzeilen: "offen" = Ansicht aktiv) */
+    public static boolean isExpanded(String dropdownId) {
+        if (KILLEFFECTS_DROPDOWN_ID.equals(dropdownId)) return isViewActive(dropdownId);
+        return EMOTES_DROPDOWN_ID.equals(dropdownId) ? emotesExpanded : cosmeticsExpanded;
+    }
+
+    /** Zeigt der Inhalt gerade die Ansicht dieses Dropdowns (Cosmetics-Gesamtansicht, Emotes bzw. Kill-Effekte)? */
+    public static boolean isViewActive(String dropdownId) {
+        if (KILLEFFECTS_DROPDOWN_ID.equals(dropdownId)) return KILLEFFECTS_DROPDOWN_ID.equalsIgnoreCase(subCategory);
+        return EMOTES_DROPDOWN_ID.equals(dropdownId)
+                ? "EMOTES".equalsIgnoreCase(subCategory)
+                : "ALL".equalsIgnoreCase(subCategory);
+    }
+
+    /** Ist die Kill-Effekt-Ansicht offen? */
+    public static boolean isKillEffectsView() {
+        return KILLEFFECTS_DROPDOWN_ID.equalsIgnoreCase(subCategory);
+    }
+
+    /** Ist diese Unterzeile die aktuell markierte (Scroll-Spy in der zugehörigen Ansicht)? */
+    public static boolean isSidebarEntryActive(SidebarEntry entry) {
+        return entry.parent() != null && isViewActive(entry.parent())
+                && entry.id().equalsIgnoreCase(currentScrolledCategory);
+    }
+
+    /** Öffnet die Emote-Ansicht (z. B. aus dem Emote-Rad) und klappt ihr Dropdown auf. */
+    public static void openEmotesView() {
+        subCategory = "EMOTES";
+        emotesExpanded = true;
+        currentScrolledCategory = EMOTES_BASIC;
+        pinnedSection = null;
+    }
 
     /**
      * Berechnet die sichtbaren Seitenleisten-Zeilen zwischen top und bottom. Passt die normale Höhe nicht,
@@ -69,12 +122,17 @@ public class CosmeticsTab implements ClientTab {
     public static List<SidebarRow> sidebarRows(int top, int bottom) {
         List<SidebarEntry> visible = new ArrayList<>();
         for (SidebarEntry e : SIDEBAR_ENTRIES) {
-            if (e.indent() == 0 || cosmeticsExpanded) visible.add(e);
+            if (e.parent() == null || isExpanded(e.parent())) visible.add(e);
         }
-        int[][] sizes = {{26, 16, 6}, {20, 14, 4}, {16, 12, 2}}; // {Hauptzeile, Unterzeile, Abstand}
+        int[][] sizes = {{26, 16, 6}, {20, 14, 4}, {16, 12, 2}, {14, 10, 1}}; // {Hauptzeile, Unterzeile, Abstand}
         int[] chosen = sizes[sizes.length - 1];
+        boolean fits = false;
         for (int[] s : sizes) {
-            if (sidebarHeight(visible, s) <= bottom - top) { chosen = s; break; }
+            if (sidebarHeight(visible, s) <= bottom - top) { chosen = s; fits = true; break; }
+        }
+        if (!fits) {
+            // Sehr kleines Fenster: Unterzeilen nicht aktiver Ansichten weglassen, damit nichts über den Zurück-Knopf ragt
+            visible.removeIf(e -> e.parent() != null && !isViewActive(e.parent()));
         }
         List<SidebarRow> rows = new ArrayList<>();
         int y = top;
@@ -100,24 +158,52 @@ public class CosmeticsTab implements ClientTab {
         return total;
     }
 
-    /** Reagiert auf einen Klick in eine Seitenleisten-Zeile (Dropdown auf/zu oder Kategorie wählen). */
-    public static void onSidebarClick(SidebarEntry entry) {
-        if (entry.isHeader()) {
-            cosmeticsExpanded = !cosmeticsExpanded;
-            // Zugeklappt: Inhalt zeigt wieder alle Cosmetics
-            if (!cosmeticsExpanded && isDropdownCategory(subCategory)) subCategory = "ALL";
-        } else {
-            subCategory = "ALL";
-            currentScrolledCategory = entry.id().toUpperCase(Locale.ROOT);
+    /**
+     * Reagiert auf einen Klick in eine Seitenleisten-Zeile und setzt den Scroll-Stand.
+     * <ul>
+     *   <li>Kopf, dessen Ansicht nicht offen ist: Ansicht öffnen (nach oben scrollen) und Dropdown aufklappen.</li>
+     *   <li>Kopf der bereits offenen Ansicht: nur Dropdown auf-/zuklappen (Scroll-Stand bleibt).</li>
+     *   <li>Unterzeile: zugehörige Ansicht öffnen und zum Abschnitt springen.</li>
+     * </ul>
+     */
+    public static void onSidebarClick(BameClientScreen screen, SidebarEntry entry, String search) {
+        if (entry.isHeader() && KILLEFFECTS_DROPDOWN_ID.equals(entry.id())) {
+            // Ohne Unterzeilen: Ansicht öffnen (nach oben scrollen); ist sie schon offen, passiert nichts
+            if (isViewActive(entry.id())) return;
+            subCategory = KILLEFFECTS_DROPDOWN_ID;
+            currentScrolledCategory = KILLEFFECTS_DROPDOWN_ID;
+            pinnedSection = null;
+            screen.setScroll(0);
+            return;
         }
+        if (entry.isHeader()) {
+            boolean emotes = EMOTES_DROPDOWN_ID.equals(entry.id());
+            if (isViewActive(entry.id())) {
+                if (emotes) emotesExpanded = !emotesExpanded;
+                else cosmeticsExpanded = !cosmeticsExpanded;
+                return;
+            }
+            subCategory = emotes ? "EMOTES" : "ALL";
+            if (emotes) emotesExpanded = true;
+            else cosmeticsExpanded = true;
+            currentScrolledCategory = emotes ? EMOTES_BASIC : "WINGS";
+            pinnedSection = null;
+            screen.setScroll(0);
+            return;
+        }
+        subCategory = EMOTES_DROPDOWN_ID.equals(entry.parent()) ? "EMOTES" : "ALL";
+        String sectionId = entry.id().toUpperCase(Locale.ROOT);
+        currentScrolledCategory = sectionId;
+        Integer targetY = computeOffsets(search, null, null).get(sectionId);
+        screen.setScroll(targetY != null ? targetY : 0);
+        // Wird der Sprung am Listenende begrenzt, bleibt der geklickte Abschnitt markiert, bis gescrollt wird
+        pinnedSection = targetY != null ? sectionId : null;
+        pinnedScroll = screen.getScroll();
     }
 
-    public static boolean isDropdownCategory(String id) {
-        for (SidebarEntry e : SIDEBAR_ENTRIES) {
-            if (e.indent() > 0 && e.id().equalsIgnoreCase(id)) return true;
-        }
-        return false;
-    }
+    /** Vom Seitenleisten-Klick gewählter Abschnitt; gilt, solange der Scroll-Stand unverändert ist. */
+    private static String pinnedSection = null;
+    private static double pinnedScroll = 0;
 
     // Preview state (what is shown on the 3D player right now - null defaults to currently equipped!)
     public static String previewWings = null;
@@ -146,12 +232,156 @@ public class CosmeticsTab implements ClientTab {
 
     public static void scrollToItem(BameClientScreen screen, String itemId) {
         if (screen == null || itemId == null) return;
+        // Angelegte Cosmetics stehen in der Cosmetics-Gesamtansicht; Positionen für diese Ansicht neu berechnen
+        // (ITEM_Y_MAP stammt vom letzten Frame und kann noch die Emote-Ansicht beschreiben)
         subCategory = "ALL";
-        Integer targetY = ITEM_Y_MAP.get(itemId.toLowerCase(Locale.ROOT));
+        pinnedSection = null;
+        Map<String, Integer> items = new HashMap<>();
+        computeOffsets(screen.getSearchQuery(), null, items);
+        Integer targetY = items.get(itemId.toLowerCase(Locale.ROOT));
         if (targetY != null) {
             screen.setScroll(targetY - 24);
-            screen.layout();
         }
+        screen.layout();
+    }
+
+    /** Werden Abschnittsüberschriften gezeigt? (Cosmetics-Gesamtansicht und Emote-Ansicht) */
+    private static boolean showsSectionHeaders() {
+        return "ALL".equalsIgnoreCase(subCategory) || "EMOTES".equalsIgnoreCase(subCategory);
+    }
+
+    /** Höhe des Hinweisbanners beim Zuweisen eines Emote-Rad-Slots (inkl. Abstand), sonst 0. */
+    private static int wheelBannerHeight() {
+        return (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) ? 24 : 0;
+    }
+
+    /** Höhe aller Leisten über den Karten (Emote-Rad-Hinweis bzw. Kill-Effekt-Einstellungen, inkl. Abstand). */
+    private static int topBannerHeight() {
+        return wheelBannerHeight() + (isKillEffectsView() ? killSettingsHeight : 0);
+    }
+
+    // ==========================================
+    // Kill-Effekte: Einstellungen oben in der Ansicht
+    // ==========================================
+    private record KillToggle(String label, java.util.function.BooleanSupplier get, Runnable flip) {}
+    private record KillToggleHit(KillToggle toggle, int x, int y, int w, int h) {}
+    private record KillTestHit(com.bame.client.killfx.KillEffectType type, int x, int y, int w, int h) {}
+
+    private static final List<KillToggle> KILL_TOGGLES = List.of(
+            new KillToggle("Show other players' effects", () -> CosmeticsConfig.killFxShowOthers,
+                    () -> CosmeticsConfig.killFxShowOthers = !CosmeticsConfig.killFxShowOthers),
+            new KillToggle("Also trigger on mobs", () -> CosmeticsConfig.killFxMobs,
+                    () -> CosmeticsConfig.killFxMobs = !CosmeticsConfig.killFxMobs),
+            new KillToggle("Screen effect", () -> CosmeticsConfig.killFxScreen,
+                    () -> CosmeticsConfig.killFxScreen = !CosmeticsConfig.killFxScreen),
+            new KillToggle("Sounds", () -> CosmeticsConfig.killFxSounds,
+                    () -> CosmeticsConfig.killFxSounds = !CosmeticsConfig.killFxSounds),
+            new KillToggle("Detect kills from chat", () -> CosmeticsConfig.killFxChat,
+                    () -> CosmeticsConfig.killFxChat = !CosmeticsConfig.killFxChat)
+    );
+    private static final int KILL_TOGGLE_W = 20;
+    private static final int KILL_TOGGLE_H = 10;
+    private static final int KILL_ROW_H = 16;
+    /** Zuletzt berechnete Höhe der Einstellungen (hängt von der Breite ab); inkl. 8 px Abstand zu den Karten. */
+    private static int killSettingsHeight = 8 + 12 + 2 * KILL_ROW_H;
+    private static final List<KillToggleHit> killToggleHits = new ArrayList<>();
+    private static final List<KillTestHit> killTestHits = new ArrayList<>();
+
+    /** Fließ-Layout der Schalter: x/y relativ zum Panel; gibt die Panel-Höhe zurück. */
+    private static int layoutKillToggles(net.minecraft.client.font.TextRenderer tr, int areaW, int[][] out) {
+        int pad = 6;
+        int x = pad, row = 0;
+        for (int i = 0; i < KILL_TOGGLES.size(); i++) {
+            int lw = tr.getWidth(CustomGuiUtils.getFontText(KILL_TOGGLES.get(i).label()));
+            int itemW = KILL_TOGGLE_W + 5 + lw + 14;
+            if (x > pad && x + itemW > areaW - pad) {
+                x = pad;
+                row++;
+            }
+            if (out != null) out[i] = new int[]{x, pad + row * KILL_ROW_H};
+            x += itemW;
+        }
+        return pad * 2 + (row + 1) * KILL_ROW_H - 4;
+    }
+
+    private static int cardsAreaWidth(int columnWidth) {
+        int totalW = columnWidth * 2 + 16;
+        boolean showPreview = totalW >= 380;
+        int previewW = showPreview ? Math.clamp((int) (totalW * 0.35f), 160, 210) : 0;
+        return showPreview ? (totalW - previewW - 14) : totalW;
+    }
+
+    /** Aktualisiert die Höhe der Einstellungen für die aktuelle Breite. */
+    private static void updateKillSettingsHeight(BameClientScreen screen, int columnWidth) {
+        if (screen == null || screen.getTextRenderer() == null) return;
+        killSettingsHeight = layoutKillToggles(screen.getTextRenderer(), cardsAreaWidth(columnWidth), null) + 8;
+    }
+
+    private static void renderKillSettings(BameClientScreen screen, DrawContext c, int x, int y, int w, int mx, int my) {
+        int[][] pos = new int[KILL_TOGGLES.size()][];
+        int panelH = layoutKillToggles(screen.getTextRenderer(), w, pos);
+        CustomGuiUtils.fillUltraRounded(c, x, y, w, panelH, 0xFF0E111A, 5.0f);
+        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, panelH, 0xFF1E2436, 5.0f);
+        killToggleHits.clear();
+        for (int i = 0; i < KILL_TOGGLES.size(); i++) {
+            KillToggle t = KILL_TOGGLES.get(i);
+            int tx = x + pos[i][0];
+            int ty = y + pos[i][1];
+            boolean on = t.get().getAsBoolean();
+            com.bame.client.gui.CustomToggleWidget.draw(c, tx, ty + 1, KILL_TOGGLE_W, KILL_TOGGLE_H, on);
+            int lw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(t.label()));
+            boolean hover = screen.inside(mx, my, tx, ty - 1, KILL_TOGGLE_W + 5 + lw, KILL_ROW_H - 2);
+            screen.text(c, t.label(), tx + KILL_TOGGLE_W + 5, ty + 2, hover ? 0xFFFFFFFF : (on ? 0xFFCBD5E1 : 0xFF8E95A4));
+            killToggleHits.add(new KillToggleHit(t, tx, ty - 1, KILL_TOGGLE_W + 5 + lw, KILL_ROW_H - 2));
+        }
+    }
+
+    /**
+     * Abstand (px ab Inhaltsbeginn) aller Abschnitte und Items der aktuellen Ansicht, so wie {@link #render} sie
+     * zeichnet. Gibt die Abschnitts-Map zurück; {@code sectionsOut}/{@code itemsOut} werden befüllt, falls gesetzt.
+     */
+    public static Map<String, Integer> computeOffsets(String search, Map<String, Integer> sectionsOut, Map<String, Integer> itemsOut) {
+        return computeOffsets(getActiveSections(search), sectionsOut, itemsOut);
+    }
+
+    private static Map<String, Integer> computeOffsets(List<CosmeticSection> active, Map<String, Integer> sectionsOut, Map<String, Integer> itemsOut) {
+        Map<String, Integer> sections = sectionsOut != null ? sectionsOut : new HashMap<>();
+        int relY = topBannerHeight();
+        boolean headers = showsSectionHeaders();
+        for (CosmeticSection sec : active) {
+            sections.put(sec.id.toUpperCase(Locale.ROOT), relY);
+            if (headers) relY += HEADER_HEIGHT;
+            if (itemsOut != null) {
+                for (int i = 0; i < sec.items.size(); i++) {
+                    itemsOut.put(sec.items.get(i).id.toLowerCase(Locale.ROOT), relY + (i / COLS) * (CARD_HEIGHT + CARD_GAP));
+                }
+            }
+            int rows = (sec.items.size() + COLS - 1) / COLS;
+            relY += rows * (CARD_HEIGHT + CARD_GAP);
+        }
+        return sections;
+    }
+
+    /** Überschrift des Inhalts oben in der Leiste (z. B. "HAT" oder "EMOTES • SPORT"). */
+    public static String currentViewTitle() {
+        if ("SKINS".equalsIgnoreCase(subCategory)) return "SKINS";
+        if (isKillEffectsView()) return "KILLEFFECTS";
+        boolean emotes = "EMOTES".equalsIgnoreCase(subCategory);
+        String sub = switch (currentScrolledCategory == null ? "" : currentScrolledCategory) {
+            case "WINGS" -> emotes ? null : "WINGS";
+            case "HEAD" -> emotes ? null : "HAT";
+            case "ACCESSORIES" -> emotes ? null : "ACCESSORIES";
+            case "PETS" -> emotes ? null : "PET";
+            case "FACE" -> emotes ? null : "FACE";
+            case EMOTES_BASIC -> "BASIC";
+            case EMOTES_SPORT -> "SPORT";
+            case EMOTES_PARTNER -> "PARTNER";
+            case EMOTES_SPECIAL -> "SPECIAL";
+            default -> null;
+        };
+        boolean emoteSection = currentScrolledCategory != null && currentScrolledCategory.startsWith("EMOTES_");
+        if (emotes || emoteSection) return sub != null ? "EMOTES • " + sub : "EMOTES";
+        return sub != null ? sub : "ALL COSMETICS";
     }
 
     private static String equippedAccLabel(String id) {
@@ -240,6 +470,7 @@ public class CosmeticsTab implements ClientTab {
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(CaeserSkinManager.getActiveSkinId());
+                case "KILLEFFECTS" -> id.equalsIgnoreCase(CosmeticsConfig.killEffect);
                 default -> false;
             };
         }
@@ -252,6 +483,7 @@ public class CosmeticsTab implements ClientTab {
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(previewSkin != null ? previewSkin : CaeserSkinManager.getActiveSkinId());
+                case "KILLEFFECTS" -> id.equalsIgnoreCase(CosmeticsConfig.killEffect);
                 default -> false;
             };
         }
@@ -336,23 +568,34 @@ public class CosmeticsTab implements ClientTab {
                         previewSkin = id;
                     }
                 }
+                case "KILLEFFECTS" -> {
+                    // höchstens ein Kill-Effekt; erneuter Klick legt ihn ab
+                    CosmeticsConfig.setKillEffect(isEquipped() ? "none" : id);
+                }
             }
         }
     }
 
     public static class CosmeticSection {
+        /** Abschnitts-ID für Sprung/Scroll-Spy: bei Cosmetics die Kategorie, bei Emotes die Gruppe (EMOTES_SPORT ...). */
+        public final String id;
         public final String title;
         public final String category;
         public final List<CosmeticItem> items;
 
         public CosmeticSection(String title, String category, List<CosmeticItem> items) {
+            this(category, title, category, items);
+        }
+
+        public CosmeticSection(String id, String title, String category, List<CosmeticItem> items) {
+            this.id = id;
             this.title = title;
             this.category = category;
             this.items = items;
         }
     }
 
-    public List<CosmeticSection> getAllSections() {
+    public static List<CosmeticSection> getAllSections() {
         List<CosmeticSection> sections = new ArrayList<>();
         sections.add(new CosmeticSection("WINGS", "WINGS", List.of(
                 new CosmeticItem("angel", "WINGS", "Gold Wings", "Golden wings with shimmer animation"),
@@ -378,13 +621,34 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("sunglasses", "FACE", "Sunglasses", "Cool black shades"),
                 new CosmeticItem("skull_mask", "FACE", "Skull Mask", "Spooky skull face mask")
         )));
-        sections.add(new CosmeticSection("EMOTES", "EMOTES", List.of(
-                new CosmeticItem("t_pose", "EMOTES", "T-Pose", "Free Emote • T-Pose"),
-                new CosmeticItem("sit", "EMOTES", "Sitzen", "Free Emote • Sit down"),
-                new CosmeticItem("wheelchair", "EMOTES", "Rollstuhl", "Sports wheelchair with rotating wheels"),
-                new CosmeticItem("basketball", "EMOTES", "Basketball", "Dribble, crossover and finger spin"),
-                new CosmeticItem("juggle", "EMOTES", "Jonglieren", "Juggle soccer ball with feet")
+        // Emotes: Kategorie bleibt "EMOTES" (Freischaltung/Ausrüsten), gruppiert in eigene Abschnitte
+        sections.add(new CosmeticSection(EMOTES_BASIC, "BASIC", "EMOTES", List.of(
+                emote(com.bame.client.emotes.EmoteType.T_POSE, "t_pose"),
+                emote(com.bame.client.emotes.EmoteType.SIT, "sit")
         )));
+        sections.add(new CosmeticSection(EMOTES_SPORT, "SPORT", "EMOTES", List.of(
+                emote(com.bame.client.emotes.EmoteType.BASKETBALL, "basketball"),
+                emote(com.bame.client.emotes.EmoteType.PUSH_UPS, "push_ups"),
+                emote(com.bame.client.emotes.EmoteType.WHEELCHAIR, "wheelchair")
+        )));
+        sections.add(new CosmeticSection(EMOTES_PARTNER, "PARTNER", "EMOTES", List.of(
+                emote(com.bame.client.emotes.EmoteType.HIGH_FIVE, "high_five")
+        )));
+        sections.add(new CosmeticSection(EMOTES_SPECIAL, "SPECIAL", "EMOTES", List.of(
+                emote(com.bame.client.emotes.EmoteType.JUGGLE, "juggle"),
+                emote(com.bame.client.emotes.EmoteType.CAMPFIRE, "campfire"),
+                emote(com.bame.client.emotes.EmoteType.HAMMOCK, "hammock"),
+                emote(com.bame.client.emotes.EmoteType.SWING, "swing"),
+                emote(com.bame.client.emotes.EmoteType.PICNIC, "picnic"),
+                emote(com.bame.client.emotes.EmoteType.BUTTERFLY, "butterfly")
+        )));
+
+        // Kill-Effekte (Jeton-Shop-Kategorie KILLEFFECTS): eigene Ansicht, höchstens einer ausgerüstet
+        List<CosmeticItem> killItems = new ArrayList<>();
+        for (com.bame.client.killfx.KillEffectType t : com.bame.client.killfx.KillEffectType.values()) {
+            killItems.add(new CosmeticItem(t.id, KILLEFFECTS_DROPDOWN_ID, t.displayName, t.description));
+        }
+        sections.add(new CosmeticSection(KILLEFFECTS_DROPDOWN_ID, "KILLEFFECTS", KILLEFFECTS_DROPDOWN_ID, killItems));
 
         // SKINS from Caeser Client Launcher
         List<CosmeticItem> skinItems = new ArrayList<>();
@@ -395,7 +659,31 @@ public class CosmeticsTab implements ClientTab {
         }
         sections.add(new CosmeticSection("SKINS", "SKINS", skinItems));
 
-        return sections;
+        return hideInactiveUnowned(sections);
+    }
+
+    /** Emote-Karte mit englischem Namen und Beschreibung aus {@link com.bame.client.emotes.EmoteType}. */
+    private static CosmeticItem emote(com.bame.client.emotes.EmoteType type, String id) {
+        return new CosmeticItem(id, "EMOTES", type.getDisplayName(), type.getDescription());
+    }
+
+    /** Jeton-Shop: inaktive Items (active == false), die man nicht besitzt, werden ausgeblendet. */
+    private static List<CosmeticSection> hideInactiveUnowned(List<CosmeticSection> sections) {
+        List<CosmeticSection> result = new ArrayList<>(sections.size());
+        for (CosmeticSection sec : sections) {
+            if ("SKINS".equalsIgnoreCase(sec.category)) {
+                result.add(sec);
+                continue;
+            }
+            List<CosmeticItem> visible = new ArrayList<>(sec.items.size());
+            for (CosmeticItem item : sec.items) {
+                com.bame.client.shop.Wallet.ShopItem shopItem = com.bame.client.shop.Wallet.item(item.id);
+                if (shopItem != null && !shopItem.active() && !item.isUnlocked()) continue;
+                visible.add(item);
+            }
+            if (!visible.isEmpty()) result.add(new CosmeticSection(sec.id, sec.title, sec.category, visible));
+        }
+        return result;
     }
 
     public CosmeticsTab() {
@@ -490,7 +778,10 @@ public class CosmeticsTab implements ClientTab {
                 || "begleiter".contains(q) || "mini".contains(q) || "skin".contains(q)
                 || "emote".contains(q) || "emotes".contains(q)
                 || "hat".contains(q) || "hut".contains(q) || "face".contains(q) || "gesicht".contains(q)
-                || "brille".contains(q) || "maske".contains(q);
+                || "brille".contains(q) || "maske".contains(q)
+                || "killeffects".contains(q) || "kill effects".contains(q) || "killeffekte".contains(q)
+                || "totem".contains(q) || "lightning".contains(q) || "blitz".contains(q)
+                || "gravestone".contains(q) || "tombstone".contains(q) || "grabstein".contains(q);
     }
 
     // Zusätzliche Suchbegriffe (DE/EN) pro Kategorie
@@ -499,6 +790,7 @@ public class CosmeticsTab implements ClientTab {
             case "HEAD" -> "hat hut kopf head";
             case "FACE" -> "face gesicht brille maske glasses mask";
             case "PETS" -> "pet pets begleiter";
+            case "KILLEFFECTS" -> "kill kills killeffects kill effects killeffekte effekt effect totem lightning bolt grave gravestone tombstone blitz grabstein coffin casket sarg anvil amboss";
             default -> "";
         };
     }
@@ -516,12 +808,15 @@ public class CosmeticsTab implements ClientTab {
         };
     }
 
-    private List<CosmeticSection> getActiveSections(String search) {
+    private static List<CosmeticSection> getActiveSections(String search) {
         List<CosmeticSection> result = new ArrayList<>();
         String q = (search != null) ? search.trim().toLowerCase(Locale.ROOT) : "";
 
         for (CosmeticSection sec : getAllSections()) {
-            if ("ALL".equalsIgnoreCase(subCategory) && sec.category.equalsIgnoreCase("SKINS") && q.isEmpty()) {
+            // Skins und Emotes nur in ihrer eigenen Kategorie (bzw. bei einer Suche) zeigen, nicht unter "Alle"
+            if ("ALL".equalsIgnoreCase(subCategory) && q.isEmpty()
+                    && (sec.category.equalsIgnoreCase("SKINS") || sec.category.equalsIgnoreCase("EMOTES")
+                    || sec.category.equalsIgnoreCase(KILLEFFECTS_DROPDOWN_ID))) {
                 continue;
             }
             if (!"ALL".equalsIgnoreCase(subCategory) && !sec.category.equalsIgnoreCase(subCategory)) {
@@ -540,7 +835,7 @@ public class CosmeticsTab implements ClientTab {
                 filteredItems.add(item);
             }
             if (!filteredItems.isEmpty()) {
-                result.add(new CosmeticSection(sec.title, sec.category, filteredItems));
+                result.add(new CosmeticSection(sec.id, sec.title, sec.category, filteredItems));
             }
         }
         return result;
@@ -553,11 +848,13 @@ public class CosmeticsTab implements ClientTab {
         int startY = Math.max(tracker.leftY, tracker.rightY);
         int curY = startY;
 
+        if (isKillEffectsView()) updateKillSettingsHeight(screen, columnWidth);
         List<CosmeticSection> activeSections = getActiveSections(search);
-        boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
+        boolean headers = showsSectionHeaders();
+        curY += topBannerHeight();
 
         for (CosmeticSection sec : activeSections) {
-            if (isAllMode) {
+            if (headers) {
                 curY += HEADER_HEIGHT;
             }
             int rows = (sec.items.size() + COLS - 1) / COLS;
@@ -573,14 +870,13 @@ public class CosmeticsTab implements ClientTab {
         if (!isVisible(search)) return;
         int startY = Math.max(tracker.leftY, tracker.rightY);
         int curY = startY;
+        if (isKillEffectsView()) updateKillSettingsHeight(screen, columnWidth);
         List<CosmeticSection> activeSections = getActiveSections(search);
 
-        boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
-        if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
-            curY += 24;
-        }
+        boolean headers = showsSectionHeaders();
+        curY += topBannerHeight();
         for (CosmeticSection sec : activeSections) {
-            if (isAllMode) {
+            if (headers) {
                 curY += HEADER_HEIGHT;
             }
             int rows = (sec.items.size() + COLS - 1) / COLS;
@@ -611,33 +907,29 @@ public class CosmeticsTab implements ClientTab {
 
         List<CosmeticSection> activeSections = getActiveSections(search);
         int curY = cardStartY;
+        boolean headers = showsSectionHeaders();
         boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
 
         // Update coordinate mappings for scroll-spy and quick jump
-        int relY = 0;
         SECTION_Y_MAP.clear();
         ITEM_Y_MAP.clear();
-        String detectedCategory = "WINGS";
+        computeOffsets(activeSections, SECTION_Y_MAP, ITEM_Y_MAP);
         double currentScroll = screen.getScroll();
-
-        for (CosmeticSection sec : activeSections) {
-            SECTION_Y_MAP.put(sec.category.toUpperCase(Locale.ROOT), relY);
-            if (currentScroll + 35 >= relY) {
-                detectedCategory = sec.category.toUpperCase(Locale.ROOT);
+        if (headers) {
+            // Scroll-Spy: letzter Abschnitt, dessen Anfang oben erreicht ist; ein per Seitenleiste angesprungener
+            // Abschnitt bleibt markiert, solange nicht gescrollt wurde (auch wenn der Sprung am Ende begrenzt war)
+            String detected = null;
+            for (CosmeticSection sec : activeSections) {
+                String id = sec.id.toUpperCase(Locale.ROOT);
+                if (detected == null || currentScroll + 35 >= SECTION_Y_MAP.getOrDefault(id, 0)) detected = id;
             }
-            if (isAllMode) {
-                relY += HEADER_HEIGHT;
+            if (pinnedSection != null && Math.abs(currentScroll - pinnedScroll) < 0.5
+                    && SECTION_Y_MAP.containsKey(pinnedSection)) {
+                detected = pinnedSection;
+            } else {
+                pinnedSection = null;
             }
-            for (int i = 0; i < sec.items.size(); i++) {
-                CosmeticItem item = sec.items.get(i);
-                int row = i / COLS;
-                ITEM_Y_MAP.put(item.id.toLowerCase(Locale.ROOT), relY + row * (CARD_HEIGHT + CARD_GAP));
-            }
-            int rows = (sec.items.size() + COLS - 1) / COLS;
-            relY += rows * (CARD_HEIGHT + CARD_GAP);
-        }
-        if (isAllMode) {
-            currentScrolledCategory = detectedCategory;
+            if (detected != null) currentScrolledCategory = detected;
         }
 
         if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
@@ -651,9 +943,18 @@ public class CosmeticsTab implements ClientTab {
             curY += bannerH + 6;
         }
 
+        killTestHits.clear();
+        if (isKillEffectsView()) {
+            updateKillSettingsHeight(screen, columnWidth);
+            renderKillSettings(screen, c, leftX, curY, cardsAreaW, mx, my);
+            curY += killSettingsHeight;
+        }
+
         for (CosmeticSection sec : activeSections) {
-            if (isAllMode) {
-                renderSectionHeader(screen, c, sec.title, leftX, curY, cardsAreaW);
+            if (headers) {
+                // In der Cosmetics-Ansicht (nur bei einer Suche) Emote-Gruppen als "EMOTES • SPORT" kennzeichnen
+                String title = (isAllMode && "EMOTES".equalsIgnoreCase(sec.category)) ? "EMOTES • " + sec.title : sec.title;
+                renderSectionHeader(screen, c, title, leftX, curY, cardsAreaW);
                 curY += HEADER_HEIGHT;
             }
 
@@ -683,6 +984,122 @@ public class CosmeticsTab implements ClientTab {
         tracker.rightY = curY;
     }
 
+    /** "Test"-Knopf unten rechts auf einer Kill-Effekt-Karte. */
+    private static int[] killTestButton(BameClientScreen screen, int x, int y, int w, int h) {
+        int bw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText("Test")) + 10;
+        int bh = 13;
+        return new int[]{x + w - bw - 5, y + h - bh - 4, bw, bh};
+    }
+
+    private static String ellipsize(BameClientScreen screen, String s, int maxW) {
+        if (screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(s)) <= maxW) return s;
+        String cut = s;
+        while (cut.length() > 1 && screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(cut + "…")) > maxW) {
+            cut = cut.substring(0, cut.length() - 1);
+        }
+        return cut + "…";
+    }
+
+    /** Bricht die Beschreibung in höchstens {@code maxLines} Zeilen um (letzte Zeile mit "…" gekürzt). */
+    private static List<String> wrapDescription(BameClientScreen screen, String text, int maxW, int maxLines) {
+        List<String> out = new ArrayList<>();
+        if (text == null || text.isBlank() || maxLines <= 0) return out;
+        String[] words = text.trim().split("\\s+");
+        String line = "";
+        for (int i = 0; i < words.length; i++) {
+            String candidate = line.isEmpty() ? words[i] : line + " " + words[i];
+            if (screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(candidate)) <= maxW) {
+                line = candidate;
+                continue;
+            }
+            if (out.size() == maxLines - 1) {
+                // letzte erlaubte Zeile: Rest anhängen und kürzen
+                String rest = String.join(" ", java.util.Arrays.copyOfRange(words, i, words.length));
+                out.add(ellipsize(screen, line.isEmpty() ? rest : line + " " + rest, maxW));
+                return out;
+            }
+            if (!line.isEmpty()) out.add(line);
+            line = words[i];
+        }
+        if (!line.isEmpty()) out.add(line);
+        out.replaceAll(s -> ellipsize(screen, s, maxW));
+        return out;
+    }
+
+    /** Kill-Effekt-Karte: Name, Schloss, animierte Vorschau, Beschreibung, Preis bzw. EQUIPPED und "Test". */
+    private void renderKillEffectCard(BameClientScreen screen, DrawContext c, CosmeticItem item,
+                                      int x, int y, int w, int h, int mx, int my) {
+        com.bame.client.killfx.KillEffectType type = com.bame.client.killfx.KillEffectType.fromId(item.id);
+        boolean equipped = item.isEquipped();
+        boolean unlocked = item.isUnlocked();
+        // Breite links unten (Preis bzw. EQUIPPED): passt "Test" nicht daneben, kommt es eine Zeile höher
+        String eq = "EQUIPPED";
+        int leftW = 0;
+        if (!unlocked) {
+            com.bame.client.shop.Wallet.ShopItem shopItem = com.bame.client.shop.Wallet.item(item.id);
+            if (shopItem != null && shopItem.price() > 0) {
+                leftW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText("◆ " + shopItem.price())) + 10;
+            }
+        } else if (equipped) {
+            leftW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eq)) + 10;
+        }
+        int[] tb = killTestButton(screen, x, y, w, h);
+        boolean compact = leftW > 0 && 5 + leftW + 6 + tb[2] + 5 > w;
+        if (compact) tb[1] -= 15;
+        boolean hoverTest = screen.inside(mx, my, tb[0], tb[1], tb[2], tb[3]);
+        boolean hover = screen.inside(mx, my, x, y, w, h) && !hoverTest;
+
+        int bg = equipped ? 0xFF131724 : (hover ? 0xFF161A28 : (unlocked ? 0xFF0E111A : 0xFF0A0D15));
+        CustomGuiUtils.fillUltraRounded(c, x, y, w, h, bg, 6.0f);
+        int border = equipped ? GuiTheme.accent() : (hover ? (unlocked ? 0xFF3E4860 : 0xFF2A344A) : 0xFF1E2436);
+        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, border, 6.0f);
+        if (equipped) c.fill(x + 6, y + 1, x + w - 6, y + 2, GuiTheme.accent());
+
+        int titleColor = equipped ? 0xFFFFFFFF : (hover ? 0xFFF1F5F9 : (unlocked ? 0xFFCBD5E1 : 0xFF64748B));
+        screen.text(c, ellipsize(screen, item.name, w - 26), x + 6, y + 6, titleColor);
+        int lockX = x + w - 13 - 5;
+        CustomGuiUtils.drawLockIcon(c, lockX + 2, y + 6, !unlocked, unlocked ? 0xFF22C55E : 0xFFEF4444);
+
+        // Beschreibung: bis zu zwei Zeilen (schmale Karte: eine Zeile über dem Testen-Knopf)
+        int descColor = unlocked ? 0xFF94A3B8 : 0xFF64748B;
+        int bottomRowsTop = compact ? y + h - 31 : y + h - 18;
+        List<String> lines = wrapDescription(screen, item.desc, w - 12, compact ? 1 : 2);
+        int descTop = bottomRowsTop - 2 - lines.size() * 10;
+        for (int i = 0; i < lines.size(); i++) {
+            screen.text(c, lines.get(i), x + 6, descTop + i * 10, descColor);
+        }
+
+        // Animierte Vorschau
+        int pvTop = y + 18;
+        int pvBottom = descTop - 2;
+        if (pvBottom - pvTop > 16) {
+            c.enableScissor(x + 2, pvTop, x + w - 2, pvBottom);
+            com.bame.client.killfx.KillEffectPreview.draw(c, type, x + 4, pvTop, w - 8, pvBottom - pvTop,
+                    System.currentTimeMillis());
+            c.disableScissor();
+        }
+
+        // Unten links: Preis (gesperrt) bzw. EQUIPPED
+        if (!unlocked) {
+            com.bame.client.gui.ShopOverlay.renderPriceBadge(screen, c, item.id, x, y, w, h);
+        } else if (equipped) {
+            int ew = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eq)) + 10;
+            int ex = x + 5, ey = y + h - 16;
+            CustomGuiUtils.fillUltraRounded(c, ex, ey, ew, 12, GuiTheme.alpha(GuiTheme.accent(), 60), 3.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, ex, ey, ew, 12, GuiTheme.accent(), 3.0f);
+            screen.text(c, eq, ex + 5, ey + 2, 0xFFFFFFFF);
+        }
+
+        // Unten rechts: Test (auch für nicht gekaufte Effekte)
+        boolean ready = com.bame.client.killfx.KillEffects.testReady();
+        int tbBg = hoverTest && ready ? GuiTheme.alpha(GuiTheme.accent(), 90) : 0xFF181C26;
+        int tbBorder = hoverTest && ready ? GuiTheme.accent() : 0xFF2A344A;
+        CustomGuiUtils.fillUltraRounded(c, tb[0], tb[1], tb[2], tb[3], tbBg, 3.0f);
+        CustomGuiUtils.drawUltraRoundedOutline(c, tb[0], tb[1], tb[2], tb[3], tbBorder, 3.0f);
+        screen.text(c, "Test", tb[0] + 5, tb[1] + 3, ready ? (hoverTest ? 0xFFFFFFFF : 0xFFCBD5E1) : 0xFF4B5563);
+        if (type != null) killTestHits.add(new KillTestHit(type, tb[0], tb[1], tb[2], tb[3]));
+    }
+
     private void renderSectionHeader(BameClientScreen screen, DrawContext c, String title, int x, int y, int w) {
         int textW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(title));
         int lineW = Math.max(16, (w - textW - 24) / 2);
@@ -700,6 +1117,10 @@ public class CosmeticsTab implements ClientTab {
 
     private void renderCosmeticCard(BameClientScreen screen, DrawContext c, MinecraftClient mc,
                                     CosmeticItem item, int x, int y, int w, int h, int mx, int my, float delta) {
+        if (KILLEFFECTS_DROPDOWN_ID.equalsIgnoreCase(item.category)) {
+            renderKillEffectCard(screen, c, item, x, y, w, h, mx, my);
+            return;
+        }
         boolean equipped = item.isEquipped();
         boolean hover = screen.inside(mx, my, x, y, w, h);
         boolean unlocked = item.isUnlocked();
@@ -802,6 +1223,10 @@ public class CosmeticsTab implements ClientTab {
             }
         }
 
+        // Jeton-Shop: gesperrte Items zeigen ihren Preis (besessene bzw. gratis Items nicht)
+        if (!unlocked && !"SKINS".equalsIgnoreCase(item.category)) {
+            com.bame.client.gui.ShopOverlay.renderPriceBadge(screen, c, item.id, x, y, w, h);
+        }
     }
 
     private void renderPreviewPanel(BameClientScreen screen, DrawContext c, MinecraftClient mc,
@@ -1358,6 +1783,26 @@ public class CosmeticsTab implements ClientTab {
             }
         }
 
+        // Kill-Effekte: Schalter oben in der Ansicht (Positionen vom letzten Frame)
+        if (isKillEffectsView()) {
+            for (KillToggleHit hit : killToggleHits) {
+                if (screen.inside(mx, my, hit.x(), hit.y(), hit.w(), hit.h())) {
+                    hit.toggle().flip().run();
+                    CosmeticsConfig.save();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+        }
+        // Kill-Effekte: "Test" (auch für nicht gekaufte Effekte; schließt das Menü)
+        for (KillTestHit hit : killTestHits) {
+            if (screen.inside(mx, my, hit.x(), hit.y(), hit.w(), hit.h())) {
+                ClientSoundManager.playClick();
+                com.bame.client.killfx.KillEffects.test(hit.type());
+                return true;
+            }
+        }
+
         // 2. Item Cards Click
         int cardStartY = startY;
         int cardsAreaW = showPreview ? (totalW - previewW - 14) : totalW;
@@ -1365,13 +1810,11 @@ public class CosmeticsTab implements ClientTab {
 
         List<CosmeticSection> activeSections = getActiveSections(search);
         int curY = cardStartY;
-        boolean isAllMode = "ALL".equalsIgnoreCase(subCategory);
-        if (assigningToWheelSlot >= 0 && "EMOTES".equalsIgnoreCase(subCategory)) {
-            curY += 24;
-        }
+        boolean headers = showsSectionHeaders();
+        curY += topBannerHeight();
 
         for (CosmeticSection sec : activeSections) {
-            if (isAllMode) {
+            if (headers) {
                 curY += HEADER_HEIGHT;
             }
 
@@ -1384,19 +1827,18 @@ public class CosmeticsTab implements ClientTab {
 
                 // Clicking anywhere on the card toggles equipment!
                 if (screen.inside(mx, my, cardX, cardY, colW, CARD_HEIGHT)) {
+                    if (KILLEFFECTS_DROPDOWN_ID.equalsIgnoreCase(item.category)) {
+                        // Gesperrt: Kauf-Popup des Jeton-Shops; besessen: ausrüsten bzw. ablegen
+                        if (!item.isUnlocked()) com.bame.client.gui.ShopOverlay.openBuy(item);
+                        else item.toggleEquipped();
+                        ClientSoundManager.playClick();
+                        return true;
+                    }
                     if (!item.isUnlocked()) {
-                        MinecraftClient mc = MinecraftClient.getInstance();
-                        if (mc.player != null) {
-                            mc.player.playSound(net.minecraft.sound.SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                        }
-                        com.bame.client.notification.NotificationManager.add(
-                            new com.bame.client.notification.Notification(
-                                "🔒 Gesperrt",
-                                "Du hast \"" + item.name + "\" noch nicht freigeschaltet!",
-                                com.bame.client.notification.Notification.Type.DISABLED,
-                                2800
-                            )
-                        );
+                        // Jeton-Shop: Vorschau geht immer, dazu die Kauf-Bestätigung
+                        item.selectForPreview();
+                        com.bame.client.gui.ShopOverlay.openBuy(item);
+                        ClientSoundManager.playClick();
                         return true;
                     }
 

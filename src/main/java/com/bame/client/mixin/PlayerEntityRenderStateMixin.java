@@ -47,4 +47,17 @@ public class PlayerEntityRenderStateMixin implements EmotePreviewHolder {
     public String caeser$getPlayerUsername() {
         return this.caeser$playerUsername;
     }
+
+    @Unique
+    private java.util.UUID caeser$playerUuid;
+
+    @Override
+    public void caeser$setPlayerUuid(java.util.UUID uuid) {
+        this.caeser$playerUuid = uuid;
+    }
+
+    @Override
+    public java.util.UUID caeser$getPlayerUuid() {
+        return this.caeser$playerUuid;
+    }
 }

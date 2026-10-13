@@ -1,34 +1,46 @@
 package com.bame.client.emotes;
 
 public enum EmoteType {
-    NONE("Keins", "NONE", "", "Keine Animation"),
-    WAVE("Winken", "WAVE", "\uD83D\uDC4B", "Freundlich mit der Hand winken"),
-    SIT("Sitzen", "SIT", "\uD83E\uDE91", "Gemütlich auf den Boden setzen"),
-    T_POSE("T-Pose", "TPOSE", "🧍", "Arme waagerecht ausstrecken"),
-    JUGGLE("Jonglieren", "JUGGLE", "⚽", "Fußball mit den Füßen jonglieren"),
-    BASKETBALL("Basketball", "BASKETBALL", "🏀", "Dribbeln, Crossover & Finger-Spin"),
-    WHEELCHAIR("Rollstuhl", "WHEELCHAIR", "♿", "Realistischer Sport-Rollstuhl mit drehenden Rädern & Fahren"),
-    ZOMBIE("Zombie", "ZOMBIE", "🧟", "Arme wie ein Zombie nach vorne"),
-    STOP("Beenden", "STOP", "\u23F9", "Aktuelle Animation beenden");
+    NONE("None", "NONE", "", "No animation"),
+    WAVE("Wave", "WAVE", "\uD83D\uDC4B", "Give a friendly wave"),
+    SIT("Sit", "SIT", "\uD83E\uDE91", "Free emote • Sit down on the ground"),
+    T_POSE("T-Pose", "TPOSE", "🧍", "Free emote • Arms straight out"),
+    JUGGLE("Juggle", "JUGGLE", "⚽", "Juggle a soccer ball with your feet"),
+    BASKETBALL("Basketball", "BASKETBALL", "🏀", "Dribble, crossover and finger spin"),
+    WHEELCHAIR("Wheelchair", "WHEELCHAIR", "♿", "Sports wheelchair with spinning wheels"),
+    ZOMBIE("Zombie", "ZOMBIE", "🧟", "Arms forward like a zombie"),
+    BUTTERFLY("Butterfly", "BUTTERFLY", "🔪", "Butterfly knife inspect: flip, spin & toss"),
+    PUSH_UPS("Push-Ups", "PUSHUPS", "💪", "Push-ups from the plank position"),
+    HIGH_FIVE("High-Five", "HIGHFIVE", "✋", "Raise your hand: nearby players high-five you with [F]"),
+    /**
+     * Verstecktes Gratis-Emote (Backend-Item HIGH_FIVE_ACCEPT): wird nur gespielt, wenn man bei einem wartenden
+     * High-Five-Spieler die Einschlagen-Taste drückt. Nicht im Menü, im Emote-Rad oder im Shop.
+     */
+    HIGH_FIVE_ACCEPT("High-Five (accept)", "HIGHFIVEACCEPT", "✋", "Accept a waiting high-five"),
+    CAMPFIRE("Campfire", "CAMPFIRE", "🔥", "Sit by the campfire and roast marshmallows"),
+    HAMMOCK("Hammock", "HAMMOCK", "🏝", "Relax in a hammock and sway gently"),
+    SWING("Swing", "SWING", "🎠", "Swing high on a wooden swing set — friends can take the second seat"),
+    PICNIC("Picnic", "PICNIC", "🧺", "Sit on a picnic blanket with a sandwich and a drink"),
+    STOP("Stop", "STOP", "\u23F9", "Stop the current animation");
 
-    private final String nameDe;
-    private final String nameEn;
+    /** Englischer Anzeigename für Spieler (Menü-Karten, Emote-Rad, Kauf-Dialog). Backend-ID bleibt {@link #name()}. */
+    private final String displayName;
+    /** Zusätzlicher Bezeichner (z. B. "PUSHUPS"), den {@link #fromId} akzeptiert; wird nicht angezeigt. */
+    private final String alias;
     private final String icon;
+    /** Kurze englische Beschreibung (Menü-Karten/Suche). */
     private final String description;
 
-    EmoteType(String nameDe, String nameEn, String icon, String description) {
-        this.nameDe = nameDe;
-        this.nameEn = nameEn;
+    EmoteType(String displayName, String alias, String icon, String description) {
+        this.displayName = displayName;
+        this.alias = alias;
         this.icon = icon;
         this.description = description;
     }
 
-    public String getNameDe() {
-        return nameDe;
-    }
-
-    public String getNameEn() {
-        return nameEn;
+    /** Englischer Anzeigename, z. B. "Push-Ups". */
+    public String getDisplayName() {
+        return displayName;
     }
 
     public String getIcon() {
@@ -41,14 +53,20 @@ public enum EmoteType {
 
     public boolean allowsWalking() {
         return this == T_POSE || this == WAVE || this == BASKETBALL
-                || this == WHEELCHAIR || this == ZOMBIE || this == JUGGLE;
+                || this == WHEELCHAIR || this == ZOMBIE || this == JUGGLE || this == BUTTERFLY || this == HIGH_FIVE
+                || this == HIGH_FIVE_ACCEPT;
+    }
+
+    /** Interne Emotes: nicht auswählbar (Menü, Emote-Rad, Shop), werden nur vom Client selbst ausgelöst. */
+    public boolean isHidden() {
+        return this == HIGH_FIVE_ACCEPT;
     }
 
     public static EmoteType fromId(String id) {
         if (id == null || id.isBlank()) return null;
         String clean = id.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
         for (EmoteType type : values()) {
-            if (type.name().equalsIgnoreCase(clean) || type.nameEn.equalsIgnoreCase(clean) || type.name().replace("_", "").equalsIgnoreCase(clean.replace("_", ""))) {
+            if (type.name().equalsIgnoreCase(clean) || type.alias.equalsIgnoreCase(clean) || type.name().replace("_", "").equalsIgnoreCase(clean.replace("_", ""))) {
                 return type;
             }
         }

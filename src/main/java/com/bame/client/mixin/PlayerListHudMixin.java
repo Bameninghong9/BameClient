@@ -25,8 +25,9 @@ public class PlayerListHudMixin {
         }
 
         String username = (entry != null && entry.getProfile() != null) ? entry.getProfile().name() : null;
-        if (username != null && CaeserPlayerSyncManager.isCaeserPlayer(username)) {
-            String badge = CaeserPlayerSyncManager.getPlayerBadgePrefix(username);
+        java.util.UUID uuid = (entry != null && entry.getProfile() != null) ? entry.getProfile().id() : null;
+        if ((uuid != null || username != null) && CaeserPlayerSyncManager.isCaeserPlayer(uuid, username)) {
+            String badge = CaeserPlayerSyncManager.getPlayerBadgePrefix(uuid, username);
             if (badge != null && !badge.isEmpty()) {
                 original = Text.literal(badge).append(original);
                 modified = true;

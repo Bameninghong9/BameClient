@@ -267,6 +267,19 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         return null;
     }
 
+    /** Lokaler Wert, falls besessen, sonst "none" (gespeicherter Wert bleibt unverändert). */
+    private static String ownedOrNone(String category, String value) {
+        if (value == null || value.isBlank() || "none".equalsIgnoreCase(value)) return value;
+        return com.bame.client.emotes.EmoteUnlockManager.isCosmeticUnlocked(category, value) ? value : "none";
+    }
+
+    /** Lokal ausgerüstet UND besessen. */
+    private static boolean localAccessory(String id) {
+        return CosmeticsConfig.isAccessoryEquipped(id)
+                && com.bame.client.emotes.EmoteUnlockManager.isCosmeticUnlocked(
+                        "baby_dragon".equals(id) || "jelly_slime".equals(id) ? "PETS" : "ACCESSORIES", id);
+    }
+
     @Override
     public void render(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
                        PlayerEntityRenderState state, float limbAngle, float limbDistance) {
@@ -274,15 +287,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (mc.player == null) return;
 
         // Render cosmetics on the local player OR remote Caeser Client players
-        boolean isLocal = (state.id == mc.player.getId());
-        String rawUsername = getPlayerUsername(state);
-        if (!isLocal && rawUsername != null && mc.getSession() != null) {
-            String cleanStateName = CaeserPlayerSyncManager.cleanUsername(rawUsername);
-            String cleanLocalName = CaeserPlayerSyncManager.cleanUsername(mc.getSession().getUsername());
-            if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
-                isLocal = true;
-            }
-        }
+        // (lokal: Entity-ID bzw. UUID; fremde Spieler werden über ihre UUID nachgeschlagen)
+        boolean isLocal = CaeserPlayerSyncManager.isLocalPlayer(state);
 
         String wings = null;
         String head = null;
@@ -293,13 +299,15 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (isLocal) {
             PetStateManager.tick();
             CosmeticsConfig.checkReload();
-            wings = CosmeticsConfig.wings;
-            head = CosmeticsConfig.head;
-            face = CosmeticsConfig.face;
-            pet = CosmeticsConfig.pet;
+            // Nicht besessene (z. B. vom Launcher gesetzte) Cosmetics wie "none" behandeln
+            wings = ownedOrNone("WINGS", CosmeticsConfig.wings);
+            head = ownedOrNone("HEAD", CosmeticsConfig.head);
+            face = ownedOrNone("FACE", CosmeticsConfig.face);
+            pet = ownedOrNone("ACCESSORIES", CosmeticsConfig.pet);
             accessories = CosmeticsConfig.accessories;
         } else {
-            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(rawUsername);
+            // Bereits bereinigt (Sync-Server) bzw. gegen den OwnershipCache gefiltert (LAN)
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state);
             if (remote != null) {
                 wings = remote.wings;
                 head = remote.head;
@@ -347,12 +355,12 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
             // 3. Accessories & Pets - Multi-equip enabled (nicht in Ego-Perspektive)!
             if (!inFirstPerson) {
-                boolean hasSit = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
-                boolean hasHead = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_head") : ((accessories != null && accessories.contains("minime_head")) || "minime_head".equalsIgnoreCase(pet));
-                boolean hasHand = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_hand") : ((accessories != null && accessories.contains("minime_hand")) || "minime_hand".equalsIgnoreCase(pet));
-                boolean hasChain = isLocal ? CosmeticsConfig.isAccessoryEquipped("minime_chain") : ((accessories != null && accessories.contains("minime_chain")) || "minime_chain".equalsIgnoreCase(pet));
-                boolean hasDragon = isLocal ? CosmeticsConfig.isAccessoryEquipped("baby_dragon") : ((accessories != null && accessories.contains("baby_dragon")) || "baby_dragon".equalsIgnoreCase(pet));
-                boolean hasSlime = isLocal ? CosmeticsConfig.isAccessoryEquipped("jelly_slime") : ((accessories != null && accessories.contains("jelly_slime")) || "jelly_slime".equalsIgnoreCase(pet));
+                boolean hasSit = isLocal ? localAccessory("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
+                boolean hasHead = isLocal ? localAccessory("minime_head") : ((accessories != null && accessories.contains("minime_head")) || "minime_head".equalsIgnoreCase(pet));
+                boolean hasHand = isLocal ? localAccessory("minime_hand") : ((accessories != null && accessories.contains("minime_hand")) || "minime_hand".equalsIgnoreCase(pet));
+                boolean hasChain = isLocal ? localAccessory("minime_chain") : ((accessories != null && accessories.contains("minime_chain")) || "minime_chain".equalsIgnoreCase(pet));
+                boolean hasDragon = isLocal ? localAccessory("baby_dragon") : ((accessories != null && accessories.contains("baby_dragon")) || "baby_dragon".equalsIgnoreCase(pet));
+                boolean hasSlime = isLocal ? localAccessory("jelly_slime") : ((accessories != null && accessories.contains("jelly_slime")) || "jelly_slime".equalsIgnoreCase(pet));
 
                 if (hasSit) renderShoulderPet(matrices, queue, light, state);
                 if (hasHead && renderHead) renderHeadPet(matrices, queue, light, state);
@@ -872,15 +880,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     private static Identifier getPetSkin(String accId, PlayerEntityRenderState state) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        boolean isLocal = (state != null && mc.player != null && state.id == mc.player.getId());
-        String rawName = getPlayerUsername(state);
-        if (!isLocal && rawName != null && mc.getSession() != null) {
-            String cleanStateName = CaeserPlayerSyncManager.cleanUsername(rawName);
-            String cleanLocalName = CaeserPlayerSyncManager.cleanUsername(mc.getSession().getUsername());
-            if (cleanStateName != null && cleanStateName.equalsIgnoreCase(cleanLocalName)) {
-                isLocal = true;
-            }
-        }
+        boolean isLocal = CaeserPlayerSyncManager.isLocalPlayer(state);
 
         if (isLocal) {
             String custom = CosmeticsConfig.getAccessoryCustomPlayer(accId);
@@ -902,8 +902,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             if (mc.player != null && mc.player.getSkin() != null && mc.player.getSkin().body() != null) {
                 return mc.player.getSkin().body().texturePath();
             }
-        } else if (rawName != null) {
-            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(rawName);
+        } else if (state != null) {
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state);
             if (remote != null && remote.petCustomPlayer != null && !remote.petCustomPlayer.trim().isEmpty()) {
                 if ("default".equalsIgnoreCase(remote.petCustomPlayer) && "minime_hand".equalsIgnoreCase(accId)) {
                     return MINIME_HAND_DEFAULT_TEXTURE;

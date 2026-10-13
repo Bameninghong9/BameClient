@@ -365,7 +365,7 @@ public class BameClientConfig {
             if (Files.exists(tabBadgeFile)) {
                 Properties props = loadProps(tabBadgeFile);
                 if (props.containsKey("enabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("badgeType")) TabBadgeModule.badgeType = props.getProperty("badgeType");
+                // "badgeType" wird ignoriert: es gibt nur noch Caeser Bold (c_bold), alte Werte werden beim Speichern ersetzt
                 if (props.containsKey("keyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
                 if (props.containsKey("expanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
             }
@@ -1050,7 +1050,7 @@ public class BameClientConfig {
             // Visuals - Tab Badge
             Properties tabBadgeProps = new Properties();
             tabBadgeProps.setProperty("enabled", String.valueOf(TabBadgeModule.enabled));
-            tabBadgeProps.setProperty("badgeType", TabBadgeModule.badgeType != null ? TabBadgeModule.badgeType : "c");
+            tabBadgeProps.setProperty("badgeType", TabBadgeModule.BADGE_TYPE);
             tabBadgeProps.setProperty("keyBind", String.valueOf(TabBadgeModule.keyBind));
             tabBadgeProps.setProperty("expanded", String.valueOf(TabBadgeModule.expanded));
             saveProps(visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
@@ -1539,7 +1539,6 @@ public class BameClientConfig {
             if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
 
             if (props.containsKey("tabBadgeEnabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("tabBadgeEnabled"));
-            if (props.containsKey("tabBadgeType")) TabBadgeModule.badgeType = props.getProperty("tabBadgeType");
             if (props.containsKey("tabBadgeKeyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("tabBadgeKeyBind"));
             if (props.containsKey("tabBadgeExpanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("tabBadgeExpanded"));
 

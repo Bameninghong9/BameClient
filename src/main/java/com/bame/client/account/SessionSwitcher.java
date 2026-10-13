@@ -237,11 +237,22 @@ public final class SessionSwitcher {
         } catch (Throwable t) {
             LOGGER.warn("Failed to reload cosmetics config after account switch", t);
         }
-        // Freischaltungen hängen an Name/UUID: neu laden
+        // Jeton-Shop: Sync-Verbindung der alten Identität sofort trennen, Wallet leeren (Cache des neuen Accounts
+        // laden) und neu beim Caeser-Backend anmelden. Nach der Anmeldung folgen Wallet-Refresh und neues "hello".
         try {
-            com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
+            com.bame.client.shop.CaeserSyncClient.onAccountChanged();
         } catch (Throwable t) {
-            LOGGER.warn("Failed to refresh emote unlocks after account switch", t);
+            LOGGER.warn("Failed to close cosmetic sync after account switch ({})", t.getClass().getSimpleName());
+        }
+        try {
+            com.bame.client.shop.Wallet.onAccountChanged();
+        } catch (Throwable t) {
+            LOGGER.warn("Failed to reset wallet after account switch ({})", t.getClass().getSimpleName());
+        }
+        try {
+            com.bame.client.shop.CaeserAuth.onAccountChanged();
+        } catch (Throwable t) {
+            LOGGER.warn("Failed to re-login to Caeser backend after account switch ({})", t.getClass().getSimpleName());
         }
         // Account-Skin (Cape/Elytra) in eigenen Skins und Upload-Status zurücksetzen
         try {
@@ -253,10 +264,9 @@ public final class SessionSwitcher {
         try {
             AccountHeads.clear();
         } catch (Throwable ignored) {}
-        // Player-Sync / MQTT: unter neuem Namen anmelden und Cosmetics senden
+        // Player-Sync: fremde Daten verwerfen, State unter der neuen Identität neu senden (LAN-Fallback sofort)
         try {
-            com.bame.client.cosmetics.CaeserPlayerSyncManager.sendRequestSync();
-            com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalCosmetics();
+            com.bame.client.cosmetics.CaeserPlayerSyncManager.onAccountChanged();
         } catch (Throwable t) {
             LOGGER.warn("Failed to re-announce player sync after account switch", t);
         }

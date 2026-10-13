@@ -40,6 +40,8 @@ public class BameClient implements ClientModInitializer {
         com.bame.client.cosmetics.CosmeticsConfig.load();
         com.bame.client.emotes.EmoteUnlockManager.init();
         com.bame.client.cosmetics.CaeserPlayerSyncManager.init();
+        // Taste „High-Five annehmen“ (Standard F) in den Minecraft-Steuerungen
+        com.bame.client.emotes.HighFiveCoordinator.registerKeyBinding();
         if (SpotifyHudModule.enabled) {
             com.bame.client.spotify.SpotifyService.start();
         }
@@ -55,6 +57,22 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
             com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
             com.bame.client.cosmetics.CaeserPlayerSyncManager.onServerJoin();
+        });
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
+                client.execute(com.bame.client.cosmetics.CaeserPlayerSyncManager::onServerLeave));
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
+                client.execute(() -> {
+                    com.bame.client.killfx.KillDetector.reset();
+                    com.bame.client.killfx.KillEffects.clear();
+                }));
+        // Jeton-Shop: nach dem Client-Start (Session und API-Services sind dann sicher da) Cache laden und anmelden
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
+            try {
+                com.bame.client.shop.Wallet.init();
+                com.bame.client.shop.CaeserAuth.login(true).exceptionally(t -> null);
+            } catch (Throwable t) {
+                LOGGER.warn("Caeser backend login could not be started ({})", t.getClass().getSimpleName());
+            }
         });
         // Account-Switcher: Knopf oben links im Multiplayer-Menü (ohne Mixin in MultiplayerScreen)
         net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
@@ -162,7 +180,15 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.module.TriggerbotModule.onTick(client);
             com.bame.client.module.ShieldBreakerModule.onTick(client);
             com.bame.client.module.EmoteModule.onTick(client);
-            
+            com.bame.client.emotes.HighFiveCoordinator.tick(client);
+            com.bame.client.emotes.CampfireCoordinator.tick(client);
+            com.bame.client.emotes.HammockCoordinator.tick(client);
+            com.bame.client.emotes.SwingCoordinator.tick(client);
+            com.bame.client.emotes.PicnicCoordinator.tick(client);
+            com.bame.client.emotes.EmoteWorldEffects.tick(client);
+            com.bame.client.killfx.KillDetector.tick(client);
+            com.bame.client.killfx.KillEffects.tick(client);
+
             if (client.getWindow() != null && client.currentScreen == null) {
                 // Emote Wheel bind
                 if (com.bame.client.module.EmoteModule.enabled && com.bame.client.module.EmoteModule.keyBind != -1) {
@@ -358,10 +384,28 @@ public class BameClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.StatusHudRenderer());
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.FakeScoreboardRenderer());
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.notification.NotificationManager());
-        
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.HighFivePromptRenderer());
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.killfx.KillEffectHud());
+
+        // Kill-Effekte Sarg und Amboss (mit Opfer-Figur): zusammen mit den Entities zeichnen
+        WorldRenderEvents.BEFORE_ENTITIES.register(com.bame.client.killfx.KillEffects::submitWorld);
+
         WorldRenderEvents.END_MAIN.register(context -> {
             AreaRenderer.render(context);
             com.bame.client.render.PearlPredictionRenderer.render(context);
+            com.bame.client.killfx.KillEffects.renderWorld(context);
+        });
+
+        // Kill-Effekte: eigene Projektile (Fernkampf-Treffer) und Kill-Nachrichten im Chat
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents.ENTITY_LOAD.register(
+                com.bame.client.killfx.KillDetector::onEntityLoad);
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents.ENTITY_UNLOAD.register(
+                com.bame.client.killfx.KillDetector::onEntityUnload);
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.GAME.register((message, overlay) ->
+                com.bame.client.killfx.KillDetector.onChatMessage(message));
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.CHAT.register((message, signed, sender, params, time) -> {
+            // Nur Nachrichten ohne Spieler als Absender (Server-/Plugin-Meldungen); Spieler-Chat könnte Kills vortäuschen
+            if (sender == null) com.bame.client.killfx.KillDetector.onChatMessage(message);
         });
     }
 }

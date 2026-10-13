@@ -370,7 +370,7 @@ public class AccountSwitcherScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(c, px, py, PANEL_W, ph, fade(GuiTheme.alpha(accent, 0x80), p), 8.0f);
 
         // Kopfzeile
-        c.drawText(textRenderer, Text.literal("ACCOUNTS"), px + 10, py + 8, fade(0xFFFFFFFF, p), false);
+        c.drawText(textRenderer, CustomGuiUtils.getFontText("ACCOUNTS"), px + 10, py + 8, fade(0xFFFFFFFF, p), false);
         boolean hoverClose = inside(mx, my, px + PANEL_W - 20, py + 4, 16, 16);
         if (hoverClose) {
             CustomGuiUtils.fillUltraRounded(c, px + PANEL_W - 20, py + 4, 16, 16, fade(GuiTheme.alpha(accent, 0x30), p), 4.0f);
