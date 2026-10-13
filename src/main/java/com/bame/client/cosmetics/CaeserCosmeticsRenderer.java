@@ -72,12 +72,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static PlayerEntityModel chainChibiModel;
 
     // Dedicated 3D Pet Models
-    public static ModelPart babyDragonRoot;
-    public static ModelPart babyDragonBody;
-    public static ModelPart babyDragonHead;
-    public static ModelPart babyDragonWingLeft;
-    public static ModelPart babyDragonWingRight;
-    public static ModelPart babyDragonTail;
+    // Baby Dragon: Bedrock-Modell mit Knochen (Hals, Kopf, Kiefer, Lider, Fluegel mit Hand, 5 Schwanzglieder, Beine)
+    public static BedrockCosmeticModel babyDragonModel;
+    private static final BabyDragonPose DRAGON_POSE = new BabyDragonPose();
 
     public static ModelPart jellySlimeRoot;
     public static ModelPart jellySlimeOuter;
@@ -162,50 +159,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             chainChibiModel = new PlayerEntityModel(chainChibiRoot, false);
             poseChainChibiModel(chainChibiModel);
         }
-        if (babyDragonRoot == null) {
-            ModelData data = new ModelData();
-            ModelPartData root = data.getRoot();
-            ModelPartData body = root.addChild("body",
-                ModelPartBuilder.create()
-                    .uv(0, 16).cuboid(-2.5f, -2.5f, -3.5f, 5.0f, 5.0f, 7.0f)
-                    .uv(16, 0).cuboid(-2.0f, 1.6f, -3.0f, 4.0f, 1.0f, 6.0f),
-                ModelTransform.origin(0.0f, 0.0f, 0.0f)
-            );
-            body.addChild("head",
-                ModelPartBuilder.create()
-                    .uv(0, 0).cuboid(-2.5f, -2.5f, -4.5f, 5.0f, 5.0f, 5.0f)
-                    .uv(0, 10).cuboid(-1.5f, -0.5f, -7.0f, 3.0f, 2.5f, 3.0f)
-                    .uv(32, 0).cuboid(-2.2f, -5.0f, -1.5f, 1.2f, 3.0f, 2.0f)
-                    .uv(32, 0).cuboid(1.0f, -5.0f, -1.5f, 1.2f, 3.0f, 2.0f),
-                ModelTransform.origin(0.0f, -1.5f, -3.0f)
-            );
-            body.addChild("wing_left",
-                ModelPartBuilder.create()
-                    .uv(0, 32).cuboid(0.0f, -0.5f, -2.0f, 7.0f, 0.5f, 4.0f),
-                ModelTransform.origin(2.2f, -1.8f, -1.0f)
-            );
-            body.addChild("wing_right",
-                ModelPartBuilder.create()
-                    .uv(0, 32).cuboid(-7.0f, -0.5f, -2.0f, 7.0f, 0.5f, 4.0f),
-                ModelTransform.origin(-2.2f, -1.8f, -1.0f)
-            );
-            body.addChild("tail",
-                ModelPartBuilder.create()
-                    .uv(32, 32).cuboid(-1.0f, -1.0f, 0.0f, 2.0f, 2.0f, 5.0f)
-                    .uv(32, 40).cuboid(-1.5f, -0.2f, 4.5f, 3.0f, 0.5f, 3.0f),
-                ModelTransform.origin(0.0f, 0.5f, 3.5f)
-            );
-            body.addChild("paw_fl", ModelPartBuilder.create().uv(48, 0).cuboid(-0.8f, 0.0f, -0.8f, 1.6f, 2.5f, 1.6f), ModelTransform.origin(2.0f, 2.0f, -2.2f));
-            body.addChild("paw_fr", ModelPartBuilder.create().uv(48, 0).cuboid(-0.8f, 0.0f, -0.8f, 1.6f, 2.5f, 1.6f), ModelTransform.origin(-2.0f, 2.0f, -2.2f));
-            body.addChild("paw_bl", ModelPartBuilder.create().uv(48, 0).cuboid(-0.8f, 0.0f, -0.8f, 1.6f, 2.5f, 1.6f), ModelTransform.origin(2.0f, 2.0f, 2.2f));
-            body.addChild("paw_br", ModelPartBuilder.create().uv(48, 0).cuboid(-0.8f, 0.0f, -0.8f, 1.6f, 2.5f, 1.6f), ModelTransform.origin(-2.0f, 2.0f, 2.2f));
-
-            babyDragonRoot = TexturedModelData.of(data, 64, 64).createModel();
-            babyDragonBody = babyDragonRoot.getChild("body");
-            babyDragonHead = babyDragonBody.getChild("head");
-            babyDragonWingLeft = babyDragonBody.getChild("wing_left");
-            babyDragonWingRight = babyDragonBody.getChild("wing_right");
-            babyDragonTail = babyDragonBody.getChild("tail");
+        if (babyDragonModel == null) {
+            babyDragonModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/pets/baby_dragon.geo.json");
+            if (babyDragonModel != null) {
+                babyDragonModel.blockbenchAxisFix = true;
+            }
         }
         if (jellySlimeRoot == null) {
             ModelData data = new ModelData();
@@ -235,6 +193,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
         if (demonHornsModel == null) {
             demonHornsModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/demon_horns.geo.json");
+            if (demonHornsModel != null) {
+                // v2: geschwungene Segment-Hoerner, im Kopfraum modelliert (Basis auf der Stirn, keine Verschiebung noetig)
+                demonHornsModel.blockbenchAxisFix = true;
+            }
         }
         if (witchHatModel == null) {
             witchHatModel = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/witch_hat.geo.json");
@@ -461,14 +423,13 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     }
 
     // ==========================================
-    // DEMON HORNS (Textured curved horns on forehead)
+    // DEMON HORNS (geschwungene, gerippte Hoerner auf der Stirn; folgen dem Kopf)
     // ==========================================
     private void renderDemonHorns(MatrixStack matrices, OrderedRenderCommandQueue queue, int light) {
         if (demonHornsModel == null) return;
 
         matrices.push();
         this.getContextModel().head.applyTransform(matrices);
-        matrices.translate(0.0f, -0.01f, -0.070f);
 
         demonHornsModel.resetAllAnimations();
         RenderLayer layer = RenderLayers.entityCutoutNoCull(DEMON_HORNS_TEXTURE);
@@ -651,43 +612,75 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     private void renderBabyDragon(MatrixStack matrices, OrderedRenderCommandQueue queue,
                                   int light, PlayerEntityRenderState state) {
-        if (babyDragonRoot == null) return;
+        if (babyDragonModel == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
         boolean afk = PetStateManager.isAfk();
-        poseBabyDragon(timeSec, afk);
+        String placement = CosmeticsConfig.getPetPlacement("baby_dragon");
+        poseBabyDragon(timeSec, afk, BabyDragonPose.isFlying(placement));
 
-        // Smoke puff logic for baby dragon (when not AFK)
-        if (!afk && mc.world != null && mc.player != null) {
-            float sneezeCycle = (timeSec % 4.0f);
-            if (sneezeCycle >= 3.6f && sneezeCycle <= 3.8f) {
-                long now = System.currentTimeMillis();
-                if (now - lastSmokeTime > 120L) {
-                    lastSmokeTime = now;
-                    double sx = mc.player.getX() + (mc.player.getRandom().nextFloat() - 0.5f) * 0.15;
-                    double sy = mc.player.getY() + mc.player.getStandingEyeHeight() - 0.2;
-                    double sz = mc.player.getZ() + (mc.player.getRandom().nextFloat() - 0.5f) * 0.15;
-                    double vx = (mc.player.getRandom().nextFloat() - 0.5f) * 0.02;
-                    double vy = 0.03 + mc.player.getRandom().nextFloat() * 0.03;
-                    double vz = (mc.player.getRandom().nextFloat() - 0.5f) * 0.02;
-                    mc.world.addParticleClient(ParticleTypes.SMOKE, sx, sy, sz, vx, vy, vz);
-                }
+        matrices.push();
+        applyBabyDragonTransform(matrices, this.getContextModel(), placement, timeSec);
+
+        // Niesen: Rauchwoelkchen direkt aus den Nuestern (Weltposition aus der Modellmatrix)
+        if (!afk && mc.world != null && BabyDragonPose.isSmokeMoment(timeSec)) {
+            long now = System.currentTimeMillis();
+            if (now - lastSmokeTime > 90L) {
+                lastSmokeTime = now;
+                spawnNostrilSmoke(mc, matrices.peek(), state);
             }
         }
 
-        String placement = CosmeticsConfig.getPetPlacement("baby_dragon");
-        matrices.push();
-        applyPlacementTransform(matrices, this.getContextModel(), placement, timeSec);
-        matrices.scale(0.26f, 0.26f, 0.26f);
-
         RenderLayer layer = RenderLayers.entityCutoutNoCull(BABY_DRAGON_TEXTURE);
-        queue.submitModelPart(babyDragonRoot, matrices, layer, light, OverlayTexture.DEFAULT_UV, null);
+        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+            babyDragonModel.render(entry, consumer, light, 0, 1);
+        });
 
         if (afk) {
+            applyBabyDragonZzzTransform(matrices);
             renderFloatingZzz(matrices, queue, light, timeSec);
         }
 
         matrices.pop();
+    }
+
+    /** Platzierung + Sitzhoehe (Fuesse auf Schulter/Kopf) + Modellmassstab. */
+    public static void applyBabyDragonTransform(MatrixStack matrices, PlayerEntityModel playerModel, String placement, float timeSec) {
+        applyPlacementTransform(matrices, playerModel, placement, timeSec);
+        matrices.translate(0.0f, BabyDragonPose.seatOffsetY(placement), 0.0f);
+        float s = BabyDragonPose.MODEL_SCALE;
+        matrices.scale(s, s, s);
+    }
+
+    /** Zzz ueber dem schlafenden Kopf, in der Groesse wie beim alten Modell. */
+    private static void applyBabyDragonZzzTransform(MatrixStack matrices) {
+        // Kopf liegt im Schlaf seitlich vorn (Modell -x, -z); danach alter Massstab fuer die Zzz
+        matrices.translate(-3.0f / 16.0f, -2.0f / 16.0f, -8.0f / 16.0f);
+        float k = BabyDragonPose.ZZZ_SCALE / BabyDragonPose.MODEL_SCALE;
+        matrices.scale(k, k, k);
+    }
+
+    private static void spawnNostrilSmoke(MinecraftClient mc, MatrixStack.Entry entry, PlayerEntityRenderState state) {
+        net.minecraft.util.math.Vec3d cam = mc.gameRenderer != null && mc.gameRenderer.getCamera() != null
+                ? mc.gameRenderer.getCamera().getCameraPos() : null;
+        if (cam == null) return;
+        java.util.concurrent.ThreadLocalRandom rnd = java.util.concurrent.ThreadLocalRandom.current();
+        for (int side = -1; side <= 1; side += 2) {
+            org.joml.Vector3f local = babyDragonModel.boneToModel("head",
+                    side * BabyDragonPose.NOSTRIL_X, BabyDragonPose.NOSTRIL_Y, BabyDragonPose.NOSTRIL_Z);
+            if (local == null) return;
+            org.joml.Vector3f v = entry.getPositionMatrix().transformPosition(local, new org.joml.Vector3f());
+            double sx = cam.x + v.x, sy = cam.y + v.y, sz = cam.z + v.z;
+            // Plausibilitaet (Matrix kamerarelativ): sonst wie frueher an der Spielerposition
+            double dx = sx - state.x, dy = sy - (state.y + 1.4), dz = sz - state.z;
+            if (dx * dx + dy * dy + dz * dz > 9.0) {
+                sx = state.x + (rnd.nextFloat() - 0.5f) * 0.15;
+                sy = state.y + 1.42;
+                sz = state.z + (rnd.nextFloat() - 0.5f) * 0.15;
+            }
+            mc.world.addParticleClient(ParticleTypes.SMOKE, sx, sy, sz,
+                    (rnd.nextFloat() - 0.5f) * 0.01, 0.015 + rnd.nextFloat() * 0.02, (rnd.nextFloat() - 0.5f) * 0.01);
+        }
     }
 
     private void renderJellySlime(MatrixStack matrices, OrderedRenderCommandQueue queue,
@@ -1164,52 +1157,15 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         model.setBoneTranslation("Left Leg", lLegPosX, lLegPosY, 0.0f);
     }
 
-    public static void poseBabyDragon(float timeSec, boolean isAfk) {
-        if (babyDragonRoot == null) return;
-
-        if (isAfk) {
-            // AFK: Sleeping, curled up
-            float sleepBreath = (float) Math.sin(timeSec * 1.0f) * 0.02f;
-            babyDragonHead.pitch = 0.42f + sleepBreath;
-            babyDragonHead.yaw = 0.35f;
-            babyDragonHead.roll = 0.15f;
-
-            // Wings tucked tightly against body
-            babyDragonWingLeft.roll = -0.75f;
-            babyDragonWingLeft.yaw = 0.15f;
-            babyDragonWingRight.roll = 0.75f;
-            babyDragonWingRight.yaw = -0.15f;
-
-            // Tail curled around paws
-            babyDragonTail.yaw = 0.95f;
-            babyDragonTail.pitch = -0.10f;
-        } else {
-            // Active animation!
-            float breath = (float) Math.sin(timeSec * 2.2f) * 0.03f;
-
-            // Flapping small wings gently
-            float wingFlap = (float) Math.sin(timeSec * 4.2f) * 0.35f;
-            babyDragonWingLeft.roll = wingFlap;
-            babyDragonWingRight.roll = -wingFlap;
-            babyDragonWingLeft.yaw = 0.10f;
-            babyDragonWingRight.yaw = -0.10f;
-
-            // Tail wagging happily
-            babyDragonTail.yaw = (float) Math.sin(timeSec * 2.8f) * 0.40f;
-            babyDragonTail.pitch = breath * 2.0f;
-
-            // Sneeze / smoke puff animation cycle
-            float sneezeCycle = (timeSec % 4.0f);
-            if (sneezeCycle >= 3.4f && sneezeCycle <= 3.8f) {
-                float sneezeProg = (sneezeCycle - 3.4f) / 0.4f;
-                babyDragonHead.pitch = -0.28f + (float) Math.sin(sneezeProg * Math.PI) * 0.55f;
-                babyDragonHead.yaw = 0.0f;
-                babyDragonHead.roll = 0.0f;
-            } else {
-                babyDragonHead.pitch = (float) Math.sin(timeSec * 1.3f) * 0.12f;
-                babyDragonHead.yaw = (float) Math.cos(timeSec * 0.9f) * 0.22f;
-                babyDragonHead.roll = (float) Math.sin(timeSec * 1.1f) * 0.08f;
-            }
+    /** Animation (BabyDragonPose) auf das Modell uebertragen. */
+    public static void poseBabyDragon(float timeSec, boolean isAfk, boolean flying) {
+        if (babyDragonModel == null) return;
+        DRAGON_POSE.compute(timeSec, isAfk, flying);
+        babyDragonModel.resetAllAnimations();
+        for (int i = 0; i < BabyDragonPose.BONES.length; i++) {
+            float[] r = DRAGON_POSE.rot[i], t = DRAGON_POSE.trans[i];
+            babyDragonModel.setBoneRotation(BabyDragonPose.BONES[i], r[0], r[1], r[2]);
+            babyDragonModel.setBoneTranslation(BabyDragonPose.BONES[i], t[0], t[1], t[2]);
         }
     }
 
@@ -1438,7 +1394,6 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         } else if ("horns".equalsIgnoreCase(activeHead) && demonHornsModel != null) {
             matrices.push();
             if (playerModel != null) playerModel.head.applyTransform(matrices);
-            matrices.translate(0.0f, -0.01f, -0.070f);
 
             demonHornsModel.resetAllAnimations();
             RenderLayer layer = RenderLayers.entityCutoutNoCull(DEMON_HORNS_TEXTURE);
@@ -1548,17 +1503,17 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                         matrices.pop();
                     }
                 } else if ("baby_dragon".equalsIgnoreCase(accId)) {
-                    if (babyDragonRoot == null) continue;
+                    if (babyDragonModel == null) continue;
                     boolean isAfk = PetStateManager.isAfk();
-                    poseBabyDragon(timeSec, isAfk);
                     String placement = CosmeticsConfig.getPetPlacement("baby_dragon");
+                    poseBabyDragon(timeSec, isAfk, BabyDragonPose.isFlying(placement));
                     matrices.push();
-                    applyPlacementTransform(matrices, playerModel, placement, timeSec);
-                    matrices.scale(0.26f, 0.26f, 0.26f);
+                    applyBabyDragonTransform(matrices, playerModel, placement, timeSec);
                     RenderLayer dLayer = RenderLayers.entityCutoutNoCull(BABY_DRAGON_TEXTURE);
                     VertexConsumer dConsumer = vertexConsumers.getBuffer(dLayer);
-                    babyDragonRoot.render(matrices, dConsumer, light, OverlayTexture.DEFAULT_UV);
+                    babyDragonModel.render(matrices.peek(), dConsumer, light, 0, 1);
                     if (isAfk) {
+                        applyBabyDragonZzzTransform(matrices);
                         drawZzzParticlesDirect(matrices, vertexConsumers, light, timeSec);
                     }
                     matrices.pop();
@@ -1648,9 +1603,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             case "horns" -> {
                 if (demonHornsModel == null) return;
                 matrices.push();
-                matrices.translate(0.0f, 1.601f + 0.20f, 0.0f);
-                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-15.0f));
-                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(12.0f));
+                // gleiche Bildmitte/-groesse wie die alten Hoerner, seitlicher gedreht (zeigt den Schwung nach hinten)
+                matrices.translate(-0.15f, 1.80f, 0.0f);
+                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-30.0f));
+                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(15.0f));
                 matrices.scale(2.20f, 2.20f, 2.20f);
                 demonHornsModel.resetAllAnimations();
                 RenderLayer layer = RenderLayers.entityCutoutNoCull(DEMON_HORNS_TEXTURE);
@@ -1722,15 +1678,16 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 matrices.pop();
             }
             case "baby_dragon" -> {
-                if (babyDragonRoot == null) return;
+                if (babyDragonModel == null) return;
                 matrices.push();
-                matrices.translate(0.0f, 0.46f, 0.0f);
-                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-20.0f));
-                matrices.scale(0.78f, 0.78f, 0.78f);
-                poseBabyDragon(timeSec, false);
+                matrices.translate(0.0f, BabyDragonPose.CARD_TRANSLATE_Y, 0.0f);
+                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(BabyDragonPose.CARD_YAW));
+                float cs = BabyDragonPose.CARD_SCALE;
+                matrices.scale(cs, cs, cs);
+                poseBabyDragon(timeSec, false, false);
                 RenderLayer layer = RenderLayers.entityCutoutNoCull(BABY_DRAGON_TEXTURE);
                 VertexConsumer consumer = vertexConsumers.getBuffer(layer);
-                babyDragonRoot.render(matrices, consumer, light, OverlayTexture.DEFAULT_UV);
+                babyDragonModel.render(matrices.peek(), consumer, light, 0, 1);
                 matrices.pop();
             }
             case "jelly_slime" -> {

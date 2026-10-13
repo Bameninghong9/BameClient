@@ -7,6 +7,7 @@ public class BedrockCosmeticModelTest {
         testLoadDragonWings();
         testLoadAngelHalo();
         testLoadDemonHorns();
+        testLoadBabyDragon();
         System.out.println("ALL COSMETIC MODEL TESTS PASSED!");
     }
 
@@ -47,5 +48,15 @@ public class BedrockCosmeticModelTest {
         check(model != null, "demon_horns should load");
         check(!model.rootBones.isEmpty(), "root bones should not be empty");
         System.out.println("Demon horns loaded: " + model.bonesByName.size() + " bones, " + model.rootBones.size() + " roots");
+    }
+
+    public static void testLoadBabyDragon() {
+        BedrockCosmeticModel model = BedrockCosmeticModel.load("assets/caeserclient/models/cosmetics/pets/baby_dragon.geo.json");
+        check(model != null, "baby_dragon should load");
+        for (String bone : BabyDragonPose.BONES) {
+            check(model.bonesByName.containsKey(bone), bone + " bone should exist");
+        }
+        check(model.rootBones.size() == 1 && "body".equals(model.rootBones.get(0).name), "body should be the only root bone");
+        System.out.println("Baby dragon loaded: " + model.bonesByName.size() + " bones, " + model.rootBones.size() + " roots");
     }
 }

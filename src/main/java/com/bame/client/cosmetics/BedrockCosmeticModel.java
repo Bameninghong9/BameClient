@@ -262,6 +262,37 @@ public class BedrockCosmeticModel {
         }
     }
 
+    /**
+     * Punkt im Raum eines Knochens (Bedrock-Pixel, Ruhelage) mit den aktuellen Animationswerten in den Java-Modellraum
+     * (Bloecke, wie die gerenderten Vertices) umrechnen, z. B. fuer Partikel an einer Modellstelle.
+     *
+     * @return {@code null}, wenn es den Knochen nicht gibt
+     */
+    public Vector3f boneToModel(String boneName, float x, float y, float z) {
+        ModelBone bone = bonesByName.get(boneName);
+        if (bone == null) return null;
+        // Kette Wurzel -> Knochen (nur echte Eltern, wie beim Rendern)
+        List<ModelBone> chain = new ArrayList<>();
+        for (ModelBone b = bone; b != null; ) {
+            chain.add(0, b);
+            ModelBone p = b.parent != null ? bonesByName.get(b.parent) : null;
+            b = (p != null && p.children.contains(b)) ? p : null;
+        }
+        float xzSign = blockbenchAxisFix ? -1.0f : 1.0f;
+        Matrix4f m = new Matrix4f().identity();
+        for (ModelBone b : chain) {
+            m.translate(b.px + b.animTx, b.py + b.animTy, b.pz + b.animTz);
+            m.rotateZ((float) Math.toRadians(xzSign * (b.rz + b.animRz)));
+            m.rotateY((float) Math.toRadians(b.ry + b.animRy));
+            m.rotateX((float) Math.toRadians(xzSign * (b.rx + b.animRx)));
+            m.translate(-b.px, -b.py, -b.pz);
+        }
+        Vector3f v = new Vector3f(x, y, z);
+        m.transformPosition(v);
+        toJava(v);
+        return v;
+    }
+
     public void render(MatrixStack.Entry entry, VertexConsumer consumer, int light,
                        int frameIndex, int totalFrames) {
         render(entry, consumer, light, frameIndex, totalFrames, false);

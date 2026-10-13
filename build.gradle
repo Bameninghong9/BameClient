@@ -126,3 +126,10 @@ tasks.register('killEffectsTest', JavaExec) {
     mainClass = 'com.bame.client.killfx.KillLogicTest'
 }
 tasks.named('check') { dependsOn 'killEffectsTest' }
+
+tasks.register('petHornsGeometryTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.PetHornsGeometryTest'
+}
+tasks.named('check') { dependsOn 'petHornsGeometryTest' }
