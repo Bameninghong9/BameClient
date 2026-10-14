@@ -25,6 +25,10 @@ public class CosmeticsConfig {
     public static boolean killFxSounds = true;
     public static boolean killFxChat = true;
 
+    // Caeser-Capes (gewählt im Launcher): Schalter der Cosmetics-Ansicht
+    public static boolean capesShowOthers = true;
+    public static boolean capeOnElytra = true;
+
     public static void setKillEffect(String id) {
         killEffect = (id == null || id.isBlank()) ? "none" : id.trim().toUpperCase(java.util.Locale.ROOT);
         if ("NONE".equals(killEffect)) killEffect = "none";
@@ -356,6 +360,8 @@ public class CosmeticsConfig {
             root.addProperty("killEffect", killEffect);
             JsonObject killSettings = buildKillFxSettings();
             root.add("killEffectSettings", killSettings);
+            JsonObject capeSettings = buildCapeSettings();
+            root.add("capeSettings", capeSettings);
 
             Files.writeString(file, root.toString());
             // Eigene Kopie der Kill-Effekt-Einstellungen: der Launcher schreibt cosmetics.json beim Start neu und kennt
@@ -365,6 +371,12 @@ public class CosmeticsConfig {
                 side.addProperty("killEffect", killEffect);
                 side.add("killEffectSettings", killSettings);
                 Files.writeString(killFxSidecarFile(), side.toString());
+            } catch (Throwable ignored) {}
+            // Ebenso für die Cape-Schalter
+            try {
+                JsonObject side = new JsonObject();
+                side.add("capeSettings", capeSettings);
+                Files.writeString(capeSidecarFile(), side.toString());
             } catch (Throwable ignored) {}
             lastModified = Files.getLastModifiedTime(file).toMillis();
 
@@ -545,6 +557,8 @@ public class CosmeticsConfig {
             // Kopie; gibt es auch die nicht, die Standardwerte (z. B. neuer Account)
             JsonObject killSrc = root.has("killEffect") ? root : readKillFxSidecar();
             applyKillFx(killSrc);
+            JsonObject capeSrc = root.has("capeSettings") ? root : readSidecar(capeSidecarFile());
+            applyCapeSettings(capeSrc);
 
             for (String user : accessoryCustomPlayers.values()) {
                 if (user != null && !user.isBlank()) {
@@ -569,6 +583,41 @@ public class CosmeticsConfig {
             }
         } catch (Throwable ignored) {}
         return null;
+    }
+
+    private static Path capeSidecarFile() {
+        String acc = getAccountName();
+        String name = "default".equals(acc) ? "capes.json" : "capes_" + acc + ".json";
+        return BameClientConfig.BASE_CONFIG_DIR.resolve(name);
+    }
+
+    private static JsonObject readSidecar(Path f) {
+        try {
+            if (Files.exists(f)) {
+                com.google.gson.JsonElement el = JsonParser.parseString(Files.readString(f));
+                if (el.isJsonObject()) return el.getAsJsonObject();
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static JsonObject buildCapeSettings() {
+        JsonObject s = new JsonObject();
+        s.addProperty("showOthers", capesShowOthers);
+        s.addProperty("elytra", capeOnElytra);
+        return s;
+    }
+
+    /** Übernimmt die Cape-Schalter aus {@code capeSettings}; {@code null} bzw. fehlende Werte = Standard (an). */
+    private static void applyCapeSettings(JsonObject src) {
+        boolean others = true, elytra = true;
+        if (src != null && src.has("capeSettings") && src.get("capeSettings").isJsonObject()) {
+            JsonObject s = src.getAsJsonObject("capeSettings");
+            others = bool(s, "showOthers", true);
+            elytra = bool(s, "elytra", true);
+        }
+        capesShowOthers = others;
+        capeOnElytra = elytra;
     }
 
     private static JsonObject buildKillFxSettings() {

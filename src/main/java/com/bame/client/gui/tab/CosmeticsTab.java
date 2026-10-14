@@ -257,7 +257,71 @@ public class CosmeticsTab implements ClientTab {
 
     /** Höhe aller Leisten über den Karten (Emote-Rad-Hinweis bzw. Kill-Effekt-Einstellungen, inkl. Abstand). */
     private static int topBannerHeight() {
-        return wheelBannerHeight() + (isKillEffectsView() ? killSettingsHeight : 0);
+        return wheelBannerHeight() + (isKillEffectsView() ? killSettingsHeight : 0)
+                + (isCapeSettingsView() ? capeSettingsHeight : 0);
+    }
+
+    // ==========================================
+    // Caeser-Capes: Hinweis und Schalter oben in der Cosmetics-Gesamtansicht
+    // ==========================================
+    private static final String CAPE_HINT = "Capes wählst du im Caeser-Launcher unter ‚Capes‘ aus.";
+    private static final List<KillToggle> CAPE_TOGGLES = List.of(
+            new KillToggle("Caeser-Capes anderer Spieler anzeigen", () -> CosmeticsConfig.capesShowOthers,
+                    () -> CosmeticsConfig.capesShowOthers = !CosmeticsConfig.capesShowOthers),
+            new KillToggle("Cape auf der Elytra zeigen", () -> CosmeticsConfig.capeOnElytra,
+                    () -> CosmeticsConfig.capeOnElytra = !CosmeticsConfig.capeOnElytra)
+    );
+    private static final int CAPE_HINT_H = 14;
+    /** Zuletzt berechnete Höhe des Cape-Panels (hängt von der Breite ab); inkl. 8 px Abstand zu den Karten. */
+    private static int capeSettingsHeight = 8 + 12 + CAPE_HINT_H + 16;
+    private static final List<KillToggleHit> capeToggleHits = new ArrayList<>();
+
+    /** Cape-Einstellungen stehen in der Cosmetics-Gesamtansicht ("ALL"). */
+    private static boolean isCapeSettingsView() {
+        return "ALL".equalsIgnoreCase(subCategory);
+    }
+
+    /** Fließ-Layout der Cape-Schalter unter dem Hinweis: x/y relativ zum Panel; gibt die Panel-Höhe zurück. */
+    private static int layoutCapeToggles(net.minecraft.client.font.TextRenderer tr, int areaW, int[][] out) {
+        int pad = 6;
+        int top = pad + CAPE_HINT_H;
+        int x = pad, row = 0;
+        for (int i = 0; i < CAPE_TOGGLES.size(); i++) {
+            int lw = tr.getWidth(CustomGuiUtils.getFontText(CAPE_TOGGLES.get(i).label()));
+            int itemW = KILL_TOGGLE_W + 5 + lw + 14;
+            if (x > pad && x + itemW > areaW - pad) {
+                x = pad;
+                row++;
+            }
+            if (out != null) out[i] = new int[]{x, top + row * KILL_ROW_H};
+            x += itemW;
+        }
+        return top + pad + (row + 1) * KILL_ROW_H - 4;
+    }
+
+    private static void updateCapeSettingsHeight(BameClientScreen screen, int columnWidth) {
+        if (screen == null || screen.getTextRenderer() == null) return;
+        capeSettingsHeight = layoutCapeToggles(screen.getTextRenderer(), cardsAreaWidth(columnWidth), null) + 8;
+    }
+
+    private static void renderCapeSettings(BameClientScreen screen, DrawContext c, int x, int y, int w, int mx, int my) {
+        int[][] pos = new int[CAPE_TOGGLES.size()][];
+        int panelH = layoutCapeToggles(screen.getTextRenderer(), w, pos);
+        CustomGuiUtils.fillUltraRounded(c, x, y, w, panelH, 0xFF0E111A, 5.0f);
+        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, panelH, 0xFF1E2436, 5.0f);
+        screen.text(c, ellipsize(screen, CAPE_HINT, w - 12), x + 6, y + 7, 0xFF94A3B8);
+        capeToggleHits.clear();
+        for (int i = 0; i < CAPE_TOGGLES.size(); i++) {
+            KillToggle t = CAPE_TOGGLES.get(i);
+            int tx = x + pos[i][0];
+            int ty = y + pos[i][1];
+            boolean on = t.get().getAsBoolean();
+            com.bame.client.gui.CustomToggleWidget.draw(c, tx, ty + 1, KILL_TOGGLE_W, KILL_TOGGLE_H, on);
+            int lw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(t.label()));
+            boolean hover = screen.inside(mx, my, tx, ty - 1, KILL_TOGGLE_W + 5 + lw, KILL_ROW_H - 2);
+            screen.text(c, t.label(), tx + KILL_TOGGLE_W + 5, ty + 2, hover ? 0xFFFFFFFF : (on ? 0xFFCBD5E1 : 0xFF8E95A4));
+            capeToggleHits.add(new KillToggleHit(t, tx, ty - 1, KILL_TOGGLE_W + 5 + lw, KILL_ROW_H - 2));
+        }
     }
 
     // ==========================================
@@ -605,7 +669,12 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("halo", "HEAD", "Angel Halo", "Floating glowing angel halo"),
                 new CosmeticItem("horns", "HEAD", "Demon Horns", "Symmetric 3D demon horns"),
                 new CosmeticItem("witch_hat", "HEAD", "Witch Hat", "Pointy witch hat with a bent tip"),
-                new CosmeticItem("straw_hat", "HEAD", "Straw Hat", "Wide-brimmed summer straw hat")
+                new CosmeticItem("straw_hat", "HEAD", "Straw Hat", "Wide-brimmed summer straw hat"),
+                new CosmeticItem("crown", "HEAD", "Crown", "Golden crown with sparkling gemstones"),
+                new CosmeticItem("headphones", "HEAD", "Headphones", "Gaming headset with a logo glowing in your theme color"),
+                new CosmeticItem("viking_helmet", "HEAD", "Viking Helmet", "Weathered iron helmet with rivets and two horns"),
+                new CosmeticItem("propeller_cap", "HEAD", "Propeller Cap", "Colorful cap whose propeller spins faster as you walk"),
+                new CosmeticItem("cat_ears", "HEAD", "Cat Ears", "Twitching cat ears that flatten while sneaking")
         )));
         sections.add(new CosmeticSection("ACCESSORIES", "ACCESSORIES", List.of(
                 new CosmeticItem("minime_sit", "ACCESSORIES", "MiniMe Sit", "Miniature player sitting on shoulder"),
@@ -763,6 +832,31 @@ public class CosmeticsTab implements ClientTab {
         return model;
     }
 
+    // Eigene Modelle für den Vorschau-Spieler rechts (nur er zeigt das eigene Caeser-Cape, nicht z. B. das MiniMe-Fenster)
+    private static PlayerEntityModel panelWideModel = null;
+    private static PlayerEntityModel panelSlimModel = null;
+
+    /** Ist das das Modell des Vorschau-Spielers im Cosmetics-Menü? */
+    public static boolean isPanelModel(PlayerEntityModel model) {
+        return model != null && (model == panelWideModel || model == panelSlimModel);
+    }
+
+    private static synchronized PlayerEntityModel getPanelModel(MinecraftClient mc, boolean slim) {
+        if (mc.getLoadedEntityModels() == null) return null;
+        if (slim) {
+            if (panelSlimModel == null) {
+                net.minecraft.client.render.entity.model.EntityModelLayer slimLayer =
+                        new net.minecraft.client.render.entity.model.EntityModelLayer(Identifier.ofVanilla("player_slim"), "main");
+                panelSlimModel = new PlayerEntityModel(mc.getLoadedEntityModels().getModelPart(slimLayer), true);
+            }
+            return panelSlimModel;
+        }
+        if (panelWideModel == null) {
+            panelWideModel = new PlayerEntityModel(mc.getLoadedEntityModels().getModelPart(EntityModelLayers.PLAYER), false);
+        }
+        return panelWideModel;
+    }
+
     @Override
     public String getCategory() {
         return "Cosmetics";
@@ -802,6 +896,11 @@ public class CosmeticsTab implements ClientTab {
             case "horns" -> "DEMON HORNS";
             case "witch_hat" -> "WITCH HAT";
             case "straw_hat" -> "STRAW HAT";
+            case "crown" -> "CROWN";
+            case "headphones" -> "HEADPHONES";
+            case "viking_helmet" -> "VIKING HELMET";
+            case "propeller_cap" -> "PROPELLER CAP";
+            case "cat_ears" -> "CAT EARS";
             case "sunglasses" -> "SUNGLASSES";
             case "skull_mask" -> "SKULL MASK";
             default -> id.toUpperCase(Locale.ROOT);
@@ -849,6 +948,7 @@ public class CosmeticsTab implements ClientTab {
         int curY = startY;
 
         if (isKillEffectsView()) updateKillSettingsHeight(screen, columnWidth);
+        if (isCapeSettingsView()) updateCapeSettingsHeight(screen, columnWidth);
         List<CosmeticSection> activeSections = getActiveSections(search);
         boolean headers = showsSectionHeaders();
         curY += topBannerHeight();
@@ -871,6 +971,7 @@ public class CosmeticsTab implements ClientTab {
         int startY = Math.max(tracker.leftY, tracker.rightY);
         int curY = startY;
         if (isKillEffectsView()) updateKillSettingsHeight(screen, columnWidth);
+        if (isCapeSettingsView()) updateCapeSettingsHeight(screen, columnWidth);
         List<CosmeticSection> activeSections = getActiveSections(search);
 
         boolean headers = showsSectionHeaders();
@@ -948,6 +1049,12 @@ public class CosmeticsTab implements ClientTab {
             updateKillSettingsHeight(screen, columnWidth);
             renderKillSettings(screen, c, leftX, curY, cardsAreaW, mx, my);
             curY += killSettingsHeight;
+        }
+        capeToggleHits.clear();
+        if (isCapeSettingsView()) {
+            updateCapeSettingsHeight(screen, columnWidth);
+            renderCapeSettings(screen, c, leftX, curY, cardsAreaW, mx, my);
+            curY += capeSettingsHeight;
         }
 
         for (CosmeticSection sec : activeSections) {
@@ -1328,7 +1435,7 @@ public class CosmeticsTab implements ClientTab {
         }
 
         boolean slim = (textures != null && textures.model() == PlayerSkinType.SLIM);
-        PlayerEntityModel model = getPreviewModel(mc, slim);
+        PlayerEntityModel model = getPanelModel(mc, slim);
         Identifier skinTexture = (textures != null && textures.body() != null)
                 ? textures.body().texturePath()
                 : DefaultSkinHelper.getTexture();
@@ -1786,6 +1893,17 @@ public class CosmeticsTab implements ClientTab {
         // Kill-Effekte: Schalter oben in der Ansicht (Positionen vom letzten Frame)
         if (isKillEffectsView()) {
             for (KillToggleHit hit : killToggleHits) {
+                if (screen.inside(mx, my, hit.x(), hit.y(), hit.w(), hit.h())) {
+                    hit.toggle().flip().run();
+                    CosmeticsConfig.save();
+                    ClientSoundManager.playClick();
+                    return true;
+                }
+            }
+        }
+        // Caeser-Capes: Schalter oben in der Cosmetics-Gesamtansicht (Positionen vom letzten Frame)
+        if (isCapeSettingsView()) {
+            for (KillToggleHit hit : capeToggleHits) {
                 if (screen.inside(mx, my, hit.x(), hit.y(), hit.w(), hit.h())) {
                     hit.toggle().flip().run();
                     CosmeticsConfig.save();

@@ -31,7 +31,11 @@ public abstract class PlayerSkinGuiElementRendererMixin extends SpecialGuiElemen
         } else if (CosmeticsTab.isSkinCardModel(state.playerModel())) {
             // It's a skin preview card: do not render cosmetics on it, just show the clean skin!
         } else {
-            String w = CosmeticsTab.previewWings != null ? CosmeticsTab.previewWings : CosmeticsConfig.wings;
+            if (CosmeticsTab.isPanelModel(state.playerModel())) {
+                // Vorschau-Spieler im Cosmetics-Menü: eigenes Caeser-Cape
+                com.bame.client.cosmetics.CaeserCapeManager.renderPreviewCape(matrices, this.vertexConsumers, 15728880);
+            }
+            String w =CosmeticsTab.previewWings != null ? CosmeticsTab.previewWings : CosmeticsConfig.wings;
             String h = CosmeticsTab.previewHead != null ? CosmeticsTab.previewHead : CosmeticsConfig.head;
             String f = CosmeticsTab.previewFace != null ? CosmeticsTab.previewFace : CosmeticsConfig.face;
             String p = CosmeticsTab.previewPet != null ? CosmeticsTab.previewPet : CosmeticsConfig.pet;

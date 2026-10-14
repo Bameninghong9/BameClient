@@ -215,6 +215,111 @@ public final class CaeserApi {
     }
 
     /**
+     * Lädt eine Binärdatei (z. B. ein Cape-PNG) mit höchstens {@code maxBytes} Bytes. Die ganze Anfrage wird nach
+     * {@link #TIMEOUT} abgebrochen. Ohne Bearer-Token, wenn {@code bearer == null}. Wirft nie synchron.
+     * Liefert bei 2xx die Bytes, sonst eine {@link ApiException} (Status 0 bei Netzwerkfehler, Code {@code TOO_LARGE}).
+     */
+    public static CompletableFuture<byte[]> getBytes(String path, String bearer, int maxBytes) {
+        if (BASE_URL == null) {
+            return CompletableFuture.failedFuture(new ApiException(0, "NOT_CONFIGURED", MSG_UNREACHABLE, null));
+        }
+        final HttpRequest request;
+        try {
+            HttpRequest.Builder b = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + path))
+                    .timeout(TIMEOUT)
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "image/png")
+                    .GET();
+            if (bearer != null && !bearer.isEmpty()) {
+                b.header("Authorization", "Bearer " + bearer);
+            }
+            request = b.build();
+        } catch (Throwable t) {
+            return CompletableFuture.failedFuture(new ApiException(0, "NETWORK", MSG_UNREACHABLE, null));
+        }
+        final CompletableFuture<HttpResponse<byte[]>> sent;
+        try {
+            sent = HTTP.sendAsync(request, info -> {
+                long len = info.headers().firstValueAsLong("Content-Length").orElse(-1L);
+                if (info.statusCode() < 200 || info.statusCode() >= 300 || len > maxBytes) {
+                    return HttpResponse.BodySubscribers.replacing(null);
+                }
+                return new LimitedBodySubscriber(maxBytes);
+            });
+        } catch (Throwable t) {
+            return CompletableFuture.failedFuture(new ApiException(0, "NETWORK", MSG_UNREACHABLE, null));
+        }
+        // Gesamtzeit begrenzen (das Anfrage-Timeout gilt nur bis zu den Headern)
+        SCHEDULER.schedule(() -> sent.cancel(true), TIMEOUT.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        return sent.handle((resp, err) -> {
+            if (err != null || resp == null) {
+                LOGGER.debug("Caeser API GET {} failed: {}", path, err != null ? err.getClass().getSimpleName() : "null");
+                throw new ApiException(0, "NETWORK", MSG_UNREACHABLE, null);
+            }
+            int status = resp.statusCode();
+            if (status < 200 || status >= 300) {
+                LOGGER.debug("Caeser API GET {} -> {}", path, status);
+                throw new ApiException(status, "HTTP_" + status, fallbackMessage(status), null);
+            }
+            byte[] body = resp.body();
+            if (body == null) {
+                throw new ApiException(status, "TOO_LARGE", "Datei zu groß.", null);
+            }
+            return body;
+        });
+    }
+
+    /** Sammelt höchstens {@code max} Bytes; bei Überschreitung wird abgebrochen und {@code null} geliefert. */
+    private static final class LimitedBodySubscriber implements HttpResponse.BodySubscriber<byte[]> {
+        private final int max;
+        private final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        private final CompletableFuture<byte[]> result = new CompletableFuture<>();
+        private java.util.concurrent.Flow.Subscription subscription;
+
+        LimitedBodySubscriber(int max) {
+            this.max = max;
+        }
+
+        @Override
+        public java.util.concurrent.CompletionStage<byte[]> getBody() {
+            return result;
+        }
+
+        @Override
+        public void onSubscribe(java.util.concurrent.Flow.Subscription s) {
+            subscription = s;
+            s.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public void onNext(java.util.List<java.nio.ByteBuffer> items) {
+            if (result.isDone()) return;
+            for (java.nio.ByteBuffer buf : items) {
+                int n = buf.remaining();
+                if (out.size() + n > max) {
+                    result.complete(null);
+                    subscription.cancel();
+                    return;
+                }
+                byte[] chunk = new byte[n];
+                buf.get(chunk);
+                out.write(chunk, 0, n);
+            }
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            result.completeExceptionally(throwable);
+        }
+
+        @Override
+        public void onComplete() {
+            result.complete(out.toByteArray());
+        }
+    }
+
+    /**
      * Schickt eine Anfrage. Liefert bei 2xx das JSON-Objekt der Antwort, sonst eine {@link ApiException}.
      * Wirft nie synchron.
      */

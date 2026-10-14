@@ -201,11 +201,14 @@ public class CaeserSkinManager {
                     entry.textureLoaded = true;
 
                     SkinTextures acc = getAccountSkinTextures(mc);
-                    AssetInfo.TextureAsset cape = (mc.player != null && mc.player.getSkin() != null && mc.player.getSkin().cape() != null)
-                            ? mc.player.getSkin().cape()
+                    // Caeser-Capes nicht übernehmen: sie werden beim Abfragen der SkinTextures eingesetzt
+                    // (CaeserCapeManager) und dürfen hier nicht als Account-Cape hängen bleiben.
+                    SkinTextures cur = mc.player != null ? mc.player.getSkin() : null;
+                    AssetInfo.TextureAsset cape = (cur != null && cur.cape() != null && !CaeserCapeManager.isCaeserAsset(cur.cape()))
+                            ? cur.cape()
                             : (acc != null ? acc.cape() : null);
-                    AssetInfo.TextureAsset elytra = (mc.player != null && mc.player.getSkin() != null && mc.player.getSkin().elytra() != null)
-                            ? mc.player.getSkin().elytra()
+                    AssetInfo.TextureAsset elytra = (cur != null && cur.elytra() != null && !CaeserCapeManager.isCaeserAsset(cur.elytra()))
+                            ? cur.elytra()
                             : (acc != null ? acc.elytra() : null);
 
                     entry.skinTextures = new SkinTextures(

@@ -1,5 +1,6 @@
 package com.bame.client.cosmetics;
 
+import com.bame.client.gui.GuiTheme;
 import com.bame.client.module.SkinProtectModule;
 import com.mojang.authlib.GameProfile;
 import java.util.Set;
@@ -43,6 +44,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static final Identifier BABY_DRAGON_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/baby_dragon.png");
     public static final Identifier JELLY_SLIME_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/pets/jelly_slime.png");
     public static final Identifier MINIME_HAND_DEFAULT_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/accessory/minimehand.png");
+    public static final Identifier CROWN_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/crown.png");
+    public static final Identifier HEADPHONES_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/headphones.png");
+    public static final Identifier VIKING_HELMET_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/viking_helmet.png");
+    public static final Identifier PROPELLER_CAP_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/propeller_cap.png");
+    public static final Identifier CAT_EARS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/cat_ears.png");
 
     // Models
     public static BedrockCosmeticModel goldWingsModel;
@@ -54,6 +60,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static BedrockCosmeticModel sunglassesModel;
     public static BedrockCosmeticModel skullMaskModel;
     public static BedrockCosmeticModel miniMeHandModel;
+    public static BedrockCosmeticModel crownModel;
+    public static BedrockCosmeticModel headphonesModel;
+    public static BedrockCosmeticModel vikingHelmetModel;
+    public static BedrockCosmeticModel propellerCapModel;
+    public static BedrockCosmeticModel catEarsModel;
 
     // Independent Chibi models for each accessory so they NEVER overwrite each other's pose!
     public static ModelPart sitChibiRoot;
@@ -216,6 +227,12 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 miniMeHandModel.blockbenchAxisFix = true;
             }
         }
+        // Neue Huete: im Kopfraum modelliert (Kopf x/z -4..4, y 24..32), Blockbench-Achsen
+        if (crownModel == null) crownModel = loadHatModel("crown");
+        if (headphonesModel == null) headphonesModel = loadHatModel("headphones");
+        if (vikingHelmetModel == null) vikingHelmetModel = loadHatModel("viking_helmet");
+        if (propellerCapModel == null) propellerCapModel = loadHatModel("propeller_cap");
+        if (catEarsModel == null) catEarsModel = loadHatModel("cat_ears");
     }
 
     public static String getPlayerUsername(PlayerEntityRenderState state) {
@@ -303,6 +320,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     renderHeadModel(matrices, queue, light, witchHatModel, WITCH_HAT_TEXTURE);
                 } else if ("straw_hat".equalsIgnoreCase(head)) {
                     renderHeadModel(matrices, queue, light, strawHatModel, STRAW_HAT_TEXTURE);
+                } else if (isAnimatedHat(head)) {
+                    renderAnimatedHat(head, matrices, queue, light, state, isLocal);
                 }
             }
 
@@ -486,6 +505,176 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         model.resetAllAnimations();
         model.render(matrices.peek(), vertexConsumers.getBuffer(RenderLayers.entityCutoutNoCull(texture)), light, 0, 1);
         matrices.pop();
+    }
+
+    // ==========================================
+    // ANIMIERTE HUETE (Krone, Kopfhoerer, Wikingerhelm, Propellermuetze, Katzenohren)
+    // ==========================================
+    /** Zustands-Schluessel der Menue-Vorschau (Spieler) bzw. der Shop-Karten; echte Spieler nutzen die Entity-ID. */
+    private static final int PREVIEW_KEY = -1;
+    private static final int CARD_KEY = -2;
+    private static final int FULL_BRIGHT = 15728880;
+
+    private static BedrockCosmeticModel loadHatModel(String id) {
+        BedrockCosmeticModel model = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/hat/" + id + ".geo.json");
+        if (model != null) model.blockbenchAxisFix = true;
+        return model;
+    }
+
+    public static boolean isAnimatedHat(String id) {
+        if (id == null) return false;
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
+            case "crown", "headphones", "viking_helmet", "propeller_cap", "cat_ears" -> true;
+            default -> false;
+        };
+    }
+
+    /** Zeichenziel: Befehls-Queue (Welt, verzoegert) oder direkt in einen VertexConsumerProvider (Menue). */
+    @FunctionalInterface
+    private interface HatSink {
+        void draw(RenderLayer layer, OrderedRenderCommandQueue.Custom body);
+    }
+
+    private static HatSink directSink(MatrixStack matrices, VertexConsumerProvider vertexConsumers) {
+        return (layer, body) -> body.render(matrices.peek(), vertexConsumers.getBuffer(layer));
+    }
+
+    private static long seedOf(java.util.UUID uuid, int fallback) {
+        return uuid != null ? uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits() : fallback * 0x9E3779B97F4A7C15L;
+    }
+
+    private static long localSeed() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        java.util.UUID uuid = null;
+        if (mc.player != null) uuid = mc.player.getUuid();
+        else if (mc.getSession() != null) uuid = mc.getSession().getUuidOrNull();
+        return seedOf(uuid, 1);
+    }
+
+    /** Ingame: am Kopf-Bone, folgt Drehung/Nicken/Schleichen; nicht in der Ego-Perspektive (siehe render). */
+    private void renderAnimatedHat(String id, MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                   PlayerEntityRenderState state, boolean isLocal) {
+        matrices.push();
+        this.getContextModel().head.applyTransform(matrices);
+        long seed = seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id);
+        // Logo-Farbe: eigene Akzentfarbe; fremde Spieler in festem Caeser-Lila (deren Theme wird nicht synchronisiert)
+        int glow = isLocal ? (GuiTheme.accent() & 0xFFFFFF) : HatAnimations.CAESER_PURPLE;
+        HatSink sink = (layer, body) -> queue.getBatchingQueue(0).submitCustom(matrices, layer, body);
+        drawAnimatedHat(id, sink, light, state.id, Math.min(state.limbSwingAmplitude, 1.0f), state.isInSneakingPose, seed, glow);
+        if ("crown".equalsIgnoreCase(id)) maybeSpawnCrownSparkle(matrices.peek(), state, seed);
+        matrices.pop();
+    }
+
+    /** Karten-Vorschau: Modell allein, gedreht und skaliert wie die anderen HAT-Karten. */
+    private static void renderCardAnimatedHat(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, String id,
+                                              float translateY, float pitch, float yaw, float scale) {
+        matrices.push();
+        matrices.translate(0.0f, translateY, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        drawAnimatedHat(id, directSink(matrices, vertexConsumers), light, CARD_KEY, 0.0f, false, 7L, GuiTheme.accent() & 0xFFFFFF);
+        matrices.pop();
+    }
+
+    /**
+     * Zeichnet einen animierten Hut im aktuellen Kopfraum. Animationswerte werden erst im Zeichen-Callback auf das
+     * (geteilte) Modell gesetzt, weil die Queue verzoegert zeichnet und mehrere Spieler dasselbe Modell nutzen.
+     */
+    private static void drawAnimatedHat(String rawId, HatSink sink, int light, int key, float limbAmplitude,
+                                        boolean sneaking, long seed, int glowRgb) {
+        initModels();
+        long nowMs = System.currentTimeMillis();
+        float timeSec = (float) (nowMs % 10000000L) / 1000.0f;
+        switch (rawId.toLowerCase(java.util.Locale.ROOT)) {
+            case "crown" -> {
+                BedrockCosmeticModel m = crownModel;
+                if (m == null) return;
+                sink.draw(RenderLayers.entityCutoutNoCull(CROWN_TEXTURE), (e, c) -> {
+                    m.resetAllAnimations();
+                    m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, "base");
+                });
+                // Glanzlichter: additiv und selbstleuchtend, gestaffelt aufblitzend
+                for (int i = 0; i < HatAnimations.CROWN_GLINTS; i++) {
+                    float k = HatAnimations.crownGlint(i, timeSec);
+                    if (k < 0.03f) continue;
+                    int argb = HatAnimations.scaleRgb(0xFFFFFF, k);
+                    String bone = "glint" + i;
+                    sink.draw(RenderLayers.eyes(CROWN_TEXTURE), (e, c) -> m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, bone));
+                }
+            }
+            case "headphones" -> {
+                BedrockCosmeticModel m = headphonesModel;
+                if (m == null) return;
+                sink.draw(RenderLayers.entityCutoutNoCull(HEADPHONES_TEXTURE), (e, c) -> {
+                    m.resetAllAnimations();
+                    m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, "base");
+                });
+                int argb = HatAnimations.scaleRgb(glowRgb, HatAnimations.headphonePulse(timeSec));
+                sink.draw(RenderLayers.eyes(HEADPHONES_TEXTURE), (e, c) -> m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, "glow"));
+            }
+            case "viking_helmet" -> {
+                BedrockCosmeticModel m = vikingHelmetModel;
+                if (m == null) return;
+                sink.draw(RenderLayers.entityCutoutNoCull(VIKING_HELMET_TEXTURE), (e, c) -> {
+                    m.resetAllAnimations();
+                    m.render(e, c, light, 0, 1);
+                });
+            }
+            case "propeller_cap" -> {
+                BedrockCosmeticModel m = propellerCapModel;
+                if (m == null) return;
+                HatAnimations.PlayerHatState hs = HatAnimations.state(key, nowMs);
+                float dt = hs.tick(System.nanoTime());
+                hs.spinner.advance(HatAnimations.propellerTargetSpeed(limbAmplitude), dt);
+                float angle = hs.spinner.angle;
+                sink.draw(RenderLayers.entityCutoutNoCull(PROPELLER_CAP_TEXTURE), (e, c) -> {
+                    m.resetAllAnimations();
+                    m.setBoneRotation("propeller", 0.0f, angle, 0.0f);
+                    m.render(e, c, light, 0, 1);
+                });
+            }
+            case "cat_ears" -> {
+                BedrockCosmeticModel m = catEarsModel;
+                if (m == null) return;
+                HatAnimations.PlayerHatState hs = HatAnimations.state(key, nowMs);
+                float dt = hs.tick(System.nanoTime());
+                hs.sneak = HatAnimations.sneakStep(hs.sneak, sneaking, dt);
+                float[] p = HatAnimations.catEarPose(timeSec, seed, hs.sneak);
+                sink.draw(RenderLayers.entityCutoutNoCull(CAT_EARS_TEXTURE), (e, c) -> {
+                    m.resetAllAnimations();
+                    m.setBoneRotation("ear_l", p[0], 0.0f, p[1]);
+                    m.setBoneRotation("ear_r", p[2], 0.0f, p[3]);
+                    m.render(e, c, light, 0, 1);
+                });
+            }
+            default -> { }
+        }
+    }
+
+    /** Selten ein winziger Funke an einem Edelstein/einer Spitze der Krone (nur Welt, nie in der Ego-Perspektive). */
+    private static void maybeSpawnCrownSparkle(MatrixStack.Entry entry, PlayerEntityRenderState state, long seed) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.world == null || crownModel == null || mc.isPaused()) return;
+        long nowMs = System.currentTimeMillis();
+        float timeSec = (float) (nowMs % 10000000L) / 1000.0f;
+        long slot = (long) Math.floor(timeSec / HatAnimations.SPARKLE_SLOT);
+        HatAnimations.PlayerHatState hs = HatAnimations.state(state.id, nowMs);
+        if (hs.sparkleSlot == slot) return;
+        hs.sparkleSlot = slot;
+        int gi = HatAnimations.crownSparkle(slot, seed);
+        if (gi < 0) return;
+        net.minecraft.util.math.Vec3d cam = mc.gameRenderer != null && mc.gameRenderer.getCamera() != null
+                ? mc.gameRenderer.getCamera().getCameraPos() : null;
+        if (cam == null) return;
+        float[] pos = HatAnimations.CROWN_GLINT_POS[gi];
+        org.joml.Vector3f local = crownModel.boneToModel("crown", pos[0], pos[1], pos[2]);
+        if (local == null) return;
+        org.joml.Vector3f v = entry.getPositionMatrix().transformPosition(local, new org.joml.Vector3f());
+        double sx = cam.x + v.x, sy = cam.y + v.y, sz = cam.z + v.z;
+        double dx = sx - state.x, dy = sy - (state.y + 1.9), dz = sz - state.z;
+        if (dx * dx + dy * dy + dz * dz > 9.0) return; // Matrix nicht weltbezogen (z. B. Vorschau): lieber kein Funke
+        mc.world.addParticleClient(ParticleTypes.ELECTRIC_SPARK, sx, sy, sz, 0.0, 0.004, 0.0);
     }
 
     // ==========================================
@@ -1405,6 +1594,12 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, witchHatModel, WITCH_HAT_TEXTURE);
         } else if ("straw_hat".equalsIgnoreCase(activeHead)) {
             renderHeadModelDirect(matrices, vertexConsumers, playerModel, light, strawHatModel, STRAW_HAT_TEXTURE);
+        } else if (isAnimatedHat(activeHead)) {
+            matrices.push();
+            if (playerModel != null) playerModel.head.applyTransform(matrices);
+            drawAnimatedHat(activeHead, directSink(matrices, vertexConsumers), light, PREVIEW_KEY, 0.0f, false,
+                    localSeed(), GuiTheme.accent() & 0xFFFFFF);
+            matrices.pop();
         }
 
         // 2b. Gesichts-Cosmetics
@@ -1618,6 +1813,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             case "straw_hat" -> renderCardHeadModel(matrices, vertexConsumers, light, strawHatModel, STRAW_HAT_TEXTURE, 0.85f, 22.0f, -20.0f, 1.4f);
             case "sunglasses" -> renderCardHeadModel(matrices, vertexConsumers, light, sunglassesModel, SUNGLASSES_TEXTURE, 0.55f, 5.0f, -25.0f, 2.4f);
             case "skull_mask" -> renderCardHeadModel(matrices, vertexConsumers, light, skullMaskModel, SKULL_MASK_TEXTURE, 0.55f, 8.0f, -20.0f, 2.0f);
+            case "crown" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "crown", 1.495f, 15.0f, -20.0f, 2.0f);
+            case "headphones" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "headphones", 0.85f, 12.0f, -35.0f, 1.95f);
+            case "viking_helmet" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "viking_helmet", 1.01f, 12.0f, -25.0f, 1.55f);
+            case "propeller_cap" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "propeller_cap", 1.024f, 25.0f, -25.0f, 1.9f);
+            case "cat_ears" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "cat_ears", 2.196f, 18.0f, -20.0f, 3.3f);
             case "self", "minime_sit", "custom" -> {
                 if (sitChibiModel == null) return;
                 matrices.push();

@@ -260,6 +260,12 @@ public final class SessionSwitcher {
         } catch (Throwable t) {
             LOGGER.warn("Failed to reset skin cache after account switch", t);
         }
+        // Eigenes Caeser-Cape verwerfen; nach der neuen Anmeldung kommt es über /v1/me bzw. den Sync-State neu
+        try {
+            com.bame.client.cosmetics.CaeserCapeManager.onAccountChanged();
+        } catch (Throwable t) {
+            LOGGER.warn("Failed to reset Caeser cape after account switch ({})", t.getClass().getSimpleName());
+        }
         // Köpfe neu laden (eigener Kopf gehört jetzt zu einem anderen Account)
         try {
             AccountHeads.clear();

@@ -1,5 +1,6 @@
 package com.bame.client.mixin;
 
+import com.bame.client.cosmetics.CaeserCapeManager;
 import com.bame.client.cosmetics.CaeserSkinManager;
 import com.bame.client.module.SkinProtectModule;
 import net.minecraft.client.MinecraftClient;
@@ -19,14 +20,16 @@ public class AbstractClientPlayerEntityMixin {
             AbstractClientPlayerEntity self = (AbstractClientPlayerEntity) (Object) this;
             if (self.getUuid().equals(mc.player.getUuid())) {
                 if (SkinProtectModule.enabled) {
-                    cir.setReturnValue(SkinProtectModule.getCurrentSkin());
+                    // Caeser-Cape des eigenen Spielers bleibt auch mit Skin-Protect sichtbar
+                    cir.setReturnValue(CaeserCapeManager.apply(self.getUuid(), SkinProtectModule.getCurrentSkin()));
                 } else if (CaeserSkinManager.hasActiveOverride()) {
                     SkinTextures custom = CaeserSkinManager.getActiveSkinTextures();
                     if (custom != null) {
-                        cir.setReturnValue(custom);
+                        cir.setReturnValue(CaeserCapeManager.apply(self.getUuid(), custom));
                     }
                 }
             }
         }
+        // Sonst: getSkin() fragt den PlayerListEntry, dort setzt PlayerListEntryMixin das Caeser-Cape ein.
     }
 }

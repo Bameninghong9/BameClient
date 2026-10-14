@@ -79,6 +79,8 @@ public class CaeserPlayerSyncManager {
         public String tabBadge = "c";
         public final Set<String> accessories = ConcurrentHashMap.newKeySet();
         public long lastUpdated = System.currentTimeMillis();
+        /** Freigegebenes Caeser-Cape (ID) laut Sync-Server; {@code null} ohne Cape bzw. bei LAN-Daten. */
+        public String cape;
         /** {@code true}: vom Sync-Server bereinigt. {@code false}: LAN, muss gegen den OwnershipCache gefiltert werden. */
         public boolean verified;
 
@@ -564,6 +566,7 @@ public class CaeserPlayerSyncManager {
     public static void tick(MinecraftClient client) {
         if (client == null) return;
         OwnershipCache.tick();
+        CaeserCapeManager.tick();
 
         long now = System.currentTimeMillis();
         boolean sync = CaeserSyncClient.isConnected();
@@ -673,12 +676,19 @@ public class CaeserPlayerSyncManager {
     // ==========================================
 
     public static void applyServerState(String uuid32, String name, JsonObject state) {
-        if (uuid32 == null || state == null || uuid32.equals(localUuid32())) return;
+        if (uuid32 == null || state == null) return;
+        if (uuid32.equals(localUuid32())) {
+            // Eigener State (der Server schickt ihn bei einer Cape-Änderung auch an unsere Verbindungen): nur das Cape
+            CaeserCapeManager.setOwnCapeFromSync(uuid32, capeField(state));
+            return;
+        }
         PlayerCosmeticsData data = new PlayerCosmeticsData();
         data.uuid = uuid32;
         data.username = name;
         data.verified = true;
         readState(data, state);
+        // Nur vom Sync-Server (dort bereits auf freigegebene Capes gefiltert), nie aus dem LAN
+        data.cape = capeField(state);
         COSMETICS_MAP.put(uuid32, data);
         CAESER_PLAYERS.add(uuid32);
         indexName(name, uuid32);
@@ -825,6 +835,23 @@ public class CaeserPlayerSyncManager {
                 if (el.isJsonPrimitive()) data.accessories.add(el.getAsString().toLowerCase(Locale.ROOT));
             }
         }
+    }
+
+    /** {@code cape} aus einem Sync-State: gültige ID oder {@code null} (fehlend, {@code null} oder ungültig). */
+    private static String capeField(JsonObject state) {
+        if (state == null || !state.has("cape") || !state.get("cape").isJsonPrimitive()) return null;
+        try {
+            return CapeFiles.normalizeId(state.get("cape").getAsString());
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Freigegebenes Caeser-Cape eines fremden Spielers (nur Sync-Server-Daten), sonst {@code null}. */
+    public static String getVerifiedCape(String uuid32) {
+        if (uuid32 == null) return null;
+        PlayerCosmeticsData data = COSMETICS_MAP.get(uuid32);
+        return data != null && data.verified ? data.cape : null;
     }
 
     private static String sanitizeBadge(String raw) {

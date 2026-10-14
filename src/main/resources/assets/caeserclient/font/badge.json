@@ -1,0 +1,11 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "caeserclient:font/caeser_badge.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": ["\uE000"]
+    }
+  ]
+}

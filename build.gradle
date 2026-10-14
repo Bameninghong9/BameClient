@@ -133,3 +133,17 @@ tasks.register('petHornsGeometryTest', JavaExec) {
     mainClass = 'com.bame.client.cosmetics.PetHornsGeometryTest'
 }
 tasks.named('check') { dependsOn 'petHornsGeometryTest' }
+
+tasks.register('hatsGeometryTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.HatsGeometryTest'
+}
+tasks.named('check') { dependsOn 'hatsGeometryTest' }
+
+tasks.register('capeFilesTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.CapeFilesTest'
+}
+tasks.named('check') { dependsOn 'capeFilesTest' }

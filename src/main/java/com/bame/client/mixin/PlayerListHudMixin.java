@@ -29,7 +29,7 @@ public class PlayerListHudMixin {
         if ((uuid != null || username != null) && CaeserPlayerSyncManager.isCaeserPlayer(uuid, username)) {
             String badge = CaeserPlayerSyncManager.getPlayerBadgePrefix(uuid, username);
             if (badge != null && !badge.isEmpty()) {
-                original = Text.literal(badge).append(original);
+                original = com.bame.client.module.TabBadgeModule.badgeText().append(original);
                 modified = true;
             }
         }

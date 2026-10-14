@@ -133,6 +133,7 @@ public final class Wallet {
         lastRefreshAt = System.currentTimeMillis();
         final int gen = generation;
         final String uuid = CaeserAuth.currentSessionUuid32();
+        final long startedAt = System.currentTimeMillis();
         if (status != Status.OK) status = Status.LOADING;
 
         CompletableFuture<JsonObject> shop = CaeserApi.get("/v1/shop", null);
@@ -154,6 +155,7 @@ public final class Wallet {
                         Map<String, ShopItem> catalog = shopJson != null ? parseCatalog(shopJson) : null;
                         if (meJson != null) {
                             applyMe(uuid, meJson, catalog);
+                            applyCapeId(uuid, meJson, startedAt);
                         } else {
                             if (catalog != null) applyCatalog(uuid, catalog);
                             markOffline(meErr != null ? CaeserApi.unwrap(meErr).userMessage() : CaeserApi.MSG_UNREACHABLE);
@@ -194,6 +196,18 @@ public final class Wallet {
         status = Status.OK;
         lastError = null;
         saveCacheAsync(snapshot);
+    }
+
+    /**
+     * Eigenes gewähltes Caeser-Cape aus {@code /v1/me} ({@code capeId}, auch in Prüfung). Fehlt das Feld (älteres
+     * Backend), gilt {@code null}. Fallback zum Sync-{@code state}; ein neuerer Sync-Wert hat Vorrang.
+     */
+    private static void applyCapeId(String uuid, JsonObject me, long requestStartedAt) {
+        try {
+            com.bame.client.cosmetics.CaeserCapeManager.setOwnCapeFromWallet(uuid, optStr(me, "capeId"), requestStartedAt);
+        } catch (Throwable t) {
+            LOGGER.debug("Could not apply capeId ({})", t.getClass().getSimpleName());
+        }
     }
 
     private static void applyCatalog(String uuid, Map<String, ShopItem> catalog) {
