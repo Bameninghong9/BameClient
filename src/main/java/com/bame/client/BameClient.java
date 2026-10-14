@@ -66,6 +66,14 @@ public class BameClient implements ClientModInitializer {
                     com.bame.client.killfx.KillEffects.clear();
                 }));
         // Jeton-Shop: nach dem Client-Start (Session und API-Services sind dann sicher da) Cache laden und anmelden
+        // Config: ausstehende Änderungen beim Beenden synchron sichern (nichts geht verloren)
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            try {
+                BameClientConfig.saveNow();
+            } catch (Throwable t) {
+                LOGGER.warn("Caeser Client config could not be saved on shutdown", t);
+            }
+        });
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
             try {
                 com.bame.client.shop.Wallet.init();
@@ -99,7 +107,9 @@ public class BameClient implements ClientModInitializer {
                 .executes(context -> {
                     MinecraftClient client = MinecraftClient.getInstance();
                     client.send(() -> {
-                        BameClientScreen.selected = "Cosmetics";
+                        // Direkt die Cosmetics-Ansicht öffnen (nicht den Hub)
+                        BameClientScreen.currentView = BameClientScreen.ViewMode.COSMETICS;
+                        com.bame.client.gui.tab.CosmeticsTab.subCategory = "ALL";
                         client.setScreen(new BameClientScreen());
                     });
                     return 1;
@@ -152,6 +162,8 @@ public class BameClient implements ClientModInitializer {
 
         // Client Tick Events
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Gebündeltes Speichern ~1 s nach der letzten Änderung (Schreiben im Hintergrund)
+            BameClientConfig.tick();
             com.bame.client.cosmetics.CaeserSkinManager.checkPeriodicSync();
             com.bame.client.cosmetics.CaeserPlayerSyncManager.tick(client);
             AutoAreaMinerModule.onTick(client);
@@ -204,7 +216,7 @@ public class BameClient implements ClientModInitializer {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), KeyStrokesModule.keyBind);
                     if (down && !keyStrokesWasPressed) {
                         KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
-                        com.bame.client.notification.NotificationManager.showModuleToggle("KeyStrokes", KeyStrokesModule.enabled);
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Key Strokes", KeyStrokesModule.enabled);
                         BameClientConfig.save();
                     }
                     keyStrokesWasPressed = down;

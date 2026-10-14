@@ -38,7 +38,6 @@ public class CosmeticsTab implements ClientTab {
 
     // Interne IDs bleiben "HEAD" und "PETS" (Config-Schlüssel head/pet), angezeigt werden "HAT" und "PET".
     public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "EMOTES", "SKINS"
-    private static final String[] SUB_CATS = {"ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "EMOTES", "SKINS"};
     public static int assigningToWheelSlot = -1;
 
     // ==========================================

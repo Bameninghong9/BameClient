@@ -36,6 +36,9 @@ public class FakeScoreboardRenderer implements HudRenderCallback {
         if (y == -1) {
             y = (client.getWindow().getScaledHeight() - (int)(h * FakeScoreboardModule.scale)) / 2;
         }
+        // Clamp at render time only (stored position stays untouched)
+        x = StatusHudRenderer.clampHudX(x, w, FakeScoreboardModule.scale);
+        y = StatusHudRenderer.clampHudY(y, h, FakeScoreboardModule.scale);
         render(context, x, y, FakeScoreboardModule.scale);
     }
 

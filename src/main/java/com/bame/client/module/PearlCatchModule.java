@@ -42,7 +42,8 @@ public class PearlCatchModule {
 
     public static void onTick(MinecraftClient client) {
         // Keybind trigger
-        boolean pressed = keyBind != -1 && client.getWindow() != null && client.currentScreen == null
+        // Versteckt (Geheim-Menü): Taste nur aktiv, wenn entsperrt oder das Modul schon läuft
+        boolean pressed = BameClientConfig.hiddenModuleHotkeyAllowed(enabled) && keyBind != -1 && client.getWindow() != null && client.currentScreen == null
                 && InputUtil.isKeyPressed(client.getWindow(), keyBind);
         if (pressed && !wasKeyBindPressed) {
             triggerPearlCatch(client);

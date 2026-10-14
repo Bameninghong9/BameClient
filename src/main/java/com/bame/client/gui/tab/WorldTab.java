@@ -65,6 +65,21 @@ public class WorldTab implements ClientTab {
         return "World";
     }
 
+    @Override
+    public boolean isListeningForKey() {
+        return listening || listeningNoFog || listeningTimeChanger;
+    }
+
+    @Override
+    public void cancelKeyListening() {
+        clearKeyListeners();
+    }
+
+    @Override
+    public boolean hasFocusedTextField() {
+        return corner1.isFocused() || corner2.isFocused();
+    }
+
     public boolean minerVisible(String search) {
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "auto area miner".contains(q) || "miner".contains(q) || "quarry".contains(q) || "world".contains(q);
@@ -165,14 +180,13 @@ public class WorldTab implements ClientTab {
     private void renderMiner(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getMinerHeight();
         screen.moduleCard(c, x, y, w, h, AutoAreaMinerModule.enabled, expanded,
-                "Area Miner", "Automated area block mining", "NEW", "world", mx, my);
+                "Area Miner", "Automated area block mining", null, "world", mx, my);
 
         if (!expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 12, curY + 4, 0xFF8E95A4);
-        String kb = listening ? "..." : (AutoAreaMinerModule.keyBind < 0 ? "None" : GLFW.glfwGetKeyName(AutoAreaMinerModule.keyBind, 0) != null ? GLFW.glfwGetKeyName(AutoAreaMinerModule.keyBind, 0).toUpperCase(Locale.ROOT) : "Key " + AutoAreaMinerModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "AutoAreaMinerModule", AutoAreaMinerModule.keyBind, listening, x + 64, curY, 48, 16, mx, my);
 
         screen.text(c, "Corner 1", x + 12, y + 78, 0xFFABB1BE);
         corner1.render(c, mx, my, delta);
@@ -218,14 +232,13 @@ public class WorldTab implements ClientTab {
     private void renderTimeChanger(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getTimeChangerHeight();
         screen.moduleCard(c, x, y, w, h, TimeChangerModule.enabled, TimeChangerModule.expanded,
-                "Time Changer", "Changes client-side visual world time", "NEW", "world", mx, my);
+                "Time Changer", "Changes client-side visual world time", null, "world", mx, my);
 
         if (!TimeChangerModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningTimeChanger ? "..." : screen.formatKey(TimeChangerModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "TimeChangerModule", TimeChangerModule.keyBind, listeningTimeChanger, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Time", x + 14, curY + 4, 0xFFD4D8E0);
@@ -238,14 +251,13 @@ public class WorldTab implements ClientTab {
     private void renderNoFog(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getNoFogHeight();
         screen.moduleCard(c, x, y, w, h, NoFogModule.enabled, NoFogModule.expanded,
-                "No Fog", "Disables thick environmental fog", "NEW", "world", mx, my);
+                "No Fog", "Disables thick environmental fog", null, "world", mx, my);
 
         if (!NoFogModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningNoFog ? "..." : screen.formatKey(NoFogModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "NoFogModule", NoFogModule.keyBind, listeningNoFog, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "All Fog (Max View)", x + 14, curY + 4, 0xFFD4D8E0);

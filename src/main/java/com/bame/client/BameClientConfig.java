@@ -31,13 +31,19 @@ public class BameClientConfig {
     public static float ambientIntensity = 1, ambientOpacity = 1, ambientRadius = 1, animationSpeed = 1;
     public static int menuBind = org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT;
     public static boolean quickFriend = false;
-    public static String selectedCategory = "Visuals";
+    /** Zuletzt gewählter Tab im Mod-Menü (einzige Quelle für den aktiven Tab, wird gespeichert). */
+    public static String selectedCategory = "Combat";
 
     // Secret Key Combo Settings (Hidden GUI unlock)
-    public static boolean secretRequireShift = false;
-    public static boolean secretRequireCtrl = true;
-    public static boolean secretRequireAlt = false;
-    public static int secretKey = org.lwjgl.glfw.GLFW.GLFW_KEY_C;
+    // Standard: Strg + Umschalt + K (K ist weder in Vanilla noch bei einem Modul standardmäßig belegt)
+    public static final int DEFAULT_SECRET_KEY = org.lwjgl.glfw.GLFW.GLFW_KEY_K;
+    public static final boolean DEFAULT_SECRET_CTRL = true;
+    public static final boolean DEFAULT_SECRET_SHIFT = true;
+    public static final boolean DEFAULT_SECRET_ALT = false;
+    public static boolean secretRequireShift = DEFAULT_SECRET_SHIFT;
+    public static boolean secretRequireCtrl = DEFAULT_SECRET_CTRL;
+    public static boolean secretRequireAlt = DEFAULT_SECRET_ALT;
+    public static int secretKey = DEFAULT_SECRET_KEY;
     public static boolean secretUnlocked = false; // Always starts locked on launch
 
     // Client Sounds
@@ -57,6 +63,8 @@ public class BameClientConfig {
         // If new modular structure exists, load from it
         if (Files.exists(visualsDir.resolve("show_hud.properties")) || Files.exists(worldDir.resolve("auto_area_miner.properties"))) {
             loadModular();
+            afterLoad();
+            if (dirty) saveNow(); // Migrationen (z. B. geheime Tastenkombination) sofort sichern
             return;
         }
 
@@ -64,22 +72,32 @@ public class BameClientConfig {
         Path legacyFile = FabricLoader.getInstance().getConfigDir().resolve("bameclient.properties");
         if (Files.exists(legacyFile)) {
             loadLegacy(legacyFile);
-            save();
+            afterLoad();
+            saveNow();
             return;
         }
 
         // First run: save defaults into modular folders
-        save();
+        afterLoad();
+        saveNow();
+    }
+
+    /** Gemeinsame Nachbearbeitung nach jedem Laden. */
+    private static void afterLoad() {
+        selectedCategory = sanitizeCategory(selectedCategory);
+        // Versteckte Kampf-Module laufen nach einem Neustart nie weiter (Einstellungswerte bleiben erhalten)
+        disableHiddenCombatModules();
+        secretUnlocked = false;
     }
 
     private static void loadModular() {
         try {
             // 1. World - Auto Area Miner
             Path minerFile = BASE_CONFIG_DIR.resolve("World").resolve("auto_area_miner.properties");
-            if (Files.exists(minerFile)) {
+            if (Files.exists(minerFile)) { try {
                 Properties props = loadProps(minerFile);
-                if (props.containsKey("keyBind")) AutoAreaMinerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("mode3x3")) AutoAreaMinerModule.mode3x3 = Boolean.parseBoolean(props.getProperty("mode3x3"));
+                AutoAreaMinerModule.keyBind = getInt(props, "keyBind", AutoAreaMinerModule.keyBind);
+                AutoAreaMinerModule.mode3x3 = getBool(props, "mode3x3", AutoAreaMinerModule.mode3x3);
                 if (props.containsKey("corner1")) {
                     String[] parts = props.getProperty("corner1").trim().split("\\s+");
                     if (parts.length == 3) {
@@ -100,156 +118,156 @@ public class BameClientConfig {
                         } catch (Exception ignored) {}
                     }
                 }
-                if (props.containsKey("outlineColor")) outlineColor = (int) Long.parseLong(props.getProperty("outlineColor", "FF00FFFF"), 16);
-                if (props.containsKey("renderMode")) renderMode = Integer.parseInt(props.getProperty("renderMode"));
-                if (props.containsKey("outlineWidth")) outlineWidth = Float.parseFloat(props.getProperty("outlineWidth"));
-            }
+                outlineColor = getHex(props, "outlineColor", outlineColor);
+                renderMode = getInt(props, "renderMode", renderMode);
+                outlineWidth = getFloat(props, "outlineWidth", outlineWidth);
+            } catch (Exception e) { logLoadError(minerFile, e); } }
 
             // Movement - InvMove
             Path invMoveFile = BASE_CONFIG_DIR.resolve("Movement").resolve("inv_move.properties");
-            if (Files.exists(invMoveFile)) {
+            if (Files.exists(invMoveFile)) { try {
                 Properties props = loadProps(invMoveFile);
-                if (props.containsKey("enabled")) InvMoveModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) InvMoveModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) InvMoveModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("jump")) InvMoveModule.jump = Boolean.parseBoolean(props.getProperty("jump"));
-                if (props.containsKey("sprint")) InvMoveModule.sprint = Boolean.parseBoolean(props.getProperty("sprint"));
-                if (props.containsKey("sneak")) InvMoveModule.sneak = Boolean.parseBoolean(props.getProperty("sneak"));
-                if (props.containsKey("rotateWithArrows")) InvMoveModule.rotateWithArrows = Boolean.parseBoolean(props.getProperty("rotateWithArrows"));
-            }
+                InvMoveModule.enabled = getBool(props, "enabled", InvMoveModule.enabled);
+                InvMoveModule.keyBind = getInt(props, "keyBind", InvMoveModule.keyBind);
+                InvMoveModule.expanded = getBool(props, "expanded", InvMoveModule.expanded);
+                InvMoveModule.jump = getBool(props, "jump", InvMoveModule.jump);
+                InvMoveModule.sprint = getBool(props, "sprint", InvMoveModule.sprint);
+                InvMoveModule.sneak = getBool(props, "sneak", InvMoveModule.sneak);
+                InvMoveModule.rotateWithArrows = getBool(props, "rotateWithArrows", InvMoveModule.rotateWithArrows);
+            } catch (Exception e) { logLoadError(invMoveFile, e); } }
 
             // 2. Visuals - Show HUD
             Path showHudFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("show_hud.properties");
-            if (Files.exists(showHudFile)) {
+            if (Files.exists(showHudFile)) { try {
                 Properties props = loadProps(showHudFile);
-                if (props.containsKey("showHudEnabled")) ShowHudModule.enabled = Boolean.parseBoolean(props.getProperty("showHudEnabled"));
-                if (props.containsKey("showHudKeyBind")) ShowHudModule.keyBind = Integer.parseInt(props.getProperty("showHudKeyBind"));
-                if (props.containsKey("showHudExpanded")) ShowHudModule.expanded = Boolean.parseBoolean(props.getProperty("showHudExpanded"));
+                ShowHudModule.enabled = getBool(props, "showHudEnabled", ShowHudModule.enabled);
+                ShowHudModule.keyBind = getInt(props, "showHudKeyBind", ShowHudModule.keyBind);
+                ShowHudModule.expanded = getBool(props, "showHudExpanded", ShowHudModule.expanded);
 
                 // Clock
-                if (props.containsKey("clockEnabled")) ClockModule.enabled = Boolean.parseBoolean(props.getProperty("clockEnabled"));
-                if (props.containsKey("clockHudX")) ClockModule.hudX = Integer.parseInt(props.getProperty("clockHudX"));
-                if (props.containsKey("clockHudY")) ClockModule.hudY = Integer.parseInt(props.getProperty("clockHudY"));
-                if (props.containsKey("clockScale")) ClockModule.scale = Float.parseFloat(props.getProperty("clockScale"));
-                if (props.containsKey("clockBgMode")) ClockModule.bgMode = Integer.parseInt(props.getProperty("clockBgMode"));
-                if (props.containsKey("clockOutlineColor")) ClockModule.outlineColor = (int) Long.parseLong(props.getProperty("clockOutlineColor"), 16);
-                if (props.containsKey("clockCustomWidth")) ClockModule.customWidth = Integer.parseInt(props.getProperty("clockCustomWidth"));
-                if (props.containsKey("clockCustomHeight")) ClockModule.customHeight = Integer.parseInt(props.getProperty("clockCustomHeight"));
+                ClockModule.enabled = getBool(props, "clockEnabled", ClockModule.enabled);
+                ClockModule.hudX = getInt(props, "clockHudX", ClockModule.hudX);
+                ClockModule.hudY = getInt(props, "clockHudY", ClockModule.hudY);
+                ClockModule.scale = getFloat(props, "clockScale", ClockModule.scale);
+                ClockModule.bgMode = getInt(props, "clockBgMode", ClockModule.bgMode);
+                ClockModule.outlineColor = getHex(props, "clockOutlineColor", ClockModule.outlineColor);
+                ClockModule.customWidth = getInt(props, "clockCustomWidth", ClockModule.customWidth);
+                ClockModule.customHeight = getInt(props, "clockCustomHeight", ClockModule.customHeight);
 
                 // Coordinates
-                if (props.containsKey("coordinatesEnabled")) CoordinatesModule.enabled = Boolean.parseBoolean(props.getProperty("coordinatesEnabled"));
-                if (props.containsKey("coordinatesHudX")) CoordinatesModule.hudX = Integer.parseInt(props.getProperty("coordinatesHudX"));
-                if (props.containsKey("coordinatesHudY")) CoordinatesModule.hudY = Integer.parseInt(props.getProperty("coordinatesHudY"));
-                if (props.containsKey("coordinatesScale")) CoordinatesModule.scale = Float.parseFloat(props.getProperty("coordinatesScale"));
-                if (props.containsKey("coordinatesBgMode")) CoordinatesModule.bgMode = Integer.parseInt(props.getProperty("coordinatesBgMode"));
-                if (props.containsKey("coordinatesOutlineColor")) CoordinatesModule.outlineColor = (int) Long.parseLong(props.getProperty("coordinatesOutlineColor"), 16);
-                if (props.containsKey("coordinatesCustomWidth")) CoordinatesModule.customWidth = Integer.parseInt(props.getProperty("coordinatesCustomWidth"));
-                if (props.containsKey("coordinatesCustomHeight")) CoordinatesModule.customHeight = Integer.parseInt(props.getProperty("coordinatesCustomHeight"));
-                if (props.containsKey("coordinatesExpanded")) CoordinatesModule.expanded = Boolean.parseBoolean(props.getProperty("coordinatesExpanded"));
-                if (props.containsKey("coordinatesLayoutMode")) CoordinatesModule.layoutMode = Integer.parseInt(props.getProperty("coordinatesLayoutMode"));
-                if (props.containsKey("coordinatesStyle")) CoordinatesModule.style = Integer.parseInt(props.getProperty("coordinatesStyle"));
-                if (props.containsKey("coordinatesShowX")) CoordinatesModule.showX = Boolean.parseBoolean(props.getProperty("coordinatesShowX"));
-                if (props.containsKey("coordinatesShowY")) CoordinatesModule.showY = Boolean.parseBoolean(props.getProperty("coordinatesShowY"));
-                if (props.containsKey("coordinatesShowZ")) CoordinatesModule.showZ = Boolean.parseBoolean(props.getProperty("coordinatesShowZ"));
-                if (props.containsKey("coordinatesDecimals")) CoordinatesModule.decimals = Boolean.parseBoolean(props.getProperty("coordinatesDecimals"));
-                if (props.containsKey("coordinatesShowNether")) CoordinatesModule.showNether = Boolean.parseBoolean(props.getProperty("coordinatesShowNether"));
-                if (props.containsKey("coordinatesShowDirection")) CoordinatesModule.showDirection = Boolean.parseBoolean(props.getProperty("coordinatesShowDirection"));
+                CoordinatesModule.enabled = getBool(props, "coordinatesEnabled", CoordinatesModule.enabled);
+                CoordinatesModule.hudX = getInt(props, "coordinatesHudX", CoordinatesModule.hudX);
+                CoordinatesModule.hudY = getInt(props, "coordinatesHudY", CoordinatesModule.hudY);
+                CoordinatesModule.scale = getFloat(props, "coordinatesScale", CoordinatesModule.scale);
+                CoordinatesModule.bgMode = getInt(props, "coordinatesBgMode", CoordinatesModule.bgMode);
+                CoordinatesModule.outlineColor = getHex(props, "coordinatesOutlineColor", CoordinatesModule.outlineColor);
+                CoordinatesModule.customWidth = getInt(props, "coordinatesCustomWidth", CoordinatesModule.customWidth);
+                CoordinatesModule.customHeight = getInt(props, "coordinatesCustomHeight", CoordinatesModule.customHeight);
+                CoordinatesModule.expanded = getBool(props, "coordinatesExpanded", CoordinatesModule.expanded);
+                CoordinatesModule.layoutMode = getInt(props, "coordinatesLayoutMode", CoordinatesModule.layoutMode);
+                CoordinatesModule.style = getInt(props, "coordinatesStyle", CoordinatesModule.style);
+                CoordinatesModule.showX = getBool(props, "coordinatesShowX", CoordinatesModule.showX);
+                CoordinatesModule.showY = getBool(props, "coordinatesShowY", CoordinatesModule.showY);
+                CoordinatesModule.showZ = getBool(props, "coordinatesShowZ", CoordinatesModule.showZ);
+                CoordinatesModule.decimals = getBool(props, "coordinatesDecimals", CoordinatesModule.decimals);
+                CoordinatesModule.showNether = getBool(props, "coordinatesShowNether", CoordinatesModule.showNether);
+                CoordinatesModule.showDirection = getBool(props, "coordinatesShowDirection", CoordinatesModule.showDirection);
 
                 // Potions
-                if (props.containsKey("potionsEnabled")) PotionsModule.enabled = Boolean.parseBoolean(props.getProperty("potionsEnabled"));
-                if (props.containsKey("potionsHudX")) PotionsModule.hudX = Integer.parseInt(props.getProperty("potionsHudX"));
-                if (props.containsKey("potionsHudY")) PotionsModule.hudY = Integer.parseInt(props.getProperty("potionsHudY"));
-                if (props.containsKey("potionsScale")) PotionsModule.scale = Float.parseFloat(props.getProperty("potionsScale"));
-                if (props.containsKey("potionsBgMode")) PotionsModule.bgMode = Integer.parseInt(props.getProperty("potionsBgMode"));
-                if (props.containsKey("potionsOutlineColor")) PotionsModule.outlineColor = (int) Long.parseLong(props.getProperty("potionsOutlineColor"), 16);
-                if (props.containsKey("potionsCustomWidth")) PotionsModule.customWidth = Integer.parseInt(props.getProperty("potionsCustomWidth"));
-                if (props.containsKey("potionsCustomHeight")) PotionsModule.customHeight = Integer.parseInt(props.getProperty("potionsCustomHeight"));
+                PotionsModule.enabled = getBool(props, "potionsEnabled", PotionsModule.enabled);
+                PotionsModule.hudX = getInt(props, "potionsHudX", PotionsModule.hudX);
+                PotionsModule.hudY = getInt(props, "potionsHudY", PotionsModule.hudY);
+                PotionsModule.scale = getFloat(props, "potionsScale", PotionsModule.scale);
+                PotionsModule.bgMode = getInt(props, "potionsBgMode", PotionsModule.bgMode);
+                PotionsModule.outlineColor = getHex(props, "potionsOutlineColor", PotionsModule.outlineColor);
+                PotionsModule.customWidth = getInt(props, "potionsCustomWidth", PotionsModule.customWidth);
+                PotionsModule.customHeight = getInt(props, "potionsCustomHeight", PotionsModule.customHeight);
 
                 // Target HUD
-                if (props.containsKey("targetHudEnabled")) TargetHudModule.enabled = Boolean.parseBoolean(props.getProperty("targetHudEnabled"));
-                if (props.containsKey("targetHudExpanded")) TargetHudModule.expanded = Boolean.parseBoolean(props.getProperty("targetHudExpanded"));
-                if (props.containsKey("targetHudShowHearts")) TargetHudModule.showHearts = Boolean.parseBoolean(props.getProperty("targetHudShowHearts"));
-                if (props.containsKey("targetHudShowArmor")) TargetHudModule.showArmor = Boolean.parseBoolean(props.getProperty("targetHudShowArmor"));
-                if (props.containsKey("targetHudPlayersOnly")) TargetHudModule.playersOnly = Boolean.parseBoolean(props.getProperty("targetHudPlayersOnly"));
-                if (props.containsKey("targetHudHudX")) TargetHudModule.hudX = Integer.parseInt(props.getProperty("targetHudHudX"));
-                if (props.containsKey("targetHudHudY")) TargetHudModule.hudY = Integer.parseInt(props.getProperty("targetHudHudY"));
-                if (props.containsKey("targetHudScale")) TargetHudModule.scale = Float.parseFloat(props.getProperty("targetHudScale"));
-                if (props.containsKey("targetHudBgMode")) TargetHudModule.bgMode = Integer.parseInt(props.getProperty("targetHudBgMode"));
-                if (props.containsKey("targetHudOutlineColor")) TargetHudModule.outlineColor = (int) Long.parseLong(props.getProperty("targetHudOutlineColor"), 16);
-                if (props.containsKey("targetHudCustomWidth")) TargetHudModule.customWidth = Integer.parseInt(props.getProperty("targetHudCustomWidth"));
-                if (props.containsKey("targetHudCustomHeight")) TargetHudModule.customHeight = Integer.parseInt(props.getProperty("targetHudCustomHeight"));
+                TargetHudModule.enabled = getBool(props, "targetHudEnabled", TargetHudModule.enabled);
+                TargetHudModule.expanded = getBool(props, "targetHudExpanded", TargetHudModule.expanded);
+                TargetHudModule.showHearts = getBool(props, "targetHudShowHearts", TargetHudModule.showHearts);
+                TargetHudModule.showArmor = getBool(props, "targetHudShowArmor", TargetHudModule.showArmor);
+                TargetHudModule.playersOnly = getBool(props, "targetHudPlayersOnly", TargetHudModule.playersOnly);
+                TargetHudModule.hudX = getInt(props, "targetHudHudX", TargetHudModule.hudX);
+                TargetHudModule.hudY = getInt(props, "targetHudHudY", TargetHudModule.hudY);
+                TargetHudModule.scale = getFloat(props, "targetHudScale", TargetHudModule.scale);
+                TargetHudModule.bgMode = getInt(props, "targetHudBgMode", TargetHudModule.bgMode);
+                TargetHudModule.outlineColor = getHex(props, "targetHudOutlineColor", TargetHudModule.outlineColor);
+                TargetHudModule.customWidth = getInt(props, "targetHudCustomWidth", TargetHudModule.customWidth);
+                TargetHudModule.customHeight = getInt(props, "targetHudCustomHeight", TargetHudModule.customHeight);
 
                 // Armor HUD
-                if (props.containsKey("armorHudEnabled")) ArmorHudModule.enabled = Boolean.parseBoolean(props.getProperty("armorHudEnabled"));
-                if (props.containsKey("armorHudHudX")) ArmorHudModule.hudX = Integer.parseInt(props.getProperty("armorHudHudX"));
-                if (props.containsKey("armorHudHudY")) ArmorHudModule.hudY = Integer.parseInt(props.getProperty("armorHudHudY"));
-                if (props.containsKey("armorHudScale")) ArmorHudModule.scale = Float.parseFloat(props.getProperty("armorHudScale"));
-                if (props.containsKey("armorHudBgMode")) ArmorHudModule.bgMode = Integer.parseInt(props.getProperty("armorHudBgMode"));
-                if (props.containsKey("armorHudOutlineColor")) ArmorHudModule.outlineColor = (int) Long.parseLong(props.getProperty("armorHudOutlineColor"), 16);
-                if (props.containsKey("armorHudCustomWidth")) ArmorHudModule.customWidth = Integer.parseInt(props.getProperty("armorHudCustomWidth"));
-                if (props.containsKey("armorHudCustomHeight")) ArmorHudModule.customHeight = Integer.parseInt(props.getProperty("armorHudCustomHeight"));
+                ArmorHudModule.enabled = getBool(props, "armorHudEnabled", ArmorHudModule.enabled);
+                ArmorHudModule.hudX = getInt(props, "armorHudHudX", ArmorHudModule.hudX);
+                ArmorHudModule.hudY = getInt(props, "armorHudHudY", ArmorHudModule.hudY);
+                ArmorHudModule.scale = getFloat(props, "armorHudScale", ArmorHudModule.scale);
+                ArmorHudModule.bgMode = getInt(props, "armorHudBgMode", ArmorHudModule.bgMode);
+                ArmorHudModule.outlineColor = getHex(props, "armorHudOutlineColor", ArmorHudModule.outlineColor);
+                ArmorHudModule.customWidth = getInt(props, "armorHudCustomWidth", ArmorHudModule.customWidth);
+                ArmorHudModule.customHeight = getInt(props, "armorHudCustomHeight", ArmorHudModule.customHeight);
 
                 // KeyStrokes
-                if (props.containsKey("keyStrokesEnabled")) KeyStrokesModule.enabled = Boolean.parseBoolean(props.getProperty("keyStrokesEnabled"));
-                if (props.containsKey("keyStrokesKeyBind")) KeyStrokesModule.keyBind = Integer.parseInt(props.getProperty("keyStrokesKeyBind"));
-                if (props.containsKey("keyStrokesHudX")) KeyStrokesModule.hudX = Integer.parseInt(props.getProperty("keyStrokesHudX"));
-                if (props.containsKey("keyStrokesHudY")) KeyStrokesModule.hudY = Integer.parseInt(props.getProperty("keyStrokesHudY"));
-                if (props.containsKey("keyStrokesScale")) KeyStrokesModule.scale = Float.parseFloat(props.getProperty("keyStrokesScale"));
-                if (props.containsKey("keyStrokesBgMode")) KeyStrokesModule.bgMode = Integer.parseInt(props.getProperty("keyStrokesBgMode"));
-                if (props.containsKey("keyStrokesOutlineColor")) KeyStrokesModule.outlineColor = (int) Long.parseLong(props.getProperty("keyStrokesOutlineColor"), 16);
+                KeyStrokesModule.enabled = getBool(props, "keyStrokesEnabled", KeyStrokesModule.enabled);
+                KeyStrokesModule.keyBind = getInt(props, "keyStrokesKeyBind", KeyStrokesModule.keyBind);
+                KeyStrokesModule.hudX = getInt(props, "keyStrokesHudX", KeyStrokesModule.hudX);
+                KeyStrokesModule.hudY = getInt(props, "keyStrokesHudY", KeyStrokesModule.hudY);
+                KeyStrokesModule.scale = getFloat(props, "keyStrokesScale", KeyStrokesModule.scale);
+                KeyStrokesModule.bgMode = getInt(props, "keyStrokesBgMode", KeyStrokesModule.bgMode);
+                KeyStrokesModule.outlineColor = getHex(props, "keyStrokesOutlineColor", KeyStrokesModule.outlineColor);
                 for (KeyStrokesModule.KeyStroke key : KeyStrokesModule.keys) {
-                    if (props.containsKey("ks_" + key.name + "_x")) key.relX = Integer.parseInt(props.getProperty("ks_" + key.name + "_x"));
-                    if (props.containsKey("ks_" + key.name + "_y")) key.relY = Integer.parseInt(props.getProperty("ks_" + key.name + "_y"));
-                    if (props.containsKey("ks_" + key.name + "_w")) key.width = Integer.parseInt(props.getProperty("ks_" + key.name + "_w"));
-                    if (props.containsKey("ks_" + key.name + "_h")) key.height = Integer.parseInt(props.getProperty("ks_" + key.name + "_h"));
+                    key.relX = getInt(props, "ks_" + key.name + "_x", key.relX);
+                    key.relY = getInt(props, "ks_" + key.name + "_y", key.relY);
+                    key.width = getInt(props, "ks_" + key.name + "_w", key.width);
+                    key.height = getInt(props, "ks_" + key.name + "_h", key.height);
                 }
 
                 // CPS
-                if (props.containsKey("cpsEnabled")) CpsModule.enabled = Boolean.parseBoolean(props.getProperty("cpsEnabled"));
-                if (props.containsKey("cpsKeyBind")) CpsModule.keyBind = Integer.parseInt(props.getProperty("cpsKeyBind"));
-                if (props.containsKey("cpsHudX")) CpsModule.hudX = Integer.parseInt(props.getProperty("cpsHudX"));
-                if (props.containsKey("cpsHudY")) CpsModule.hudY = Integer.parseInt(props.getProperty("cpsHudY"));
-                if (props.containsKey("cpsScale")) CpsModule.scale = Float.parseFloat(props.getProperty("cpsScale"));
-                if (props.containsKey("cpsBgMode")) CpsModule.bgMode = Integer.parseInt(props.getProperty("cpsBgMode"));
-                if (props.containsKey("cpsOutlineColor")) CpsModule.outlineColor = (int) Long.parseLong(props.getProperty("cpsOutlineColor"), 16);
-                if (props.containsKey("cpsCustomWidth")) CpsModule.customWidth = Integer.parseInt(props.getProperty("cpsCustomWidth"));
-                if (props.containsKey("cpsCustomHeight")) CpsModule.customHeight = Integer.parseInt(props.getProperty("cpsCustomHeight"));
+                CpsModule.enabled = getBool(props, "cpsEnabled", CpsModule.enabled);
+                CpsModule.keyBind = getInt(props, "cpsKeyBind", CpsModule.keyBind);
+                CpsModule.hudX = getInt(props, "cpsHudX", CpsModule.hudX);
+                CpsModule.hudY = getInt(props, "cpsHudY", CpsModule.hudY);
+                CpsModule.scale = getFloat(props, "cpsScale", CpsModule.scale);
+                CpsModule.bgMode = getInt(props, "cpsBgMode", CpsModule.bgMode);
+                CpsModule.outlineColor = getHex(props, "cpsOutlineColor", CpsModule.outlineColor);
+                CpsModule.customWidth = getInt(props, "cpsCustomWidth", CpsModule.customWidth);
+                CpsModule.customHeight = getInt(props, "cpsCustomHeight", CpsModule.customHeight);
 
                 // FPS
-                if (props.containsKey("fpsEnabled")) FpsModule.enabled = Boolean.parseBoolean(props.getProperty("fpsEnabled"));
-                if (props.containsKey("fpsKeyBind")) FpsModule.keyBind = Integer.parseInt(props.getProperty("fpsKeyBind"));
-                if (props.containsKey("fpsHudX")) FpsModule.hudX = Integer.parseInt(props.getProperty("fpsHudX"));
-                if (props.containsKey("fpsHudY")) FpsModule.hudY = Integer.parseInt(props.getProperty("fpsHudY"));
-                if (props.containsKey("fpsScale")) FpsModule.scale = Float.parseFloat(props.getProperty("fpsScale"));
-                if (props.containsKey("fpsBgMode")) FpsModule.bgMode = Integer.parseInt(props.getProperty("fpsBgMode"));
-                if (props.containsKey("fpsOutlineColor")) FpsModule.outlineColor = (int) Long.parseLong(props.getProperty("fpsOutlineColor"), 16);
-                if (props.containsKey("fpsCustomWidth")) FpsModule.customWidth = Integer.parseInt(props.getProperty("fpsCustomWidth"));
-                if (props.containsKey("fpsCustomHeight")) FpsModule.customHeight = Integer.parseInt(props.getProperty("fpsCustomHeight"));
+                FpsModule.enabled = getBool(props, "fpsEnabled", FpsModule.enabled);
+                FpsModule.keyBind = getInt(props, "fpsKeyBind", FpsModule.keyBind);
+                FpsModule.hudX = getInt(props, "fpsHudX", FpsModule.hudX);
+                FpsModule.hudY = getInt(props, "fpsHudY", FpsModule.hudY);
+                FpsModule.scale = getFloat(props, "fpsScale", FpsModule.scale);
+                FpsModule.bgMode = getInt(props, "fpsBgMode", FpsModule.bgMode);
+                FpsModule.outlineColor = getHex(props, "fpsOutlineColor", FpsModule.outlineColor);
+                FpsModule.customWidth = getInt(props, "fpsCustomWidth", FpsModule.customWidth);
+                FpsModule.customHeight = getInt(props, "fpsCustomHeight", FpsModule.customHeight);
 
                 // Ping
-                if (props.containsKey("pingEnabled")) PingModule.enabled = Boolean.parseBoolean(props.getProperty("pingEnabled"));
-                if (props.containsKey("pingKeyBind")) PingModule.keyBind = Integer.parseInt(props.getProperty("pingKeyBind"));
-                if (props.containsKey("pingHudX")) PingModule.hudX = Integer.parseInt(props.getProperty("pingHudX"));
-                if (props.containsKey("pingHudY")) PingModule.hudY = Integer.parseInt(props.getProperty("pingHudY"));
-                if (props.containsKey("pingScale")) PingModule.scale = Float.parseFloat(props.getProperty("pingScale"));
-                if (props.containsKey("pingBgMode")) PingModule.bgMode = Integer.parseInt(props.getProperty("pingBgMode"));
-                if (props.containsKey("pingOutlineColor")) PingModule.outlineColor = (int) Long.parseLong(props.getProperty("pingOutlineColor"), 16);
-                if (props.containsKey("pingCustomWidth")) PingModule.customWidth = Integer.parseInt(props.getProperty("pingCustomWidth"));
-                if (props.containsKey("pingCustomHeight")) PingModule.customHeight = Integer.parseInt(props.getProperty("pingCustomHeight"));
+                PingModule.enabled = getBool(props, "pingEnabled", PingModule.enabled);
+                PingModule.keyBind = getInt(props, "pingKeyBind", PingModule.keyBind);
+                PingModule.hudX = getInt(props, "pingHudX", PingModule.hudX);
+                PingModule.hudY = getInt(props, "pingHudY", PingModule.hudY);
+                PingModule.scale = getFloat(props, "pingScale", PingModule.scale);
+                PingModule.bgMode = getInt(props, "pingBgMode", PingModule.bgMode);
+                PingModule.outlineColor = getHex(props, "pingOutlineColor", PingModule.outlineColor);
+                PingModule.customWidth = getInt(props, "pingCustomWidth", PingModule.customWidth);
+                PingModule.customHeight = getInt(props, "pingCustomHeight", PingModule.customHeight);
 
                 // Server Info
-                if (props.containsKey("serverInfoEnabled")) ServerInfoModule.enabled = Boolean.parseBoolean(props.getProperty("serverInfoEnabled"));
-                if (props.containsKey("serverInfoKeyBind")) ServerInfoModule.keyBind = Integer.parseInt(props.getProperty("serverInfoKeyBind"));
-                if (props.containsKey("serverInfoHudX")) ServerInfoModule.hudX = Integer.parseInt(props.getProperty("serverInfoHudX"));
-                if (props.containsKey("serverInfoHudY")) ServerInfoModule.hudY = Integer.parseInt(props.getProperty("serverInfoHudY"));
-                if (props.containsKey("serverInfoScale")) ServerInfoModule.scale = Float.parseFloat(props.getProperty("serverInfoScale"));
-                if (props.containsKey("serverInfoBgMode")) ServerInfoModule.bgMode = Integer.parseInt(props.getProperty("serverInfoBgMode"));
-                if (props.containsKey("serverInfoOutlineColor")) ServerInfoModule.outlineColor = (int) Long.parseLong(props.getProperty("serverInfoOutlineColor"), 16);
-                if (props.containsKey("serverInfoCustomWidth")) ServerInfoModule.customWidth = Integer.parseInt(props.getProperty("serverInfoCustomWidth"));
-                if (props.containsKey("serverInfoCustomHeight")) ServerInfoModule.customHeight = Integer.parseInt(props.getProperty("serverInfoCustomHeight"));
-                if (props.containsKey("serverInfoShowName")) ServerInfoModule.showName = Boolean.parseBoolean(props.getProperty("serverInfoShowName"));
-                if (props.containsKey("serverInfoShowServer")) ServerInfoModule.showServer = Boolean.parseBoolean(props.getProperty("serverInfoShowServer"));
-                if (props.containsKey("serverInfoShowTime")) ServerInfoModule.showTime = Boolean.parseBoolean(props.getProperty("serverInfoShowTime"));
+                ServerInfoModule.enabled = getBool(props, "serverInfoEnabled", ServerInfoModule.enabled);
+                ServerInfoModule.keyBind = getInt(props, "serverInfoKeyBind", ServerInfoModule.keyBind);
+                ServerInfoModule.hudX = getInt(props, "serverInfoHudX", ServerInfoModule.hudX);
+                ServerInfoModule.hudY = getInt(props, "serverInfoHudY", ServerInfoModule.hudY);
+                ServerInfoModule.scale = getFloat(props, "serverInfoScale", ServerInfoModule.scale);
+                ServerInfoModule.bgMode = getInt(props, "serverInfoBgMode", ServerInfoModule.bgMode);
+                ServerInfoModule.outlineColor = getHex(props, "serverInfoOutlineColor", ServerInfoModule.outlineColor);
+                ServerInfoModule.customWidth = getInt(props, "serverInfoCustomWidth", ServerInfoModule.customWidth);
+                ServerInfoModule.customHeight = getInt(props, "serverInfoCustomHeight", ServerInfoModule.customHeight);
+                ServerInfoModule.showName = getBool(props, "serverInfoShowName", ServerInfoModule.showName);
+                ServerInfoModule.showServer = getBool(props, "serverInfoShowServer", ServerInfoModule.showServer);
+                ServerInfoModule.showTime = getBool(props, "serverInfoShowTime", ServerInfoModule.showTime);
                 if (props.containsKey("serverInfoDockedElements")) {
                     String dockStr = props.getProperty("serverInfoDockedElements");
                     if (!dockStr.trim().isEmpty()) {
@@ -258,340 +276,350 @@ public class BameClientConfig {
                         ServerInfoModule.dockedElements = new java.util.ArrayList<>();
                     }
                 }
-                if (props.containsKey("serverInfoNameX")) ServerInfoModule.nameX = Integer.parseInt(props.getProperty("serverInfoNameX"));
-                if (props.containsKey("serverInfoNameY")) ServerInfoModule.nameY = Integer.parseInt(props.getProperty("serverInfoNameY"));
-                if (props.containsKey("serverInfoServerX")) ServerInfoModule.serverX = Integer.parseInt(props.getProperty("serverInfoServerX"));
-                if (props.containsKey("serverInfoServerY")) ServerInfoModule.serverY = Integer.parseInt(props.getProperty("serverInfoServerY"));
-                if (props.containsKey("serverInfoTimeX")) ServerInfoModule.timeX = Integer.parseInt(props.getProperty("serverInfoTimeX"));
-                if (props.containsKey("serverInfoTimeY")) ServerInfoModule.timeY = Integer.parseInt(props.getProperty("serverInfoTimeY"));
+                ServerInfoModule.nameX = getInt(props, "serverInfoNameX", ServerInfoModule.nameX);
+                ServerInfoModule.nameY = getInt(props, "serverInfoNameY", ServerInfoModule.nameY);
+                ServerInfoModule.serverX = getInt(props, "serverInfoServerX", ServerInfoModule.serverX);
+                ServerInfoModule.serverY = getInt(props, "serverInfoServerY", ServerInfoModule.serverY);
+                ServerInfoModule.timeX = getInt(props, "serverInfoTimeX", ServerInfoModule.timeX);
+                ServerInfoModule.timeY = getInt(props, "serverInfoTimeY", ServerInfoModule.timeY);
 
                 // Name Protect
-                if (props.containsKey("nameProtectEnabled")) NameProtectModule.enabled = Boolean.parseBoolean(props.getProperty("nameProtectEnabled"));
-                if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
-                if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
-                if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
-            }
+                NameProtectModule.enabled = getBool(props, "nameProtectEnabled", NameProtectModule.enabled);
+                NameProtectModule.keyBind = getInt(props, "nameProtectKeyBind", NameProtectModule.keyBind);
+                NameProtectModule.alias = getString(props, "nameProtectAlias", NameProtectModule.alias);
+                NameProtectModule.expanded = getBool(props, "nameProtectExpanded", NameProtectModule.expanded);
+            } catch (Exception e) { logLoadError(showHudFile, e); } }
 
             // 3. Visuals - Fullbright
             Path fullbrightFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("fullbright.properties");
-            if (Files.exists(fullbrightFile)) {
+            if (Files.exists(fullbrightFile)) { try {
                 Properties props = loadProps(fullbrightFile);
-                if (props.containsKey("enabled")) fullbrightEnabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("intensity")) fullbrightIntensity = Float.parseFloat(props.getProperty("intensity"));
+                fullbrightEnabled = getBool(props, "enabled", fullbrightEnabled);
+                fullbrightIntensity = getFloat(props, "intensity", fullbrightIntensity);
                 FullbrightModule.enabled = fullbrightEnabled;
                 FullbrightModule.intensity = fullbrightIntensity;
-                if (props.containsKey("keyBind")) FullbrightModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-            }
+                FullbrightModule.keyBind = getInt(props, "keyBind", FullbrightModule.keyBind);
+            } catch (Exception e) { logLoadError(fullbrightFile, e); } }
 
             // 4. Visuals - Zoom
             Path zoomFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("zoom.properties");
-            if (Files.exists(zoomFile)) {
+            if (Files.exists(zoomFile)) { try {
                 Properties props = loadProps(zoomFile);
-                if (props.containsKey("enabled")) ZoomModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) ZoomModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("mode")) ZoomModule.mode = Integer.parseInt(props.getProperty("mode"));
-                if (props.containsKey("type")) ZoomModule.type = Integer.parseInt(props.getProperty("type"));
-                if (props.containsKey("scrollZoom")) ZoomModule.scrollZoom = Boolean.parseBoolean(props.getProperty("scrollZoom"));
-                if (props.containsKey("defaultLevel")) ZoomModule.defaultLevel = Integer.parseInt(props.getProperty("defaultLevel"));
-            }
+                ZoomModule.enabled = getBool(props, "enabled", ZoomModule.enabled);
+                ZoomModule.keyBind = getInt(props, "keyBind", ZoomModule.keyBind);
+                ZoomModule.mode = getInt(props, "mode", ZoomModule.mode);
+                ZoomModule.type = getInt(props, "type", ZoomModule.type);
+                ZoomModule.scrollZoom = getBool(props, "scrollZoom", ZoomModule.scrollZoom);
+                ZoomModule.defaultLevel = getInt(props, "defaultLevel", ZoomModule.defaultLevel);
+            } catch (Exception e) { logLoadError(zoomFile, e); } }
 
             // 5. Visuals - Fake Scoreboard
             Path sbFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("fake_scoreboard.properties");
-            if (Files.exists(sbFile)) {
+            if (Files.exists(sbFile)) { try {
                 Properties props = loadProps(sbFile);
-                if (props.containsKey("enabled")) FakeScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) FakeScoreboardModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) FakeScoreboardModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("hudX")) FakeScoreboardModule.hudX = Integer.parseInt(props.getProperty("hudX"));
-                if (props.containsKey("hudY")) FakeScoreboardModule.hudY = Integer.parseInt(props.getProperty("hudY"));
-                if (props.containsKey("scale")) FakeScoreboardModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("bgMode")) FakeScoreboardModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
-                if (props.containsKey("outlineColor")) FakeScoreboardModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
-                if (props.containsKey("customWidth")) FakeScoreboardModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
-                if (props.containsKey("customHeight")) FakeScoreboardModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
-                if (props.containsKey("money")) FakeScoreboardModule.money = props.getProperty("money");
-                if (props.containsKey("stars")) FakeScoreboardModule.stars = props.getProperty("stars");
-                if (props.containsKey("kills")) FakeScoreboardModule.kills = props.getProperty("kills");
-                if (props.containsKey("deaths")) FakeScoreboardModule.deaths = props.getProperty("deaths");
-                if (props.containsKey("time")) FakeScoreboardModule.playtime = props.getProperty("time");
-            }
+                FakeScoreboardModule.enabled = getBool(props, "enabled", FakeScoreboardModule.enabled);
+                FakeScoreboardModule.keyBind = getInt(props, "keyBind", FakeScoreboardModule.keyBind);
+                FakeScoreboardModule.expanded = getBool(props, "expanded", FakeScoreboardModule.expanded);
+                FakeScoreboardModule.hudX = getInt(props, "hudX", FakeScoreboardModule.hudX);
+                FakeScoreboardModule.hudY = getInt(props, "hudY", FakeScoreboardModule.hudY);
+                FakeScoreboardModule.scale = getFloat(props, "scale", FakeScoreboardModule.scale);
+                FakeScoreboardModule.bgMode = getInt(props, "bgMode", FakeScoreboardModule.bgMode);
+                FakeScoreboardModule.outlineColor = getHex(props, "outlineColor", FakeScoreboardModule.outlineColor);
+                FakeScoreboardModule.customWidth = getInt(props, "customWidth", FakeScoreboardModule.customWidth);
+                FakeScoreboardModule.customHeight = getInt(props, "customHeight", FakeScoreboardModule.customHeight);
+                FakeScoreboardModule.money = getString(props, "money", FakeScoreboardModule.money);
+                FakeScoreboardModule.stars = getString(props, "stars", FakeScoreboardModule.stars);
+                FakeScoreboardModule.kills = getString(props, "kills", FakeScoreboardModule.kills);
+                FakeScoreboardModule.deaths = getString(props, "deaths", FakeScoreboardModule.deaths);
+                FakeScoreboardModule.playtime = getString(props, "time", FakeScoreboardModule.playtime);
+            } catch (Exception e) { logLoadError(sbFile, e); } }
 
             // Visuals - Spotify HUD
             Path spotifyFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("spotify_hud.properties");
-            if (Files.exists(spotifyFile)) {
+            if (Files.exists(spotifyFile)) { try {
                 Properties props = loadProps(spotifyFile);
-                if (props.containsKey("enabled")) SpotifyHudModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) SpotifyHudModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) SpotifyHudModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("hudX")) SpotifyHudModule.hudX = Integer.parseInt(props.getProperty("hudX"));
-                if (props.containsKey("hudY")) SpotifyHudModule.hudY = Integer.parseInt(props.getProperty("hudY"));
-                if (props.containsKey("scale")) SpotifyHudModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("bgMode")) SpotifyHudModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
-                if (props.containsKey("outlineColor")) SpotifyHudModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
-                if (props.containsKey("customWidth")) SpotifyHudModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
-                if (props.containsKey("customHeight")) SpotifyHudModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
-                if (props.containsKey("autoHide")) SpotifyHudModule.autoHide = Boolean.parseBoolean(props.getProperty("autoHide"));
-            }
+                SpotifyHudModule.enabled = getBool(props, "enabled", SpotifyHudModule.enabled);
+                SpotifyHudModule.keyBind = getInt(props, "keyBind", SpotifyHudModule.keyBind);
+                SpotifyHudModule.expanded = getBool(props, "expanded", SpotifyHudModule.expanded);
+                SpotifyHudModule.hudX = getInt(props, "hudX", SpotifyHudModule.hudX);
+                SpotifyHudModule.hudY = getInt(props, "hudY", SpotifyHudModule.hudY);
+                SpotifyHudModule.scale = getFloat(props, "scale", SpotifyHudModule.scale);
+                SpotifyHudModule.bgMode = getInt(props, "bgMode", SpotifyHudModule.bgMode);
+                SpotifyHudModule.outlineColor = getHex(props, "outlineColor", SpotifyHudModule.outlineColor);
+                SpotifyHudModule.customWidth = getInt(props, "customWidth", SpotifyHudModule.customWidth);
+                SpotifyHudModule.customHeight = getInt(props, "customHeight", SpotifyHudModule.customHeight);
+                SpotifyHudModule.autoHide = getBool(props, "autoHide", SpotifyHudModule.autoHide);
+                // Compact/Minimal gibt es nicht mehr: alte Werte werden auf Classic abgebildet
+                SpotifyHudModule.style = SpotifyHudModule.normalizeStyle(getInt(props, "style", SpotifyHudModule.style));
+                SpotifyHudModule.accentMode = getInt(props, "accentMode", SpotifyHudModule.accentMode);
+                // "controlsMode" (Steuerknöpfe-Option) gibt es nicht mehr und wird ignoriert. Steht der Schlüssel noch in
+                // der Datei, stammt sie aus der Zeit, in der Card seinen Hintergrund immer selbst gezeichnet hat:
+                // Card + "Transparent" einmalig auf "Dark" (= Cover-Tönung) heben, damit die Karte gleich aussieht.
+                if (props.containsKey("controlsMode") && SpotifyHudModule.style == SpotifyHudModule.STYLE_CARD
+                        && SpotifyHudModule.bgMode == 0) {
+                    SpotifyHudModule.bgMode = 2;
+                }
+            } catch (Exception e) { logLoadError(spotifyFile, e); } }
 
             // Visuals - Scoreboard
             Path scoreboardFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("scoreboard.properties");
-            if (Files.exists(scoreboardFile)) {
+            if (Files.exists(scoreboardFile)) { try {
                 Properties props = loadProps(scoreboardFile);
-                if (props.containsKey("enabled")) ScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) ScoreboardModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) ScoreboardModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("hudX")) ScoreboardModule.hudX = Integer.parseInt(props.getProperty("hudX"));
-                if (props.containsKey("hudY")) ScoreboardModule.hudY = Integer.parseInt(props.getProperty("hudY"));
-                if (props.containsKey("scale")) ScoreboardModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("bgMode")) ScoreboardModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
-                if (props.containsKey("outlineColor")) ScoreboardModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
-                if (props.containsKey("customWidth")) ScoreboardModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
-                if (props.containsKey("customHeight")) ScoreboardModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
-            }
+                ScoreboardModule.enabled = getBool(props, "enabled", ScoreboardModule.enabled);
+                ScoreboardModule.keyBind = getInt(props, "keyBind", ScoreboardModule.keyBind);
+                ScoreboardModule.expanded = getBool(props, "expanded", ScoreboardModule.expanded);
+                ScoreboardModule.hudX = getInt(props, "hudX", ScoreboardModule.hudX);
+                ScoreboardModule.hudY = getInt(props, "hudY", ScoreboardModule.hudY);
+                ScoreboardModule.scale = getFloat(props, "scale", ScoreboardModule.scale);
+                ScoreboardModule.bgMode = getInt(props, "bgMode", ScoreboardModule.bgMode);
+                ScoreboardModule.outlineColor = getHex(props, "outlineColor", ScoreboardModule.outlineColor);
+                ScoreboardModule.customWidth = getInt(props, "customWidth", ScoreboardModule.customWidth);
+                ScoreboardModule.customHeight = getInt(props, "customHeight", ScoreboardModule.customHeight);
+            } catch (Exception e) { logLoadError(scoreboardFile, e); } }
 
             // Visuals - Custom Crosshair
             Path crosshairFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_crosshair.properties");
-            if (Files.exists(crosshairFile)) {
+            if (Files.exists(crosshairFile)) { try {
                 Properties props = loadProps(crosshairFile);
-                if (props.containsKey("enabled")) CustomCrosshairModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) CustomCrosshairModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) CustomCrosshairModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("color")) CustomCrosshairModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
+                CustomCrosshairModule.enabled = getBool(props, "enabled", CustomCrosshairModule.enabled);
+                CustomCrosshairModule.keyBind = getInt(props, "keyBind", CustomCrosshairModule.keyBind);
+                CustomCrosshairModule.expanded = getBool(props, "expanded", CustomCrosshairModule.expanded);
+                CustomCrosshairModule.color = getHex(props, "color", CustomCrosshairModule.color);
                 if (props.containsKey("grid")) CustomCrosshairModule.setEncodedGrid(props.getProperty("grid"));
-            }
+            } catch (Exception e) { logLoadError(crosshairFile, e); } }
 
             // Visuals - Tab Badge
             Path tabBadgeFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("tab_badge.properties");
-            if (Files.exists(tabBadgeFile)) {
+            if (Files.exists(tabBadgeFile)) { try {
                 Properties props = loadProps(tabBadgeFile);
-                if (props.containsKey("enabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
+                TabBadgeModule.enabled = getBool(props, "enabled", TabBadgeModule.enabled);
                 // "badgeType" wird ignoriert: es gibt nur noch Caeser Bold (c_bold), alte Werte werden beim Speichern ersetzt
-                if (props.containsKey("keyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-            }
+                TabBadgeModule.keyBind = getInt(props, "keyBind", TabBadgeModule.keyBind);
+                TabBadgeModule.expanded = getBool(props, "expanded", TabBadgeModule.expanded);
+            } catch (Exception e) { logLoadError(tabBadgeFile, e); } }
 
 
             // Combat - AutoClicker
             Path acFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_clicker.properties");
-            if (Files.exists(acFile)) {
+            if (Files.exists(acFile)) { try {
                 Properties props = loadProps(acFile);
-                if (props.containsKey("enabled")) AutoClickerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) AutoClickerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) AutoClickerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("mode")) AutoClickerModule.mode = Integer.parseInt(props.getProperty("mode"));
-                if (props.containsKey("cps")) AutoClickerModule.cps = Integer.parseInt(props.getProperty("cps"));
-                if (props.containsKey("delaySeconds")) AutoClickerModule.delaySeconds = Float.parseFloat(props.getProperty("delaySeconds"));
-                if (props.containsKey("holdMouse")) AutoClickerModule.holdMouse = Boolean.parseBoolean(props.getProperty("holdMouse"));
-                if (props.containsKey("onlyOnTarget")) AutoClickerModule.onlyOnTarget = Boolean.parseBoolean(props.getProperty("onlyOnTarget"));
-                if (props.containsKey("randomJitter")) AutoClickerModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
-                if (props.containsKey("weaponOnly")) AutoClickerModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
-                if (props.containsKey("button")) AutoClickerModule.button = Integer.parseInt(props.getProperty("button"));
-            }
+                AutoClickerModule.enabled = getBool(props, "enabled", AutoClickerModule.enabled);
+                AutoClickerModule.keyBind = getInt(props, "keyBind", AutoClickerModule.keyBind);
+                AutoClickerModule.expanded = getBool(props, "expanded", AutoClickerModule.expanded);
+                AutoClickerModule.mode = getInt(props, "mode", AutoClickerModule.mode);
+                AutoClickerModule.cps = getInt(props, "cps", AutoClickerModule.cps);
+                AutoClickerModule.delaySeconds = getFloat(props, "delaySeconds", AutoClickerModule.delaySeconds);
+                AutoClickerModule.holdMouse = getBool(props, "holdMouse", AutoClickerModule.holdMouse);
+                AutoClickerModule.onlyOnTarget = getBool(props, "onlyOnTarget", AutoClickerModule.onlyOnTarget);
+                AutoClickerModule.randomJitter = getBool(props, "randomJitter", AutoClickerModule.randomJitter);
+                AutoClickerModule.weaponOnly = getBool(props, "weaponOnly", AutoClickerModule.weaponOnly);
+                AutoClickerModule.button = getInt(props, "button", AutoClickerModule.button);
+            } catch (Exception e) { logLoadError(acFile, e); } }
 
             // Combat - HitColor
             Path hcFile = BASE_CONFIG_DIR.resolve("Combat").resolve("hit_color.properties");
-            if (Files.exists(hcFile)) {
+            if (Files.exists(hcFile)) { try {
                 Properties props = loadProps(hcFile);
-                if (props.containsKey("enabled")) HitColorModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) HitColorModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) HitColorModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("color")) HitColorModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
-                if (props.containsKey("alpha")) HitColorModule.alpha = Float.parseFloat(props.getProperty("alpha"));
-            }
+                HitColorModule.enabled = getBool(props, "enabled", HitColorModule.enabled);
+                HitColorModule.keyBind = getInt(props, "keyBind", HitColorModule.keyBind);
+                HitColorModule.expanded = getBool(props, "expanded", HitColorModule.expanded);
+                HitColorModule.color = getHex(props, "color", HitColorModule.color);
+                HitColorModule.alpha = getFloat(props, "alpha", HitColorModule.alpha);
+            } catch (Exception e) { logLoadError(hcFile, e); } }
 
             // Combat - ReachDisplay
             Path rdFile = BASE_CONFIG_DIR.resolve("Combat").resolve("reach_display.properties");
-            if (Files.exists(rdFile)) {
+            if (Files.exists(rdFile)) { try {
                 Properties props = loadProps(rdFile);
-                if (props.containsKey("enabled")) ReachDisplayModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) ReachDisplayModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) ReachDisplayModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("mode")) ReachDisplayModule.mode = Integer.parseInt(props.getProperty("mode"));
-                if (props.containsKey("hudX")) ReachDisplayModule.hudX = Integer.parseInt(props.getProperty("hudX"));
-                if (props.containsKey("hudY")) ReachDisplayModule.hudY = Integer.parseInt(props.getProperty("hudY"));
-                if (props.containsKey("scale")) ReachDisplayModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("bgMode")) ReachDisplayModule.bgMode = Integer.parseInt(props.getProperty("bgMode"));
-                if (props.containsKey("outlineColor")) ReachDisplayModule.outlineColor = (int) Long.parseLong(props.getProperty("outlineColor"), 16);
-                if (props.containsKey("customWidth")) ReachDisplayModule.customWidth = Integer.parseInt(props.getProperty("customWidth"));
-                if (props.containsKey("customHeight")) ReachDisplayModule.customHeight = Integer.parseInt(props.getProperty("customHeight"));
-            }
+                ReachDisplayModule.enabled = getBool(props, "enabled", ReachDisplayModule.enabled);
+                ReachDisplayModule.keyBind = getInt(props, "keyBind", ReachDisplayModule.keyBind);
+                ReachDisplayModule.expanded = getBool(props, "expanded", ReachDisplayModule.expanded);
+                ReachDisplayModule.mode = getInt(props, "mode", ReachDisplayModule.mode);
+                ReachDisplayModule.hudX = getInt(props, "hudX", ReachDisplayModule.hudX);
+                ReachDisplayModule.hudY = getInt(props, "hudY", ReachDisplayModule.hudY);
+                ReachDisplayModule.scale = getFloat(props, "scale", ReachDisplayModule.scale);
+                ReachDisplayModule.bgMode = getInt(props, "bgMode", ReachDisplayModule.bgMode);
+                ReachDisplayModule.outlineColor = getHex(props, "outlineColor", ReachDisplayModule.outlineColor);
+                ReachDisplayModule.customWidth = getInt(props, "customWidth", ReachDisplayModule.customWidth);
+                ReachDisplayModule.customHeight = getInt(props, "customHeight", ReachDisplayModule.customHeight);
+            } catch (Exception e) { logLoadError(rdFile, e); } }
 
             // Combat - LowShield
             Path lsFile = BASE_CONFIG_DIR.resolve("Combat").resolve("low_shield.properties");
-            if (Files.exists(lsFile)) {
+            if (Files.exists(lsFile)) { try {
                 Properties props = loadProps(lsFile);
-                if (props.containsKey("enabled")) LowShieldModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) LowShieldModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) LowShieldModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("heightPercent")) LowShieldModule.heightPercent = Integer.parseInt(props.getProperty("heightPercent"));
-                if (props.containsKey("totemSizePercent")) LowShieldModule.totemSizePercent = Integer.parseInt(props.getProperty("totemSizePercent"));
-            }
+                LowShieldModule.enabled = getBool(props, "enabled", LowShieldModule.enabled);
+                LowShieldModule.keyBind = getInt(props, "keyBind", LowShieldModule.keyBind);
+                LowShieldModule.expanded = getBool(props, "expanded", LowShieldModule.expanded);
+                LowShieldModule.heightPercent = getInt(props, "heightPercent", LowShieldModule.heightPercent);
+                LowShieldModule.totemSizePercent = getInt(props, "totemSizePercent", LowShieldModule.totemSizePercent);
+            } catch (Exception e) { logLoadError(lsFile, e); } }
 
             // Combat - CustomHitboxes
             Path hbFile = BASE_CONFIG_DIR.resolve("Combat").resolve("custom_hitboxes.properties");
-            if (Files.exists(hbFile)) {
+            if (Files.exists(hbFile)) { try {
                 Properties props = loadProps(hbFile);
-                if (props.containsKey("enabled")) CustomHitboxesModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) CustomHitboxesModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) CustomHitboxesModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("color")) CustomHitboxesModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
-                if (props.containsKey("fillOpacity")) CustomHitboxesModule.fillOpacity = Float.parseFloat(props.getProperty("fillOpacity"));
-                if (props.containsKey("lineWidth")) CustomHitboxesModule.lineWidth = Float.parseFloat(props.getProperty("lineWidth"));
-                if (props.containsKey("targetMode")) CustomHitboxesModule.targetMode = Integer.parseInt(props.getProperty("targetMode"));
-                if (props.containsKey("showEyeHeight")) CustomHitboxesModule.showEyeHeight = Boolean.parseBoolean(props.getProperty("showEyeHeight"));
-                if (props.containsKey("showViewVector")) CustomHitboxesModule.showViewVector = Boolean.parseBoolean(props.getProperty("showViewVector"));
-            }
+                CustomHitboxesModule.enabled = getBool(props, "enabled", CustomHitboxesModule.enabled);
+                CustomHitboxesModule.keyBind = getInt(props, "keyBind", CustomHitboxesModule.keyBind);
+                CustomHitboxesModule.expanded = getBool(props, "expanded", CustomHitboxesModule.expanded);
+                CustomHitboxesModule.color = getHex(props, "color", CustomHitboxesModule.color);
+                CustomHitboxesModule.fillOpacity = getFloat(props, "fillOpacity", CustomHitboxesModule.fillOpacity);
+                CustomHitboxesModule.lineWidth = getFloat(props, "lineWidth", CustomHitboxesModule.lineWidth);
+                CustomHitboxesModule.targetMode = getInt(props, "targetMode", CustomHitboxesModule.targetMode);
+                CustomHitboxesModule.showEyeHeight = getBool(props, "showEyeHeight", CustomHitboxesModule.showEyeHeight);
+                CustomHitboxesModule.showViewVector = getBool(props, "showViewVector", CustomHitboxesModule.showViewVector);
+            } catch (Exception e) { logLoadError(hbFile, e); } }
 
             // Combat - PearlPrediction
             Path pearlFile = BASE_CONFIG_DIR.resolve("Combat").resolve("pearl_prediction.properties");
-            if (Files.exists(pearlFile)) {
+            if (Files.exists(pearlFile)) { try {
                 Properties props = loadProps(pearlFile);
-                if (props.containsKey("enabled")) PearlPredictionModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) PearlPredictionModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) PearlPredictionModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("enemyOnly")) PearlPredictionModule.enemyOnly = Boolean.parseBoolean(props.getProperty("enemyOnly"));
-                if (props.containsKey("landingBox")) PearlPredictionModule.landingBox = Boolean.parseBoolean(props.getProperty("landingBox"));
-                if (props.containsKey("throwPreview")) PearlPredictionModule.throwPreview = Boolean.parseBoolean(props.getProperty("throwPreview"));
-            }
+                PearlPredictionModule.enabled = getBool(props, "enabled", PearlPredictionModule.enabled);
+                PearlPredictionModule.keyBind = getInt(props, "keyBind", PearlPredictionModule.keyBind);
+                PearlPredictionModule.expanded = getBool(props, "expanded", PearlPredictionModule.expanded);
+                PearlPredictionModule.enemyOnly = getBool(props, "enemyOnly", PearlPredictionModule.enemyOnly);
+                PearlPredictionModule.landingBox = getBool(props, "landingBox", PearlPredictionModule.landingBox);
+                PearlPredictionModule.throwPreview = getBool(props, "throwPreview", PearlPredictionModule.throwPreview);
+            } catch (Exception e) { logLoadError(pearlFile, e); } }
 
             // Combat - AutoCart
             Path autoCartFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_cart.properties");
-            if (Files.exists(autoCartFile)) {
+            if (Files.exists(autoCartFile)) { try {
                 Properties props = loadProps(autoCartFile);
-                if (props.containsKey("enabled")) AutoCartModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("switchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-                if (props.containsKey("switchDelay")) AutoCartModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
+                AutoCartModule.enabled = getBool(props, "enabled", AutoCartModule.enabled);
+                AutoCartModule.keyBind = getInt(props, "keyBind", AutoCartModule.keyBind);
+                AutoCartModule.expanded = getBool(props, "expanded", AutoCartModule.expanded);
+                AutoCartModule.switchBack = getBool(props, "switchBack", AutoCartModule.switchBack);
+                AutoCartModule.switchDelay = getInt(props, "switchDelay", AutoCartModule.switchDelay);
                 if (props.containsKey("mode")) {
                     try {
                         AutoCartModule.mode = AutoCartModule.CartMode.valueOf(props.getProperty("mode"));
                     } catch (Exception ignored) {}
                 }
-            }
+            } catch (Exception e) { logLoadError(autoCartFile, e); } }
 
             // Combat - AutoMace
             Path autoMaceFile = BASE_CONFIG_DIR.resolve("Combat").resolve("auto_mace.properties");
-            if (Files.exists(autoMaceFile)) {
+            if (Files.exists(autoMaceFile)) { try {
                 Properties props = loadProps(autoMaceFile);
-                if (props.containsKey("enabled")) AutoMaceModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) AutoMaceModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) AutoMaceModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("switchBack")) AutoMaceModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-                if (props.containsKey("switchDelay")) AutoMaceModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
-                if (props.containsKey("cooldownCheck")) AutoMaceModule.cooldownCheck = Boolean.parseBoolean(props.getProperty("cooldownCheck"));
-                if (props.containsKey("onlyPlayers")) AutoMaceModule.onlyPlayers = Boolean.parseBoolean(props.getProperty("onlyPlayers"));
-                if (props.containsKey("minFallDistance")) AutoMaceModule.minFallDistance = Double.parseDouble(props.getProperty("minFallDistance"));
+                AutoMaceModule.enabled = getBool(props, "enabled", AutoMaceModule.enabled);
+                AutoMaceModule.keyBind = getInt(props, "keyBind", AutoMaceModule.keyBind);
+                AutoMaceModule.expanded = getBool(props, "expanded", AutoMaceModule.expanded);
+                AutoMaceModule.switchBack = getBool(props, "switchBack", AutoMaceModule.switchBack);
+                AutoMaceModule.switchDelay = getInt(props, "switchDelay", AutoMaceModule.switchDelay);
+                AutoMaceModule.cooldownCheck = getBool(props, "cooldownCheck", AutoMaceModule.cooldownCheck);
+                AutoMaceModule.onlyPlayers = getBool(props, "onlyPlayers", AutoMaceModule.onlyPlayers);
+                AutoMaceModule.minFallDistance = getDouble(props, "minFallDistance", AutoMaceModule.minFallDistance);
                 if (props.containsKey("mode")) {
                     try {
                         AutoMaceModule.mode = AutoMaceModule.MaceMode.valueOf(props.getProperty("mode"));
                     } catch (Exception ignored) {}
                 }
-            }
+            } catch (Exception e) { logLoadError(autoMaceFile, e); } }
 
             // Combat - DTap
             Path dTapFile = BASE_CONFIG_DIR.resolve("Combat").resolve("d_tap.properties");
-            if (Files.exists(dTapFile)) {
+            if (Files.exists(dTapFile)) { try {
                 Properties props = loadProps(dTapFile);
-                if (props.containsKey("enabled")) DTapModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) DTapModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) DTapModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("tapDelay")) DTapModule.tapDelay = Integer.parseInt(props.getProperty("tapDelay"));
-                if (props.containsKey("switchBack")) DTapModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
+                DTapModule.enabled = getBool(props, "enabled", DTapModule.enabled);
+                DTapModule.keyBind = getInt(props, "keyBind", DTapModule.keyBind);
+                DTapModule.expanded = getBool(props, "expanded", DTapModule.expanded);
+                DTapModule.tapDelay = getInt(props, "tapDelay", DTapModule.tapDelay);
+                DTapModule.switchBack = getBool(props, "switchBack", DTapModule.switchBack);
                 if (props.containsKey("mode")) {
                     try {
                         DTapModule.mode = DTapModule.DTapMode.valueOf(props.getProperty("mode"));
                     } catch (Exception ignored) {}
                 }
-            }
+            } catch (Exception e) { logLoadError(dTapFile, e); } }
 
             // Combat - PearlCatch
             Path pearlCatchFile = BASE_CONFIG_DIR.resolve("Combat").resolve("pearl_catch.properties");
-            if (Files.exists(pearlCatchFile)) {
+            if (Files.exists(pearlCatchFile)) { try {
                 Properties props = loadProps(pearlCatchFile);
-                if (props.containsKey("enabled")) PearlCatchModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) PearlCatchModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) PearlCatchModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("timingDelay")) PearlCatchModule.timingDelay = Integer.parseInt(props.getProperty("timingDelay"));
-                if (props.containsKey("autoAim")) PearlCatchModule.autoAim = Boolean.parseBoolean(props.getProperty("autoAim"));
-                if (props.containsKey("switchToMace")) PearlCatchModule.switchToMace = Boolean.parseBoolean(props.getProperty("switchToMace"));
-                if (props.containsKey("switchBack")) PearlCatchModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-            }
+                PearlCatchModule.enabled = getBool(props, "enabled", PearlCatchModule.enabled);
+                PearlCatchModule.keyBind = getInt(props, "keyBind", PearlCatchModule.keyBind);
+                PearlCatchModule.expanded = getBool(props, "expanded", PearlCatchModule.expanded);
+                PearlCatchModule.timingDelay = getInt(props, "timingDelay", PearlCatchModule.timingDelay);
+                PearlCatchModule.autoAim = getBool(props, "autoAim", PearlCatchModule.autoAim);
+                PearlCatchModule.switchToMace = getBool(props, "switchToMace", PearlCatchModule.switchToMace);
+                PearlCatchModule.switchBack = getBool(props, "switchBack", PearlCatchModule.switchBack);
+            } catch (Exception e) { logLoadError(pearlCatchFile, e); } }
 
             // Combat - AggroPearl
             Path aggroPearlFile = BASE_CONFIG_DIR.resolve("Combat").resolve("aggro_pearl.properties");
-            if (Files.exists(aggroPearlFile)) {
+            if (Files.exists(aggroPearlFile)) { try {
                 Properties props = loadProps(aggroPearlFile);
-                if (props.containsKey("enabled")) AggroPearlModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) AggroPearlModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) AggroPearlModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("throwDelay")) AggroPearlModule.throwDelay = Integer.parseInt(props.getProperty("throwDelay"));
-                if (props.containsKey("autoAim")) AggroPearlModule.autoAim = Boolean.parseBoolean(props.getProperty("autoAim"));
-                if (props.containsKey("switchBack")) AggroPearlModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-            }
+                AggroPearlModule.enabled = getBool(props, "enabled", AggroPearlModule.enabled);
+                AggroPearlModule.keyBind = getInt(props, "keyBind", AggroPearlModule.keyBind);
+                AggroPearlModule.expanded = getBool(props, "expanded", AggroPearlModule.expanded);
+                AggroPearlModule.throwDelay = getInt(props, "throwDelay", AggroPearlModule.throwDelay);
+                AggroPearlModule.autoAim = getBool(props, "autoAim", AggroPearlModule.autoAim);
+                AggroPearlModule.switchBack = getBool(props, "switchBack", AggroPearlModule.switchBack);
+            } catch (Exception e) { logLoadError(aggroPearlFile, e); } }
 
             // Combat - Triggerbot
             Path triggerbotFile = BASE_CONFIG_DIR.resolve("Combat").resolve("triggerbot.properties");
-            if (Files.exists(triggerbotFile)) {
+            if (Files.exists(triggerbotFile)) { try {
                 Properties props = loadProps(triggerbotFile);
-                if (props.containsKey("enabled")) TriggerbotModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) TriggerbotModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) TriggerbotModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("showDetails")) TriggerbotModule.showDetails = Boolean.parseBoolean(props.getProperty("showDetails"));
-                if (props.containsKey("mode")) TriggerbotModule.mode = Integer.parseInt(props.getProperty("mode"));
-                if (props.containsKey("cooldownThreshold")) TriggerbotModule.cooldownThreshold = Float.parseFloat(props.getProperty("cooldownThreshold"));
-                if (props.containsKey("cps")) TriggerbotModule.cps = Integer.parseInt(props.getProperty("cps"));
-                if (props.containsKey("playersOnly")) TriggerbotModule.playersOnly = Boolean.parseBoolean(props.getProperty("playersOnly"));
-                if (props.containsKey("weaponOnly")) TriggerbotModule.weaponOnly = Boolean.parseBoolean(props.getProperty("weaponOnly"));
-                if (props.containsKey("holdAttackKey")) TriggerbotModule.holdAttackKey = Boolean.parseBoolean(props.getProperty("holdAttackKey"));
-                if (props.containsKey("range")) TriggerbotModule.range = Double.parseDouble(props.getProperty("range"));
-                if (props.containsKey("randomJitter")) TriggerbotModule.randomJitter = Boolean.parseBoolean(props.getProperty("randomJitter"));
-            }
+                TriggerbotModule.enabled = getBool(props, "enabled", TriggerbotModule.enabled);
+                TriggerbotModule.keyBind = getInt(props, "keyBind", TriggerbotModule.keyBind);
+                TriggerbotModule.expanded = getBool(props, "expanded", TriggerbotModule.expanded);
+                TriggerbotModule.showDetails = getBool(props, "showDetails", TriggerbotModule.showDetails);
+                TriggerbotModule.mode = getInt(props, "mode", TriggerbotModule.mode);
+                TriggerbotModule.cooldownThreshold = getFloat(props, "cooldownThreshold", TriggerbotModule.cooldownThreshold);
+                TriggerbotModule.cps = getInt(props, "cps", TriggerbotModule.cps);
+                TriggerbotModule.playersOnly = getBool(props, "playersOnly", TriggerbotModule.playersOnly);
+                TriggerbotModule.weaponOnly = getBool(props, "weaponOnly", TriggerbotModule.weaponOnly);
+                TriggerbotModule.holdAttackKey = getBool(props, "holdAttackKey", TriggerbotModule.holdAttackKey);
+                TriggerbotModule.range = getDouble(props, "range", TriggerbotModule.range);
+                TriggerbotModule.randomJitter = getBool(props, "randomJitter", TriggerbotModule.randomJitter);
+            } catch (Exception e) { logLoadError(triggerbotFile, e); } }
 
             // Combat - ShieldBreaker
             Path shieldBreakerFile = BASE_CONFIG_DIR.resolve("Combat").resolve("shield_breaker.properties");
-            if (Files.exists(shieldBreakerFile)) {
+            if (Files.exists(shieldBreakerFile)) { try {
                 Properties props = loadProps(shieldBreakerFile);
-                if (props.containsKey("enabled")) ShieldBreakerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) ShieldBreakerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) ShieldBreakerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("mode")) ShieldBreakerModule.mode = Integer.parseInt(props.getProperty("mode"));
-                if (props.containsKey("switchBack")) ShieldBreakerModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-                if (props.containsKey("switchDelay")) ShieldBreakerModule.switchDelay = Integer.parseInt(props.getProperty("switchDelay"));
-                if (props.containsKey("reach")) ShieldBreakerModule.reach = Double.parseDouble(props.getProperty("reach"));
-            }
+                ShieldBreakerModule.enabled = getBool(props, "enabled", ShieldBreakerModule.enabled);
+                ShieldBreakerModule.keyBind = getInt(props, "keyBind", ShieldBreakerModule.keyBind);
+                ShieldBreakerModule.expanded = getBool(props, "expanded", ShieldBreakerModule.expanded);
+                ShieldBreakerModule.mode = getInt(props, "mode", ShieldBreakerModule.mode);
+                ShieldBreakerModule.switchBack = getBool(props, "switchBack", ShieldBreakerModule.switchBack);
+                ShieldBreakerModule.switchDelay = getInt(props, "switchDelay", ShieldBreakerModule.switchDelay);
+                ShieldBreakerModule.reach = getDouble(props, "reach", ShieldBreakerModule.reach);
+            } catch (Exception e) { logLoadError(shieldBreakerFile, e); } }
 
             // World - NoFog
             Path noFogFile = BASE_CONFIG_DIR.resolve("World").resolve("no_fog.properties");
-            if (Files.exists(noFogFile)) {
+            if (Files.exists(noFogFile)) { try {
                 Properties props = loadProps(noFogFile);
-                if (props.containsKey("enabled")) NoFogModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) NoFogModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) NoFogModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("allFog")) NoFogModule.allFog = Boolean.parseBoolean(props.getProperty("allFog"));
-                if (props.containsKey("netherFog")) NoFogModule.netherFog = Boolean.parseBoolean(props.getProperty("netherFog"));
-                if (props.containsKey("waterFog")) NoFogModule.waterFog = Boolean.parseBoolean(props.getProperty("waterFog"));
-                if (props.containsKey("lavaFog")) NoFogModule.lavaFog = Boolean.parseBoolean(props.getProperty("lavaFog"));
-            }
+                NoFogModule.enabled = getBool(props, "enabled", NoFogModule.enabled);
+                NoFogModule.keyBind = getInt(props, "keyBind", NoFogModule.keyBind);
+                NoFogModule.expanded = getBool(props, "expanded", NoFogModule.expanded);
+                NoFogModule.allFog = getBool(props, "allFog", NoFogModule.allFog);
+                NoFogModule.netherFog = getBool(props, "netherFog", NoFogModule.netherFog);
+                NoFogModule.waterFog = getBool(props, "waterFog", NoFogModule.waterFog);
+                NoFogModule.lavaFog = getBool(props, "lavaFog", NoFogModule.lavaFog);
+            } catch (Exception e) { logLoadError(noFogFile, e); } }
 
             // Misc - AutoTool
             Path autoToolFile = BASE_CONFIG_DIR.resolve("Misc").resolve("auto_tool.properties");
-            if (Files.exists(autoToolFile)) {
+            if (Files.exists(autoToolFile)) { try {
                 Properties props = loadProps(autoToolFile);
-                if (props.containsKey("enabled")) AutoToolModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) AutoToolModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) AutoToolModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("switchBack")) AutoToolModule.switchBack = Boolean.parseBoolean(props.getProperty("switchBack"));
-            }
+                AutoToolModule.enabled = getBool(props, "enabled", AutoToolModule.enabled);
+                AutoToolModule.keyBind = getInt(props, "keyBind", AutoToolModule.keyBind);
+                AutoToolModule.expanded = getBool(props, "expanded", AutoToolModule.expanded);
+                AutoToolModule.switchBack = getBool(props, "switchBack", AutoToolModule.switchBack);
+            } catch (Exception e) { logLoadError(autoToolFile, e); } }
 
             // Misc - DurabilityGuard
             Path durabilityGuardFile = BASE_CONFIG_DIR.resolve("Misc").resolve("durability_guard.properties");
-            if (Files.exists(durabilityGuardFile)) {
+            if (Files.exists(durabilityGuardFile)) { try {
                 Properties props = loadProps(durabilityGuardFile);
-                if (props.containsKey("enabled")) DurabilityGuardModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) DurabilityGuardModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) DurabilityGuardModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("alertMode")) DurabilityGuardModule.alertMode = Integer.parseInt(props.getProperty("alertMode"));
+                DurabilityGuardModule.enabled = getBool(props, "enabled", DurabilityGuardModule.enabled);
+                DurabilityGuardModule.keyBind = getInt(props, "keyBind", DurabilityGuardModule.keyBind);
+                DurabilityGuardModule.expanded = getBool(props, "expanded", DurabilityGuardModule.expanded);
+                DurabilityGuardModule.alertMode = getInt(props, "alertMode", DurabilityGuardModule.alertMode);
                 if (props.containsKey("toolThresholds")) {
                     DurabilityGuardModule.toolThresholds.clear();
                     String val = props.getProperty("toolThresholds");
@@ -611,54 +639,54 @@ public class BameClientConfig {
                         }
                     }
                 }
-            } else {
+            } catch (Exception e) { logLoadError(durabilityGuardFile, e); } } else {
                 DurabilityGuardModule.resetToDefault();
             }
 
             // Visuals - BlockOutline
             Path blockOutlineFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("block_outline.properties");
-            if (Files.exists(blockOutlineFile)) {
+            if (Files.exists(blockOutlineFile)) { try {
                 Properties props = loadProps(blockOutlineFile);
-                if (props.containsKey("enabled")) BlockOutlineModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) BlockOutlineModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) BlockOutlineModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("color")) BlockOutlineModule.color = (int) Long.parseLong(props.getProperty("color"), 16);
-                if (props.containsKey("lineWidth")) BlockOutlineModule.lineWidth = Float.parseFloat(props.getProperty("lineWidth"));
-                if (props.containsKey("chroma")) BlockOutlineModule.chroma = Boolean.parseBoolean(props.getProperty("chroma"));
-                if (props.containsKey("opacity")) BlockOutlineModule.opacity = Float.parseFloat(props.getProperty("opacity"));
-            }
+                BlockOutlineModule.enabled = getBool(props, "enabled", BlockOutlineModule.enabled);
+                BlockOutlineModule.keyBind = getInt(props, "keyBind", BlockOutlineModule.keyBind);
+                BlockOutlineModule.expanded = getBool(props, "expanded", BlockOutlineModule.expanded);
+                BlockOutlineModule.color = getHex(props, "color", BlockOutlineModule.color);
+                BlockOutlineModule.lineWidth = getFloat(props, "lineWidth", BlockOutlineModule.lineWidth);
+                BlockOutlineModule.chroma = getBool(props, "chroma", BlockOutlineModule.chroma);
+                BlockOutlineModule.opacity = getFloat(props, "opacity", BlockOutlineModule.opacity);
+            } catch (Exception e) { logLoadError(blockOutlineFile, e); } }
 
             // Movement - Freelook
             Path freelookFile = BASE_CONFIG_DIR.resolve("Movement").resolve("freelook.properties");
-            if (Files.exists(freelookFile)) {
+            if (Files.exists(freelookFile)) { try {
                 Properties props = loadProps(freelookFile);
-                if (props.containsKey("enabled")) FreelookModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) FreelookModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) FreelookModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("toggleMode")) FreelookModule.toggleMode = Boolean.parseBoolean(props.getProperty("toggleMode"));
-                if (props.containsKey("invertPitch")) FreelookModule.invertPitch = Boolean.parseBoolean(props.getProperty("invertPitch"));
-                if (props.containsKey("sensitivity")) FreelookModule.sensitivity = Float.parseFloat(props.getProperty("sensitivity"));
-            }
+                FreelookModule.enabled = getBool(props, "enabled", FreelookModule.enabled);
+                FreelookModule.keyBind = getInt(props, "keyBind", FreelookModule.keyBind);
+                FreelookModule.expanded = getBool(props, "expanded", FreelookModule.expanded);
+                FreelookModule.toggleMode = getBool(props, "toggleMode", FreelookModule.toggleMode);
+                FreelookModule.invertPitch = getBool(props, "invertPitch", FreelookModule.invertPitch);
+                FreelookModule.sensitivity = getFloat(props, "sensitivity", FreelookModule.sensitivity);
+            } catch (Exception e) { logLoadError(freelookFile, e); } }
 
             // Movement - Emotes
             Path emoteFile = BASE_CONFIG_DIR.resolve("Movement").resolve("emotes.properties");
-            if (Files.exists(emoteFile)) {
+            if (Files.exists(emoteFile)) { try {
                 Properties props = loadProps(emoteFile);
-                if (props.containsKey("enabled")) com.bame.client.module.EmoteModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) com.bame.client.module.EmoteModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) com.bame.client.module.EmoteModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("smoothAnimations")) com.bame.client.module.EmoteModule.smoothAnimations = Boolean.parseBoolean(props.getProperty("smoothAnimations"));
-            }
+                com.bame.client.module.EmoteModule.enabled = getBool(props, "enabled", com.bame.client.module.EmoteModule.enabled);
+                com.bame.client.module.EmoteModule.keyBind = getInt(props, "keyBind", com.bame.client.module.EmoteModule.keyBind);
+                com.bame.client.module.EmoteModule.expanded = getBool(props, "expanded", com.bame.client.module.EmoteModule.expanded);
+                com.bame.client.module.EmoteModule.smoothAnimations = getBool(props, "smoothAnimations", com.bame.client.module.EmoteModule.smoothAnimations);
+            } catch (Exception e) { logLoadError(emoteFile, e); } }
 
             // Visuals - ItemSize
             Path itemSizeFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("item_size.properties");
-            if (Files.exists(itemSizeFile)) {
+            if (Files.exists(itemSizeFile)) { try {
                 Properties props = loadProps(itemSizeFile);
-                if (props.containsKey("enabled")) ItemSizeModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) ItemSizeModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) ItemSizeModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("scale")) ItemSizeModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("yOffset")) ItemSizeModule.yOffset = Float.parseFloat(props.getProperty("yOffset"));
+                ItemSizeModule.enabled = getBool(props, "enabled", ItemSizeModule.enabled);
+                ItemSizeModule.keyBind = getInt(props, "keyBind", ItemSizeModule.keyBind);
+                ItemSizeModule.expanded = getBool(props, "expanded", ItemSizeModule.expanded);
+                ItemSizeModule.scale = getFloat(props, "scale", ItemSizeModule.scale);
+                ItemSizeModule.yOffset = getFloat(props, "yOffset", ItemSizeModule.yOffset);
                 if (props.containsKey("selectedItems")) {
                     ItemSizeModule.selectedItems.clear();
                     String val = props.getProperty("selectedItems");
@@ -670,47 +698,47 @@ public class BameClientConfig {
                         }
                     }
                 }
-            }
+            } catch (Exception e) { logLoadError(itemSizeFile, e); } }
 
             // Visuals - HandPosition
             Path handPosFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("hand_position.properties");
-            if (Files.exists(handPosFile)) {
+            if (Files.exists(handPosFile)) { try {
                 Properties props = loadProps(handPosFile);
-                if (props.containsKey("enabled")) HandPositionModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("keyBind")) HandPositionModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("expanded")) HandPositionModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("posX")) HandPositionModule.posX = Float.parseFloat(props.getProperty("posX"));
-                if (props.containsKey("posY")) HandPositionModule.posY = Float.parseFloat(props.getProperty("posY"));
-                if (props.containsKey("posZ")) HandPositionModule.posZ = Float.parseFloat(props.getProperty("posZ"));
-                if (props.containsKey("scale")) HandPositionModule.scale = Float.parseFloat(props.getProperty("scale"));
-                if (props.containsKey("pitch")) HandPositionModule.pitch = Float.parseFloat(props.getProperty("pitch"));
-                if (props.containsKey("yaw")) HandPositionModule.yaw = Float.parseFloat(props.getProperty("yaw"));
-                if (props.containsKey("roll")) HandPositionModule.roll = Float.parseFloat(props.getProperty("roll"));
-                if (props.containsKey("swingStyle")) HandPositionModule.swingStyle = Integer.parseInt(props.getProperty("swingStyle"));
-                if (props.containsKey("applyToOffhand")) HandPositionModule.applyToOffhand = Boolean.parseBoolean(props.getProperty("applyToOffhand"));
-                if (props.containsKey("weaponsOnly")) HandPositionModule.weaponsOnly = Boolean.parseBoolean(props.getProperty("weaponsOnly"));
-                if (props.containsKey("miningAnimation")) HandPositionModule.miningAnimation = Boolean.parseBoolean(props.getProperty("miningAnimation"));
-            }
+                HandPositionModule.enabled = getBool(props, "enabled", HandPositionModule.enabled);
+                HandPositionModule.keyBind = getInt(props, "keyBind", HandPositionModule.keyBind);
+                HandPositionModule.expanded = getBool(props, "expanded", HandPositionModule.expanded);
+                HandPositionModule.posX = getFloat(props, "posX", HandPositionModule.posX);
+                HandPositionModule.posY = getFloat(props, "posY", HandPositionModule.posY);
+                HandPositionModule.posZ = getFloat(props, "posZ", HandPositionModule.posZ);
+                HandPositionModule.scale = getFloat(props, "scale", HandPositionModule.scale);
+                HandPositionModule.pitch = getFloat(props, "pitch", HandPositionModule.pitch);
+                HandPositionModule.yaw = getFloat(props, "yaw", HandPositionModule.yaw);
+                HandPositionModule.roll = getFloat(props, "roll", HandPositionModule.roll);
+                HandPositionModule.swingStyle = getInt(props, "swingStyle", HandPositionModule.swingStyle);
+                HandPositionModule.applyToOffhand = getBool(props, "applyToOffhand", HandPositionModule.applyToOffhand);
+                HandPositionModule.weaponsOnly = getBool(props, "weaponsOnly", HandPositionModule.weaponsOnly);
+                HandPositionModule.miningAnimation = getBool(props, "miningAnimation", HandPositionModule.miningAnimation);
+            } catch (Exception e) { logLoadError(handPosFile, e); } }
 
             // World - TimeChanger
             Path timeChangerFile = BASE_CONFIG_DIR.resolve("World").resolve("time_changer.properties");
-            if (Files.exists(timeChangerFile)) {
+            if (Files.exists(timeChangerFile)) { try {
                 Properties props = loadProps(timeChangerFile);
-                if (props.containsKey("enabled")) TimeChangerModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("expanded")) TimeChangerModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("keyBind")) TimeChangerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("timeMode")) TimeChangerModule.timeMode = Integer.parseInt(props.getProperty("timeMode"));
-            }
+                TimeChangerModule.enabled = getBool(props, "enabled", TimeChangerModule.enabled);
+                TimeChangerModule.expanded = getBool(props, "expanded", TimeChangerModule.expanded);
+                TimeChangerModule.keyBind = getInt(props, "keyBind", TimeChangerModule.keyBind);
+                TimeChangerModule.timeMode = getInt(props, "timeMode", TimeChangerModule.timeMode);
+            } catch (Exception e) { logLoadError(timeChangerFile, e); } }
 
             // Visuals - SkinProtect
             Path skinProtectFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("skin_protect.properties");
-            if (Files.exists(skinProtectFile)) {
+            if (Files.exists(skinProtectFile)) { try {
                 Properties props = loadProps(skinProtectFile);
-                if (props.containsKey("enabled")) SkinProtectModule.enabled = Boolean.parseBoolean(props.getProperty("enabled"));
-                if (props.containsKey("expanded")) SkinProtectModule.expanded = Boolean.parseBoolean(props.getProperty("expanded"));
-                if (props.containsKey("keyBind")) SkinProtectModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-                if (props.containsKey("skinIndex")) SkinProtectModule.currentSkinIndex = Integer.parseInt(props.getProperty("skinIndex"));
-                if (props.containsKey("currentSkinName")) SkinProtectModule.targetInitialSkinName = props.getProperty("currentSkinName");
+                SkinProtectModule.enabled = getBool(props, "enabled", SkinProtectModule.enabled);
+                SkinProtectModule.expanded = getBool(props, "expanded", SkinProtectModule.expanded);
+                SkinProtectModule.keyBind = getInt(props, "keyBind", SkinProtectModule.keyBind);
+                SkinProtectModule.currentSkinIndex = getInt(props, "skinIndex", SkinProtectModule.currentSkinIndex);
+                SkinProtectModule.targetInitialSkinName = getString(props, "currentSkinName", SkinProtectModule.targetInitialSkinName);
                 if (props.containsKey("customSkins")) {
                     String val = props.getProperty("customSkins");
                     if (!val.trim().isEmpty()) {
@@ -724,64 +752,328 @@ public class BameClientConfig {
                         }
                     }
                 }
-            }
+            } catch (Exception e) { logLoadError(skinProtectFile, e); } }
 
             // 6. Theme
             Path themeFile = BASE_CONFIG_DIR.resolve("Theme").resolve("theme.properties");
-            if (Files.exists(themeFile)) {
+            if (Files.exists(themeFile)) { try {
                 Properties props = loadProps(themeFile);
-                if (props.containsKey("theme")) theme = props.getProperty("theme");
-                if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));
-                if (props.containsKey("frostedBlur")) frostedBlur = Boolean.parseBoolean(props.getProperty("frostedBlur"));
-                if (props.containsKey("ambientBackground")) ambientBackground = Boolean.parseBoolean(props.getProperty("ambientBackground"));
-                if (props.containsKey("customMainColor")) customMainColor = Boolean.parseBoolean(props.getProperty("customMainColor"));
-                if (props.containsKey("classicToggle")) classicToggle = Boolean.parseBoolean(props.getProperty("classicToggle"));
-                if (props.containsKey("mainColor")) mainColor = Integer.parseInt(props.getProperty("mainColor"));
-                if (props.containsKey("ambientPrimary")) ambientPrimary = Integer.parseInt(props.getProperty("ambientPrimary"));
-                if (props.containsKey("ambientSecondary")) ambientSecondary = Integer.parseInt(props.getProperty("ambientSecondary"));
-                if (props.containsKey("ambientMode")) ambientMode = Integer.parseInt(props.getProperty("ambientMode"));
-                if (props.containsKey("ambientIntensity")) ambientIntensity = Math.clamp(Float.parseFloat(props.getProperty("ambientIntensity")), 0f, 1f);
-                if (props.containsKey("ambientOpacity")) ambientOpacity = Math.clamp(Float.parseFloat(props.getProperty("ambientOpacity")), 0f, 1f);
-                if (props.containsKey("ambientRadius")) ambientRadius = Math.clamp(Float.parseFloat(props.getProperty("ambientRadius")), 0f, 1f);
-                if (props.containsKey("ambientAnimation")) ambientAnimation = Boolean.parseBoolean(props.getProperty("ambientAnimation"));
-                if (props.containsKey("animationSpeed")) animationSpeed = Math.clamp(Float.parseFloat(props.getProperty("animationSpeed")), 0f, 1f);
-                if (props.containsKey("customWallpaper")) customWallpaper = Boolean.parseBoolean(props.getProperty("customWallpaper"));
-                if (props.containsKey("selectedWallpaper")) selectedWallpaper = props.getProperty("selectedWallpaper");
-                if (props.containsKey("wallpaperBrightness")) wallpaperBrightness = Math.clamp(Float.parseFloat(props.getProperty("wallpaperBrightness")), 0.1f, 1f);
-                if (props.containsKey("wallpaperBlur")) wallpaperBlur = Math.clamp(Float.parseFloat(props.getProperty("wallpaperBlur")), 0f, 1f);
-            }
+                theme = getString(props, "theme", theme);
+                seeThrough = getBool(props, "seeThrough", seeThrough);
+                frostedBlur = getBool(props, "frostedBlur", frostedBlur);
+                ambientBackground = getBool(props, "ambientBackground", ambientBackground);
+                customMainColor = getBool(props, "customMainColor", customMainColor);
+                classicToggle = getBool(props, "classicToggle", classicToggle);
+                mainColor = getInt(props, "mainColor", mainColor);
+                ambientPrimary = getInt(props, "ambientPrimary", ambientPrimary);
+                ambientSecondary = getInt(props, "ambientSecondary", ambientSecondary);
+                ambientMode = getInt(props, "ambientMode", ambientMode);
+                ambientIntensity = Math.clamp(getFloat(props, "ambientIntensity", ambientIntensity), 0f, 1f);
+                ambientOpacity = Math.clamp(getFloat(props, "ambientOpacity", ambientOpacity), 0f, 1f);
+                ambientRadius = Math.clamp(getFloat(props, "ambientRadius", ambientRadius), 0f, 1f);
+                ambientAnimation = getBool(props, "ambientAnimation", ambientAnimation);
+                animationSpeed = Math.clamp(getFloat(props, "animationSpeed", animationSpeed), 0f, 1f);
+                customWallpaper = getBool(props, "customWallpaper", customWallpaper);
+                selectedWallpaper = getString(props, "selectedWallpaper", selectedWallpaper);
+                wallpaperBrightness = Math.clamp(getFloat(props, "wallpaperBrightness", wallpaperBrightness), 0.1f, 1f);
+                wallpaperBlur = Math.clamp(getFloat(props, "wallpaperBlur", wallpaperBlur), 0f, 1f);
+            } catch (Exception e) { logLoadError(themeFile, e); } }
 
             // 7. Settings
             Path settingsFile = BASE_CONFIG_DIR.resolve("Settings").resolve("settings.properties");
-            if (Files.exists(settingsFile)) {
+            if (Files.exists(settingsFile)) { try {
                 Properties props = loadProps(settingsFile);
-                if (props.containsKey("menuBind")) menuBind = Integer.parseInt(props.getProperty("menuBind"));
-                if (props.containsKey("quickFriend")) quickFriend = Boolean.parseBoolean(props.getProperty("quickFriend"));
-                if (props.containsKey("guiAnimation")) guiAnimation = Integer.parseInt(props.getProperty("guiAnimation"));
-                if (props.containsKey("selectedCategory")) {
-                    selectedCategory = props.getProperty("selectedCategory");
-                    com.bame.client.gui.BameClientScreen.selected = selectedCategory;
-                }
-                if (props.containsKey("moduleSound")) moduleSound = Boolean.parseBoolean(props.getProperty("moduleSound"));
-                if (props.containsKey("soundPack")) soundPack = Integer.parseInt(props.getProperty("soundPack"));
-                if (props.containsKey("soundVolume")) soundVolume = Float.parseFloat(props.getProperty("soundVolume"));
-                if (props.containsKey("hoverSound")) hoverSound = Boolean.parseBoolean(props.getProperty("hoverSound"));
-                if (props.containsKey("hoverStyle")) hoverStyle = Integer.parseInt(props.getProperty("hoverStyle"));
-                if (props.containsKey("hoverVolume")) hoverVolume = Float.parseFloat(props.getProperty("hoverVolume"));
-                if (props.containsKey("notifications")) notifications = Boolean.parseBoolean(props.getProperty("notifications"));
-                if (props.containsKey("threeDGui")) threeDGui = Boolean.parseBoolean(props.getProperty("threeDGui"));
-                if (props.containsKey("secretRequireShift")) secretRequireShift = Boolean.parseBoolean(props.getProperty("secretRequireShift"));
-                if (props.containsKey("secretRequireCtrl")) secretRequireCtrl = Boolean.parseBoolean(props.getProperty("secretRequireCtrl"));
-                if (props.containsKey("secretRequireAlt")) secretRequireAlt = Boolean.parseBoolean(props.getProperty("secretRequireAlt"));
-                if (props.containsKey("secretKey")) secretKey = Integer.parseInt(props.getProperty("secretKey"));
-            }
+                menuBind = getInt(props, "menuBind", menuBind);
+                quickFriend = getBool(props, "quickFriend", quickFriend);
+                guiAnimation = getInt(props, "guiAnimation", guiAnimation);
+                selectedCategory = sanitizeCategory(getString(props, "selectedCategory", selectedCategory));
+                moduleSound = getBool(props, "moduleSound", moduleSound);
+                soundPack = getInt(props, "soundPack", soundPack);
+                soundVolume = getFloat(props, "soundVolume", soundVolume);
+                hoverSound = getBool(props, "hoverSound", hoverSound);
+                hoverStyle = getInt(props, "hoverStyle", hoverStyle);
+                hoverVolume = getFloat(props, "hoverVolume", hoverVolume);
+                notifications = getBool(props, "notifications", notifications);
+                threeDGui = getBool(props, "threeDGui", threeDGui);
+                secretRequireShift = getBool(props, "secretRequireShift", secretRequireShift);
+                secretRequireCtrl = getBool(props, "secretRequireCtrl", secretRequireCtrl);
+                secretRequireAlt = getBool(props, "secretRequireAlt", secretRequireAlt);
+                secretKey = getInt(props, "secretKey", secretKey);
+                if (migrateSecretCombo()) markDirty();
+            } catch (Exception e) { logLoadError(settingsFile, e); } }
         } catch (Exception e) {
-            e.printStackTrace();
+            BameClient.LOGGER.error("Caeser Client config could not be loaded completely", e);
         }
     }
 
-    public static void save() {
+    // ------------------------------------------------------------------------------------------------
+    // Sicheres Parsen: ein kaputter Wert betrifft nur diesen Schlüssel, alle anderen werden normal geladen
+    // ------------------------------------------------------------------------------------------------
+
+    private static void logLoadError(Path file, Exception e) {
+        BameClient.LOGGER.warn("Caeser Client: could not read {} completely, keeping defaults for the rest of this file", file.getFileName(), e);
+    }
+
+    private static void logBadValue(Properties props, String key, Object fallback) {
+        BameClient.LOGGER.warn("Caeser Client: invalid value '{}' for key '{}', using {}", props.getProperty(key), key, fallback);
+    }
+
+    static int getInt(Properties props, String key, int fallback) {
+        String v = props.getProperty(key);
+        if (v == null) return fallback;
         try {
+            return Integer.parseInt(v.trim());
+        } catch (NumberFormatException e) {
+            logBadValue(props, key, fallback);
+            return fallback;
+        }
+    }
+
+    static boolean getBool(Properties props, String key, boolean fallback) {
+        String v = props.getProperty(key);
+        if (v == null) return fallback;
+        String t = v.trim();
+        if (t.equalsIgnoreCase("true")) return true;
+        if (t.equalsIgnoreCase("false")) return false;
+        logBadValue(props, key, fallback);
+        return fallback;
+    }
+
+    static float getFloat(Properties props, String key, float fallback) {
+        String v = props.getProperty(key);
+        if (v == null) return fallback;
+        try {
+            float f = Float.parseFloat(v.trim());
+            if (Float.isFinite(f)) return f;
+        } catch (NumberFormatException ignored) {}
+        logBadValue(props, key, fallback);
+        return fallback;
+    }
+
+    static double getDouble(Properties props, String key, double fallback) {
+        String v = props.getProperty(key);
+        if (v == null) return fallback;
+        try {
+            double d = Double.parseDouble(v.trim());
+            if (Double.isFinite(d)) return d;
+        } catch (NumberFormatException ignored) {}
+        logBadValue(props, key, fallback);
+        return fallback;
+    }
+
+    /** Farbwerte werden als Hex (ohne 0x) gespeichert, z. B. "ff00ffff". */
+    static int getHex(Properties props, String key, int fallback) {
+        String v = props.getProperty(key);
+        if (v == null) return fallback;
+        try {
+            String t = v.trim();
+            if (t.startsWith("#")) t = t.substring(1);
+            if (t.startsWith("0x") || t.startsWith("0X")) t = t.substring(2);
+            return (int) Long.parseLong(t, 16);
+        } catch (NumberFormatException e) {
+            logBadValue(props, key, Integer.toHexString(fallback));
+            return fallback;
+        }
+    }
+
+    static String getString(Properties props, String key, String fallback) {
+        String v = props.getProperty(key);
+        return v != null ? v : fallback;
+    }
+
+    /** Nur gültige Kategorien des Mod-Menüs zulassen (sonst Combat). */
+    public static String sanitizeCategory(String category) {
+        if (category != null) {
+            for (String c : com.bame.client.gui.BameClientScreen.CATEGORIES) {
+                if (c.equalsIgnoreCase(category.trim())) return c;
+            }
+        }
+        return com.bame.client.gui.BameClientScreen.CATEGORIES[0];
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Geheime Tastenkombination
+    // ------------------------------------------------------------------------------------------------
+
+    /**
+     * Alte Standard-Kombination Strg+C kollidierte mit Sprinten (Strg) + Zoom (C) und mit Kopieren in Textfeldern.
+     * Gespeicherte Strg+C-Werte werden auf die neue Standard-Kombination Strg+Umschalt+K migriert.
+     * @return true, wenn migriert wurde
+     */
+    static boolean migrateSecretCombo() {
+        if (secretKey == org.lwjgl.glfw.GLFW.GLFW_KEY_C && secretRequireCtrl && !secretRequireShift && !secretRequireAlt) {
+            secretKey = DEFAULT_SECRET_KEY;
+            secretRequireCtrl = DEFAULT_SECRET_CTRL;
+            secretRequireShift = DEFAULT_SECRET_SHIFT;
+            secretRequireAlt = DEFAULT_SECRET_ALT;
+            return true;
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Versteckte Kampf-Module (nur im Geheim-Menü sichtbar): starten immer deaktiviert
+    // ------------------------------------------------------------------------------------------------
+
+    /** Schaltet alle nur im Geheim-Menü sichtbaren Kampf-Module aus. Einstellungen (Delay, Modus, Taste) bleiben. */
+    public static void disableHiddenCombatModules() {
+        TriggerbotModule.enabled = false;
+        AutoMaceModule.enabled = false;
+        DTapModule.enabled = false;
+        AggroPearlModule.enabled = false;
+        PearlCatchModule.enabled = false;
+        ShieldBreakerModule.enabled = false;
+        AutoCartModule.enabled = false;
+        PearlPredictionModule.enabled = false;
+    }
+
+    /**
+     * Darf die Taste eines versteckten Kampf-Moduls etwas auslösen? Nur wenn das Geheim-Menü entsperrt ist
+     * (oder das Modul schon an ist, damit man es per Taste wieder ausschalten kann).
+     */
+    public static boolean hiddenModuleHotkeyAllowed(boolean moduleEnabled) {
+        return secretUnlocked || moduleEnabled;
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Speichern: gebündelt, im Hintergrund, atomar
+    // ------------------------------------------------------------------------------------------------
+
+    /** Wartezeit nach der letzten Änderung, bevor gespeichert wird. */
+    private static final long SAVE_DELAY_MS = 1000L;
+    private static volatile boolean dirty = false;
+    private static volatile long lastChangeMs = 0L;
+    /** Zähler pro Snapshot: ein älterer Snapshot überschreibt nie einen neueren. */
+    private static final java.util.concurrent.atomic.AtomicLong snapshotGeneration = new java.util.concurrent.atomic.AtomicLong();
+    private static long writtenGeneration = 0L; // nur unter WRITE_LOCK
+    private static final Object WRITE_LOCK = new Object();
+    /** Zuletzt geschriebener Inhalt pro Datei (ohne Datumszeile): unveränderte Dateien werden nicht neu geschrieben. */
+    private static final Map<Path, String> lastWritten = new HashMap<>(); // nur unter WRITE_LOCK
+    private static final java.util.concurrent.ExecutorService SAVE_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "CaeserClient-ConfigSaver");
+                t.setDaemon(true);
+                return t;
+            });
+    private static boolean shutdownHookInstalled = false;
+
+    private record PendingFile(Path path, Properties props, String comment) {}
+
+    /**
+     * Änderung merken. Gespeichert wird gebündelt ~1 s nach der letzten Änderung (siehe {@link #tick()}),
+     * beim Schließen des Menüs ({@link #flush()}) und beim Beenden des Spiels ({@link #saveNow()}).
+     */
+    public static void save() {
+        markDirty();
+    }
+
+    public static void markDirty() {
+        lastChangeMs = System.currentTimeMillis();
+        dirty = true;
+        installShutdownHook();
+    }
+
+    public static boolean isDirty() {
+        return dirty;
+    }
+
+    /** Pro Client-Tick aufrufen (Haupt-Thread): speichert gedrosselt nach der letzten Änderung. */
+    public static void tick() {
+        if (dirty && System.currentTimeMillis() - lastChangeMs >= SAVE_DELAY_MS) {
+            flush();
+        }
+    }
+
+    /** Ausstehende Änderungen jetzt im Hintergrund schreiben (Snapshot auf dem aufrufenden Thread). */
+    public static void flush() {
+        if (!dirty) return;
+        dirty = false;
+        final List<PendingFile> snapshot;
+        final long gen;
+        try {
+            snapshot = buildSnapshot();
+            gen = snapshotGeneration.incrementAndGet();
+        } catch (Exception e) {
+            BameClient.LOGGER.error("Caeser Client: could not collect config for saving", e);
+            return;
+        }
+        try {
+            SAVE_EXECUTOR.execute(() -> writeSnapshot(snapshot, gen));
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            writeSnapshot(snapshot, gen);
+        }
+    }
+
+    /** Synchron speichern (Spielende, erster Start, Migration). */
+    public static void saveNow() {
+        dirty = false;
+        try {
+            List<PendingFile> snapshot = buildSnapshot();
+            writeSnapshot(snapshot, snapshotGeneration.incrementAndGet());
+        } catch (Exception e) {
+            BameClient.LOGGER.error("Caeser Client: could not save config", e);
+        }
+    }
+
+    private static synchronized void installShutdownHook() {
+        if (shutdownHookInstalled) return;
+        shutdownHookInstalled = true;
+        try {
+            // Rückfallebene, falls das Spiel ohne CLIENT_STOPPING beendet wird
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (dirty) saveNow();
+            }, "CaeserClient-ConfigShutdownSave"));
+        } catch (Exception ignored) {}
+    }
+
+    private static void writeSnapshot(List<PendingFile> files, long gen) {
+        synchronized (WRITE_LOCK) {
+            if (gen < writtenGeneration) return; // ein neuerer Stand wurde schon geschrieben
+            writtenGeneration = gen;
+            for (PendingFile f : files) {
+                try {
+                    writePropsAtomic(f.path(), f.props(), f.comment());
+                } catch (Exception e) {
+                    BameClient.LOGGER.error("Caeser Client: could not write {}", f.path().getFileName(), e);
+                }
+            }
+        }
+    }
+
+    private static void writePropsAtomic(Path path, Properties props, String comment) throws IOException {
+        // store(OutputStream) schreibt ISO-8859-1 mit Unicode-Escapes, passend zu load(InputStream)
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        props.store(bos, comment);
+        byte[] bytes = bos.toByteArray();
+        String text = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1);
+        // Vergleich ohne Kommentar-/Datumszeilen
+        StringBuilder body = new StringBuilder();
+        for (String line : text.split("\\R")) {
+            if (!line.startsWith("#")) body.append(line).append('\n');
+        }
+        String key = body.toString();
+        if (key.equals(lastWritten.get(path)) && Files.exists(path)) return;
+
+        Path dir = path.getParent();
+        if (dir != null) Files.createDirectories(dir);
+        Path tmp = (dir != null ? dir : Path.of(".")).resolve(path.getFileName() + ".tmp");
+        Files.write(tmp, bytes);
+        try {
+            Files.move(tmp, path, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        lastWritten.put(path, key);
+    }
+
+    private static void queue(List<PendingFile> out, Path path, Properties props, String comment) {
+        out.add(new PendingFile(path, props, comment));
+    }
+
+    /** Erfasst alle Werte als Snapshot (Haupt-Thread); das Schreiben passiert danach getrennt. */
+    private static List<PendingFile> buildSnapshot() {
+        List<PendingFile> out = new ArrayList<>();
+        {
             Path combatDir = BASE_CONFIG_DIR.resolve("Combat");
             Path movementDir = BASE_CONFIG_DIR.resolve("Movement");
             Path visualsDir = BASE_CONFIG_DIR.resolve("Visuals");
@@ -791,14 +1083,6 @@ public class BameClientConfig {
             Path settingsDir = BASE_CONFIG_DIR.resolve("Settings");
             Path wallpapersDir = BASE_CONFIG_DIR.resolve("wallpapers");
 
-            Files.createDirectories(combatDir);
-            Files.createDirectories(movementDir);
-            Files.createDirectories(visualsDir);
-            Files.createDirectories(miscDir);
-            Files.createDirectories(worldDir);
-            Files.createDirectories(themeDir);
-            Files.createDirectories(settingsDir);
-            Files.createDirectories(wallpapersDir);
 
             // 1. World - Auto Area Miner
             Properties worldProps = new Properties();
@@ -813,7 +1097,7 @@ public class BameClientConfig {
             worldProps.setProperty("outlineColor", Integer.toHexString(outlineColor));
             worldProps.setProperty("renderMode", String.valueOf(renderMode));
             worldProps.setProperty("outlineWidth", String.valueOf(outlineWidth));
-            saveProps(worldDir.resolve("auto_area_miner.properties"), worldProps, "Caeser Client - Auto Area Miner");
+            queue(out, worldDir.resolve("auto_area_miner.properties"), worldProps, "Caeser Client - Auto Area Miner");
 
             // Movement - InvMove
             Properties invMoveProps = new Properties();
@@ -824,7 +1108,7 @@ public class BameClientConfig {
             invMoveProps.setProperty("sprint", String.valueOf(InvMoveModule.sprint));
             invMoveProps.setProperty("sneak", String.valueOf(InvMoveModule.sneak));
             invMoveProps.setProperty("rotateWithArrows", String.valueOf(InvMoveModule.rotateWithArrows));
-            saveProps(movementDir.resolve("inv_move.properties"), invMoveProps, "Caeser Client - InvMove");
+            queue(out, movementDir.resolve("inv_move.properties"), invMoveProps, "Caeser Client - InvMove");
 
             // 2. Visuals - Show HUD
             Properties showHudProps = new Properties();
@@ -971,14 +1255,14 @@ public class BameClientConfig {
             if (NameProtectModule.alias != null) {
                 showHudProps.setProperty("nameProtectAlias", NameProtectModule.alias);
             }
-            saveProps(visualsDir.resolve("show_hud.properties"), showHudProps, "Caeser Client - Show HUD");
+            queue(out, visualsDir.resolve("show_hud.properties"), showHudProps, "Caeser Client - Show HUD");
 
             // 3. Visuals - Fullbright
             Properties fullbrightProps = new Properties();
             fullbrightProps.setProperty("enabled", String.valueOf(FullbrightModule.enabled));
             fullbrightProps.setProperty("intensity", String.valueOf(FullbrightModule.intensity));
             fullbrightProps.setProperty("keyBind", String.valueOf(FullbrightModule.keyBind));
-            saveProps(visualsDir.resolve("fullbright.properties"), fullbrightProps, "Caeser Client - Fullbright");
+            queue(out, visualsDir.resolve("fullbright.properties"), fullbrightProps, "Caeser Client - Fullbright");
 
             // 4. Visuals - Zoom
             Properties zoomProps = new Properties();
@@ -988,7 +1272,7 @@ public class BameClientConfig {
             zoomProps.setProperty("type", String.valueOf(ZoomModule.type));
             zoomProps.setProperty("scrollZoom", String.valueOf(ZoomModule.scrollZoom));
             zoomProps.setProperty("defaultLevel", String.valueOf(ZoomModule.defaultLevel));
-            saveProps(visualsDir.resolve("zoom.properties"), zoomProps, "Caeser Client - Zoom");
+            queue(out, visualsDir.resolve("zoom.properties"), zoomProps, "Caeser Client - Zoom");
 
             // 5. Visuals - Fake Scoreboard
             Properties sbProps = new Properties();
@@ -1007,7 +1291,7 @@ public class BameClientConfig {
             if (FakeScoreboardModule.kills != null) sbProps.setProperty("kills", FakeScoreboardModule.kills);
             if (FakeScoreboardModule.deaths != null) sbProps.setProperty("deaths", FakeScoreboardModule.deaths);
             if (FakeScoreboardModule.playtime != null) sbProps.setProperty("time", FakeScoreboardModule.playtime);
-            saveProps(visualsDir.resolve("fake_scoreboard.properties"), sbProps, "Caeser Client - Fake Scoreboard");
+            queue(out, visualsDir.resolve("fake_scoreboard.properties"), sbProps, "Caeser Client - Fake Scoreboard");
 
             // Visuals - Spotify HUD
             Properties spotifyProps = new Properties();
@@ -1022,7 +1306,9 @@ public class BameClientConfig {
             spotifyProps.setProperty("customWidth", String.valueOf(SpotifyHudModule.customWidth));
             spotifyProps.setProperty("customHeight", String.valueOf(SpotifyHudModule.customHeight));
             spotifyProps.setProperty("autoHide", String.valueOf(SpotifyHudModule.autoHide));
-            saveProps(visualsDir.resolve("spotify_hud.properties"), spotifyProps, "Caeser Client - Spotify HUD");
+            spotifyProps.setProperty("style", String.valueOf(SpotifyHudModule.style));
+            spotifyProps.setProperty("accentMode", String.valueOf(SpotifyHudModule.accentMode));
+            queue(out, visualsDir.resolve("spotify_hud.properties"), spotifyProps, "Caeser Client - Spotify HUD");
 
             // Visuals - Scoreboard
             Properties realScoreboardProps = new Properties();
@@ -1036,7 +1322,7 @@ public class BameClientConfig {
             realScoreboardProps.setProperty("outlineColor", Integer.toHexString(ScoreboardModule.outlineColor));
             realScoreboardProps.setProperty("customWidth", String.valueOf(ScoreboardModule.customWidth));
             realScoreboardProps.setProperty("customHeight", String.valueOf(ScoreboardModule.customHeight));
-            saveProps(visualsDir.resolve("scoreboard.properties"), realScoreboardProps, "Caeser Client - Scoreboard");
+            queue(out, visualsDir.resolve("scoreboard.properties"), realScoreboardProps, "Caeser Client - Scoreboard");
 
             // Visuals - Custom Crosshair
             Properties crosshairProps = new Properties();
@@ -1045,7 +1331,7 @@ public class BameClientConfig {
             crosshairProps.setProperty("expanded", String.valueOf(CustomCrosshairModule.expanded));
             crosshairProps.setProperty("color", Integer.toHexString(CustomCrosshairModule.color));
             crosshairProps.setProperty("grid", CustomCrosshairModule.getEncodedGrid());
-            saveProps(visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
+            queue(out, visualsDir.resolve("custom_crosshair.properties"), crosshairProps, "Caeser Client - Custom Crosshair");
 
             // Visuals - Tab Badge
             Properties tabBadgeProps = new Properties();
@@ -1053,7 +1339,7 @@ public class BameClientConfig {
             tabBadgeProps.setProperty("badgeType", TabBadgeModule.BADGE_TYPE);
             tabBadgeProps.setProperty("keyBind", String.valueOf(TabBadgeModule.keyBind));
             tabBadgeProps.setProperty("expanded", String.valueOf(TabBadgeModule.expanded));
-            saveProps(visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
+            queue(out, visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
 
 
             // Combat - AutoClicker
@@ -1069,7 +1355,7 @@ public class BameClientConfig {
             acProps.setProperty("randomJitter", String.valueOf(AutoClickerModule.randomJitter));
             acProps.setProperty("weaponOnly", String.valueOf(AutoClickerModule.weaponOnly));
             acProps.setProperty("button", String.valueOf(AutoClickerModule.button));
-            saveProps(combatDir.resolve("auto_clicker.properties"), acProps, "Caeser Client - AutoClicker");
+            queue(out, combatDir.resolve("auto_clicker.properties"), acProps, "Caeser Client - AutoClicker");
 
             // Combat - HitColor
             Properties hcProps = new Properties();
@@ -1078,7 +1364,7 @@ public class BameClientConfig {
             hcProps.setProperty("expanded", String.valueOf(HitColorModule.expanded));
             hcProps.setProperty("color", Integer.toHexString(HitColorModule.color));
             hcProps.setProperty("alpha", String.valueOf(HitColorModule.alpha));
-            saveProps(combatDir.resolve("hit_color.properties"), hcProps, "Caeser Client - HitColor");
+            queue(out, combatDir.resolve("hit_color.properties"), hcProps, "Caeser Client - HitColor");
 
             // Combat - ReachDisplay
             Properties rdProps = new Properties();
@@ -1093,7 +1379,7 @@ public class BameClientConfig {
             rdProps.setProperty("outlineColor", Integer.toHexString(ReachDisplayModule.outlineColor));
             rdProps.setProperty("customWidth", String.valueOf(ReachDisplayModule.customWidth));
             rdProps.setProperty("customHeight", String.valueOf(ReachDisplayModule.customHeight));
-            saveProps(combatDir.resolve("reach_display.properties"), rdProps, "Caeser Client - ReachDisplay");
+            queue(out, combatDir.resolve("reach_display.properties"), rdProps, "Caeser Client - ReachDisplay");
 
             // Combat - LowShield
             Properties lsProps = new Properties();
@@ -1102,7 +1388,7 @@ public class BameClientConfig {
             lsProps.setProperty("expanded", String.valueOf(LowShieldModule.expanded));
             lsProps.setProperty("heightPercent", String.valueOf(LowShieldModule.heightPercent));
             lsProps.setProperty("totemSizePercent", String.valueOf(LowShieldModule.totemSizePercent));
-            saveProps(combatDir.resolve("low_shield.properties"), lsProps, "Caeser Client - LowShield");
+            queue(out, combatDir.resolve("low_shield.properties"), lsProps, "Caeser Client - LowShield");
 
             // Combat - CustomHitboxes
             Properties hbProps = new Properties();
@@ -1115,7 +1401,7 @@ public class BameClientConfig {
             hbProps.setProperty("targetMode", String.valueOf(CustomHitboxesModule.targetMode));
             hbProps.setProperty("showEyeHeight", String.valueOf(CustomHitboxesModule.showEyeHeight));
             hbProps.setProperty("showViewVector", String.valueOf(CustomHitboxesModule.showViewVector));
-            saveProps(combatDir.resolve("custom_hitboxes.properties"), hbProps, "Caeser Client - Custom Hitboxes");
+            queue(out, combatDir.resolve("custom_hitboxes.properties"), hbProps, "Caeser Client - Custom Hitboxes");
 
             // Combat - PearlPrediction
             Properties pearlProps = new Properties();
@@ -1125,7 +1411,7 @@ public class BameClientConfig {
             pearlProps.setProperty("enemyOnly", String.valueOf(PearlPredictionModule.enemyOnly));
             pearlProps.setProperty("landingBox", String.valueOf(PearlPredictionModule.landingBox));
             pearlProps.setProperty("throwPreview", String.valueOf(PearlPredictionModule.throwPreview));
-            saveProps(combatDir.resolve("pearl_prediction.properties"), pearlProps, "Caeser Client - Pearl Prediction");
+            queue(out, combatDir.resolve("pearl_prediction.properties"), pearlProps, "Caeser Client - Pearl Prediction");
 
             // Combat - AutoCart
             Properties autoCartProps = new Properties();
@@ -1135,7 +1421,7 @@ public class BameClientConfig {
             autoCartProps.setProperty("switchBack", String.valueOf(AutoCartModule.switchBack));
             autoCartProps.setProperty("switchDelay", String.valueOf(AutoCartModule.switchDelay));
             autoCartProps.setProperty("mode", AutoCartModule.mode.name());
-            saveProps(combatDir.resolve("auto_cart.properties"), autoCartProps, "Caeser Client - AutoCart");
+            queue(out, combatDir.resolve("auto_cart.properties"), autoCartProps, "Caeser Client - AutoCart");
 
             // Combat - AutoMace
             Properties autoMaceProps = new Properties();
@@ -1148,7 +1434,7 @@ public class BameClientConfig {
             autoMaceProps.setProperty("onlyPlayers", String.valueOf(AutoMaceModule.onlyPlayers));
             autoMaceProps.setProperty("minFallDistance", String.valueOf(AutoMaceModule.minFallDistance));
             autoMaceProps.setProperty("mode", AutoMaceModule.mode.name());
-            saveProps(combatDir.resolve("auto_mace.properties"), autoMaceProps, "Caeser Client - AutoMace");
+            queue(out, combatDir.resolve("auto_mace.properties"), autoMaceProps, "Caeser Client - AutoMace");
 
             // Combat - DTap
             Properties dTapProps = new Properties();
@@ -1158,7 +1444,7 @@ public class BameClientConfig {
             dTapProps.setProperty("tapDelay", String.valueOf(DTapModule.tapDelay));
             dTapProps.setProperty("switchBack", String.valueOf(DTapModule.switchBack));
             dTapProps.setProperty("mode", DTapModule.mode.name());
-            saveProps(combatDir.resolve("d_tap.properties"), dTapProps, "Caeser Client - DTap");
+            queue(out, combatDir.resolve("d_tap.properties"), dTapProps, "Caeser Client - DTap");
 
             // Combat - PearlCatch
             Properties pearlCatchProps = new Properties();
@@ -1169,7 +1455,7 @@ public class BameClientConfig {
             pearlCatchProps.setProperty("autoAim", String.valueOf(PearlCatchModule.autoAim));
             pearlCatchProps.setProperty("switchToMace", String.valueOf(PearlCatchModule.switchToMace));
             pearlCatchProps.setProperty("switchBack", String.valueOf(PearlCatchModule.switchBack));
-            saveProps(combatDir.resolve("pearl_catch.properties"), pearlCatchProps, "Caeser Client - PearlCatch");
+            queue(out, combatDir.resolve("pearl_catch.properties"), pearlCatchProps, "Caeser Client - PearlCatch");
 
             // Combat - AggroPearl
             Properties aggroPearlProps = new Properties();
@@ -1179,7 +1465,7 @@ public class BameClientConfig {
             aggroPearlProps.setProperty("throwDelay", String.valueOf(AggroPearlModule.throwDelay));
             aggroPearlProps.setProperty("autoAim", String.valueOf(AggroPearlModule.autoAim));
             aggroPearlProps.setProperty("switchBack", String.valueOf(AggroPearlModule.switchBack));
-            saveProps(combatDir.resolve("aggro_pearl.properties"), aggroPearlProps, "Caeser Client - AggroPearl");
+            queue(out, combatDir.resolve("aggro_pearl.properties"), aggroPearlProps, "Caeser Client - AggroPearl");
 
             // Combat - Triggerbot
             Properties triggerbotProps = new Properties();
@@ -1195,7 +1481,7 @@ public class BameClientConfig {
             triggerbotProps.setProperty("holdAttackKey", String.valueOf(TriggerbotModule.holdAttackKey));
             triggerbotProps.setProperty("range", String.valueOf(TriggerbotModule.range));
             triggerbotProps.setProperty("randomJitter", String.valueOf(TriggerbotModule.randomJitter));
-            saveProps(combatDir.resolve("triggerbot.properties"), triggerbotProps, "Caeser Client - Triggerbot");
+            queue(out, combatDir.resolve("triggerbot.properties"), triggerbotProps, "Caeser Client - Triggerbot");
 
             // Combat - ShieldBreaker
             Properties shieldBreakerProps = new Properties();
@@ -1206,7 +1492,7 @@ public class BameClientConfig {
             shieldBreakerProps.setProperty("switchBack", String.valueOf(ShieldBreakerModule.switchBack));
             shieldBreakerProps.setProperty("switchDelay", String.valueOf(ShieldBreakerModule.switchDelay));
             shieldBreakerProps.setProperty("reach", String.valueOf(ShieldBreakerModule.reach));
-            saveProps(combatDir.resolve("shield_breaker.properties"), shieldBreakerProps, "Caeser Client - ShieldBreaker");
+            queue(out, combatDir.resolve("shield_breaker.properties"), shieldBreakerProps, "Caeser Client - ShieldBreaker");
 
             // World - NoFog
             Properties noFogProps = new Properties();
@@ -1217,7 +1503,7 @@ public class BameClientConfig {
             noFogProps.setProperty("netherFog", String.valueOf(NoFogModule.netherFog));
             noFogProps.setProperty("waterFog", String.valueOf(NoFogModule.waterFog));
             noFogProps.setProperty("lavaFog", String.valueOf(NoFogModule.lavaFog));
-            saveProps(worldDir.resolve("no_fog.properties"), noFogProps, "Caeser Client - NoFog");
+            queue(out, worldDir.resolve("no_fog.properties"), noFogProps, "Caeser Client - NoFog");
 
             // Misc - AutoTool
             Properties autoToolProps = new Properties();
@@ -1225,7 +1511,7 @@ public class BameClientConfig {
             autoToolProps.setProperty("keyBind", String.valueOf(AutoToolModule.keyBind));
             autoToolProps.setProperty("expanded", String.valueOf(AutoToolModule.expanded));
             autoToolProps.setProperty("switchBack", String.valueOf(AutoToolModule.switchBack));
-            saveProps(miscDir.resolve("auto_tool.properties"), autoToolProps, "Caeser Client - AutoTool");
+            queue(out, miscDir.resolve("auto_tool.properties"), autoToolProps, "Caeser Client - AutoTool");
 
             // Misc - DurabilityGuard
             Properties durabilityGuardProps = new Properties();
@@ -1239,7 +1525,7 @@ public class BameClientConfig {
                 dguardSb.append(e.getKey()).append("=").append(e.getValue());
             }
             durabilityGuardProps.setProperty("toolThresholds", dguardSb.toString());
-            saveProps(miscDir.resolve("durability_guard.properties"), durabilityGuardProps, "Caeser Client - DurabilityGuard");
+            queue(out, miscDir.resolve("durability_guard.properties"), durabilityGuardProps, "Caeser Client - DurabilityGuard");
 
             // Visuals - BlockOutline
             Properties blockOutlineProps = new Properties();
@@ -1250,7 +1536,7 @@ public class BameClientConfig {
             blockOutlineProps.setProperty("lineWidth", String.valueOf(BlockOutlineModule.lineWidth));
             blockOutlineProps.setProperty("chroma", String.valueOf(BlockOutlineModule.chroma));
             blockOutlineProps.setProperty("opacity", String.valueOf(BlockOutlineModule.opacity));
-            saveProps(visualsDir.resolve("block_outline.properties"), blockOutlineProps, "Caeser Client - BlockOutline");
+            queue(out, visualsDir.resolve("block_outline.properties"), blockOutlineProps, "Caeser Client - BlockOutline");
 
             // Movement - Freelook
             Properties freelookProps = new Properties();
@@ -1260,7 +1546,7 @@ public class BameClientConfig {
             freelookProps.setProperty("toggleMode", String.valueOf(FreelookModule.toggleMode));
             freelookProps.setProperty("invertPitch", String.valueOf(FreelookModule.invertPitch));
             freelookProps.setProperty("sensitivity", String.valueOf(FreelookModule.sensitivity));
-            saveProps(movementDir.resolve("freelook.properties"), freelookProps, "Caeser Client - Freelook");
+            queue(out, movementDir.resolve("freelook.properties"), freelookProps, "Caeser Client - Freelook");
 
             // Movement - Emotes
             Properties emoteProps = new Properties();
@@ -1268,7 +1554,7 @@ public class BameClientConfig {
             emoteProps.setProperty("keyBind", String.valueOf(com.bame.client.module.EmoteModule.keyBind));
             emoteProps.setProperty("expanded", String.valueOf(com.bame.client.module.EmoteModule.expanded));
             emoteProps.setProperty("smoothAnimations", String.valueOf(com.bame.client.module.EmoteModule.smoothAnimations));
-            saveProps(movementDir.resolve("emotes.properties"), emoteProps, "Caeser Client - Emotes");
+            queue(out, movementDir.resolve("emotes.properties"), emoteProps, "Caeser Client - Emotes");
 
             // Visuals - ItemSize
             Properties itemSizeProps = new Properties();
@@ -1278,7 +1564,7 @@ public class BameClientConfig {
             itemSizeProps.setProperty("scale", String.valueOf(ItemSizeModule.scale));
             itemSizeProps.setProperty("yOffset", String.valueOf(ItemSizeModule.yOffset));
             itemSizeProps.setProperty("selectedItems", String.join(",", ItemSizeModule.selectedItems));
-            saveProps(visualsDir.resolve("item_size.properties"), itemSizeProps, "Caeser Client - ItemSize");
+            queue(out, visualsDir.resolve("item_size.properties"), itemSizeProps, "Caeser Client - ItemSize");
 
             // Visuals - HandPosition
             Properties handPosProps = new Properties();
@@ -1296,14 +1582,14 @@ public class BameClientConfig {
             handPosProps.setProperty("applyToOffhand", String.valueOf(HandPositionModule.applyToOffhand));
             handPosProps.setProperty("weaponsOnly", String.valueOf(HandPositionModule.weaponsOnly));
             handPosProps.setProperty("miningAnimation", String.valueOf(HandPositionModule.miningAnimation));
-            saveProps(visualsDir.resolve("hand_position.properties"), handPosProps, "Caeser Client - HandPosition");
+            queue(out, visualsDir.resolve("hand_position.properties"), handPosProps, "Caeser Client - HandPosition");
             // World - TimeChanger
             Properties timeChangerProps = new Properties();
             timeChangerProps.setProperty("enabled", String.valueOf(TimeChangerModule.enabled));
             timeChangerProps.setProperty("expanded", String.valueOf(TimeChangerModule.expanded));
             timeChangerProps.setProperty("keyBind", String.valueOf(TimeChangerModule.keyBind));
             timeChangerProps.setProperty("timeMode", String.valueOf(TimeChangerModule.timeMode));
-            saveProps(worldDir.resolve("time_changer.properties"), timeChangerProps, "Caeser Client - TimeChanger");
+            queue(out, worldDir.resolve("time_changer.properties"), timeChangerProps, "Caeser Client - TimeChanger");
 
             // Visuals - SkinProtect
             Properties skinProtectProps = new Properties();
@@ -1317,7 +1603,7 @@ public class BameClientConfig {
                 customSkinList.add(e.name + ":" + e.uuid.toString());
             }
             skinProtectProps.setProperty("customSkins", String.join(";", customSkinList));
-            saveProps(visualsDir.resolve("skin_protect.properties"), skinProtectProps, "Caeser Client - SkinProtect");
+            queue(out, visualsDir.resolve("skin_protect.properties"), skinProtectProps, "Caeser Client - SkinProtect");
 
             // 6. Theme
             Properties themeProps = new Properties();
@@ -1340,7 +1626,7 @@ public class BameClientConfig {
             themeProps.setProperty("selectedWallpaper", selectedWallpaper != null ? selectedWallpaper : "");
             themeProps.setProperty("wallpaperBrightness", String.valueOf(wallpaperBrightness));
             themeProps.setProperty("wallpaperBlur", String.valueOf(wallpaperBlur));
-            saveProps(themeDir.resolve("theme.properties"), themeProps, "Caeser Client - Theme");
+            queue(out, themeDir.resolve("theme.properties"), themeProps, "Caeser Client - Theme");
 
             // 7. Settings
             Properties settingsProps = new Properties();
@@ -1360,10 +1646,9 @@ public class BameClientConfig {
             settingsProps.setProperty("secretRequireCtrl", String.valueOf(secretRequireCtrl));
             settingsProps.setProperty("secretRequireAlt", String.valueOf(secretRequireAlt));
             settingsProps.setProperty("secretKey", String.valueOf(secretKey));
-            saveProps(settingsDir.resolve("settings.properties"), settingsProps, "Caeser Client - General Settings");
-        } catch (Exception e) {
-            e.printStackTrace();
+            queue(out, settingsDir.resolve("settings.properties"), settingsProps, "Caeser Client - General Settings");
         }
+        return out;
     }
 
     private static Properties loadProps(Path path) {
@@ -1378,21 +1663,13 @@ public class BameClientConfig {
         return props;
     }
 
-    private static void saveProps(Path path, Properties props, String comments) {
-        try (OutputStream out = Files.newOutputStream(path)) {
-            props.store(out, comments);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     private static void loadLegacy(Path legacyFile) {
         try (InputStream in = Files.newInputStream(legacyFile)) {
             Properties props = new Properties();
             props.load(in);
 
-            if (props.containsKey("keyBind")) AutoAreaMinerModule.keyBind = Integer.parseInt(props.getProperty("keyBind"));
-            if (props.containsKey("mode3x3")) AutoAreaMinerModule.mode3x3 = Boolean.parseBoolean(props.getProperty("mode3x3"));
+            AutoAreaMinerModule.keyBind = getInt(props, "keyBind", AutoAreaMinerModule.keyBind);
+            AutoAreaMinerModule.mode3x3 = getBool(props, "mode3x3", AutoAreaMinerModule.mode3x3);
             if (props.containsKey("corner1")) {
                 String[] parts = props.getProperty("corner1").trim().split("\\s+");
                 if (parts.length == 3) {
@@ -1413,203 +1690,200 @@ public class BameClientConfig {
                     } catch (Exception ignored) {}
                 }
             }
-            if (props.containsKey("outlineColor")) outlineColor = (int) Long.parseLong(props.getProperty("outlineColor", "FF00FFFF"), 16);
-            if (props.containsKey("renderMode")) renderMode = Integer.parseInt(props.getProperty("renderMode"));
-            if (props.containsKey("outlineWidth")) outlineWidth = Float.parseFloat(props.getProperty("outlineWidth"));
+            outlineColor = getHex(props, "outlineColor", outlineColor);
+            renderMode = getInt(props, "renderMode", renderMode);
+            outlineWidth = getFloat(props, "outlineWidth", outlineWidth);
 
-            if (props.containsKey("fullbrightEnabled")) fullbrightEnabled = Boolean.parseBoolean(props.getProperty("fullbrightEnabled"));
-            if (props.containsKey("fullbrightIntensity")) fullbrightIntensity = Float.parseFloat(props.getProperty("fullbrightIntensity"));
+            fullbrightEnabled = getBool(props, "fullbrightEnabled", fullbrightEnabled);
+            fullbrightIntensity = getFloat(props, "fullbrightIntensity", fullbrightIntensity);
             FullbrightModule.enabled = fullbrightEnabled;
             FullbrightModule.intensity = fullbrightIntensity;
-            if (props.containsKey("fullbrightKeyBind")) FullbrightModule.keyBind = Integer.parseInt(props.getProperty("fullbrightKeyBind"));
+            FullbrightModule.keyBind = getInt(props, "fullbrightKeyBind", FullbrightModule.keyBind);
 
-            if (props.containsKey("zoomEnabled")) ZoomModule.enabled = Boolean.parseBoolean(props.getProperty("zoomEnabled"));
-            if (props.containsKey("zoomKeyBind")) ZoomModule.keyBind = Integer.parseInt(props.getProperty("zoomKeyBind"));
-            if (props.containsKey("zoomMode")) ZoomModule.mode = Integer.parseInt(props.getProperty("zoomMode"));
-            if (props.containsKey("zoomType")) ZoomModule.type = Integer.parseInt(props.getProperty("zoomType"));
-            if (props.containsKey("zoomScrollZoom")) ZoomModule.scrollZoom = Boolean.parseBoolean(props.getProperty("zoomScrollZoom"));
-            if (props.containsKey("zoomDefaultLevel")) ZoomModule.defaultLevel = Integer.parseInt(props.getProperty("zoomDefaultLevel"));
+            ZoomModule.enabled = getBool(props, "zoomEnabled", ZoomModule.enabled);
+            ZoomModule.keyBind = getInt(props, "zoomKeyBind", ZoomModule.keyBind);
+            ZoomModule.mode = getInt(props, "zoomMode", ZoomModule.mode);
+            ZoomModule.type = getInt(props, "zoomType", ZoomModule.type);
+            ZoomModule.scrollZoom = getBool(props, "zoomScrollZoom", ZoomModule.scrollZoom);
+            ZoomModule.defaultLevel = getInt(props, "zoomDefaultLevel", ZoomModule.defaultLevel);
 
-            if (props.containsKey("fakeScoreboardEnabled")) FakeScoreboardModule.enabled = Boolean.parseBoolean(props.getProperty("fakeScoreboardEnabled"));
-            if (props.containsKey("fakeScoreboardKeyBind")) FakeScoreboardModule.keyBind = Integer.parseInt(props.getProperty("fakeScoreboardKeyBind"));
-            if (props.containsKey("fakeScoreboardExpanded")) FakeScoreboardModule.expanded = Boolean.parseBoolean(props.getProperty("fakeScoreboardExpanded"));
-            if (props.containsKey("fakeScoreboardHudX")) FakeScoreboardModule.hudX = Integer.parseInt(props.getProperty("fakeScoreboardHudX"));
-            if (props.containsKey("fakeScoreboardHudY")) FakeScoreboardModule.hudY = Integer.parseInt(props.getProperty("fakeScoreboardHudY"));
-            if (props.containsKey("fakeScoreboardScale")) FakeScoreboardModule.scale = Float.parseFloat(props.getProperty("fakeScoreboardScale"));
-            if (props.containsKey("fakeScoreboardBgMode")) FakeScoreboardModule.bgMode = Integer.parseInt(props.getProperty("fakeScoreboardBgMode"));
-            if (props.containsKey("fakeScoreboardMoney")) FakeScoreboardModule.money = props.getProperty("fakeScoreboardMoney");
-            if (props.containsKey("fakeScoreboardStars")) FakeScoreboardModule.stars = props.getProperty("fakeScoreboardStars");
-            if (props.containsKey("fakeScoreboardKills")) FakeScoreboardModule.kills = props.getProperty("fakeScoreboardKills");
-            if (props.containsKey("fakeScoreboardDeaths")) FakeScoreboardModule.deaths = props.getProperty("fakeScoreboardDeaths");
-            if (props.containsKey("fakeScoreboardTime")) FakeScoreboardModule.playtime = props.getProperty("fakeScoreboardTime");
+            FakeScoreboardModule.enabled = getBool(props, "fakeScoreboardEnabled", FakeScoreboardModule.enabled);
+            FakeScoreboardModule.keyBind = getInt(props, "fakeScoreboardKeyBind", FakeScoreboardModule.keyBind);
+            FakeScoreboardModule.expanded = getBool(props, "fakeScoreboardExpanded", FakeScoreboardModule.expanded);
+            FakeScoreboardModule.hudX = getInt(props, "fakeScoreboardHudX", FakeScoreboardModule.hudX);
+            FakeScoreboardModule.hudY = getInt(props, "fakeScoreboardHudY", FakeScoreboardModule.hudY);
+            FakeScoreboardModule.scale = getFloat(props, "fakeScoreboardScale", FakeScoreboardModule.scale);
+            FakeScoreboardModule.bgMode = getInt(props, "fakeScoreboardBgMode", FakeScoreboardModule.bgMode);
+            FakeScoreboardModule.money = getString(props, "fakeScoreboardMoney", FakeScoreboardModule.money);
+            FakeScoreboardModule.stars = getString(props, "fakeScoreboardStars", FakeScoreboardModule.stars);
+            FakeScoreboardModule.kills = getString(props, "fakeScoreboardKills", FakeScoreboardModule.kills);
+            FakeScoreboardModule.deaths = getString(props, "fakeScoreboardDeaths", FakeScoreboardModule.deaths);
+            FakeScoreboardModule.playtime = getString(props, "fakeScoreboardTime", FakeScoreboardModule.playtime);
 
-            if (props.containsKey("showHudEnabled")) ShowHudModule.enabled = Boolean.parseBoolean(props.getProperty("showHudEnabled"));
-            if (props.containsKey("showHudKeyBind")) ShowHudModule.keyBind = Integer.parseInt(props.getProperty("showHudKeyBind"));
-            if (props.containsKey("showHudExpanded")) ShowHudModule.expanded = Boolean.parseBoolean(props.getProperty("showHudExpanded"));
+            ShowHudModule.enabled = getBool(props, "showHudEnabled", ShowHudModule.enabled);
+            ShowHudModule.keyBind = getInt(props, "showHudKeyBind", ShowHudModule.keyBind);
+            ShowHudModule.expanded = getBool(props, "showHudExpanded", ShowHudModule.expanded);
 
-            if (props.containsKey("clockEnabled")) ClockModule.enabled = Boolean.parseBoolean(props.getProperty("clockEnabled"));
-            if (props.containsKey("clockHudX")) ClockModule.hudX = Integer.parseInt(props.getProperty("clockHudX"));
-            if (props.containsKey("clockHudY")) ClockModule.hudY = Integer.parseInt(props.getProperty("clockHudY"));
-            if (props.containsKey("clockScale")) ClockModule.scale = Float.parseFloat(props.getProperty("clockScale"));
-            if (props.containsKey("clockBgMode")) ClockModule.bgMode = Integer.parseInt(props.getProperty("clockBgMode"));
+            ClockModule.enabled = getBool(props, "clockEnabled", ClockModule.enabled);
+            ClockModule.hudX = getInt(props, "clockHudX", ClockModule.hudX);
+            ClockModule.hudY = getInt(props, "clockHudY", ClockModule.hudY);
+            ClockModule.scale = getFloat(props, "clockScale", ClockModule.scale);
+            ClockModule.bgMode = getInt(props, "clockBgMode", ClockModule.bgMode);
 
-            if (props.containsKey("coordinatesEnabled")) CoordinatesModule.enabled = Boolean.parseBoolean(props.getProperty("coordinatesEnabled"));
-            if (props.containsKey("coordinatesHudX")) CoordinatesModule.hudX = Integer.parseInt(props.getProperty("coordinatesHudX"));
-            if (props.containsKey("coordinatesHudY")) CoordinatesModule.hudY = Integer.parseInt(props.getProperty("coordinatesHudY"));
-            if (props.containsKey("coordinatesScale")) CoordinatesModule.scale = Float.parseFloat(props.getProperty("coordinatesScale"));
-            if (props.containsKey("coordinatesBgMode")) CoordinatesModule.bgMode = Integer.parseInt(props.getProperty("coordinatesBgMode"));
-            if (props.containsKey("coordinatesExpanded")) CoordinatesModule.expanded = Boolean.parseBoolean(props.getProperty("coordinatesExpanded"));
-            if (props.containsKey("coordinatesLayoutMode")) CoordinatesModule.layoutMode = Integer.parseInt(props.getProperty("coordinatesLayoutMode"));
-            if (props.containsKey("coordinatesStyle")) CoordinatesModule.style = Integer.parseInt(props.getProperty("coordinatesStyle"));
-            if (props.containsKey("coordinatesShowX")) CoordinatesModule.showX = Boolean.parseBoolean(props.getProperty("coordinatesShowX"));
-            if (props.containsKey("coordinatesShowY")) CoordinatesModule.showY = Boolean.parseBoolean(props.getProperty("coordinatesShowY"));
-            if (props.containsKey("coordinatesShowZ")) CoordinatesModule.showZ = Boolean.parseBoolean(props.getProperty("coordinatesShowZ"));
-            if (props.containsKey("coordinatesDecimals")) CoordinatesModule.decimals = Boolean.parseBoolean(props.getProperty("coordinatesDecimals"));
-            if (props.containsKey("coordinatesShowNether")) CoordinatesModule.showNether = Boolean.parseBoolean(props.getProperty("coordinatesShowNether"));
-            if (props.containsKey("coordinatesShowDirection")) CoordinatesModule.showDirection = Boolean.parseBoolean(props.getProperty("coordinatesShowDirection"));
+            CoordinatesModule.enabled = getBool(props, "coordinatesEnabled", CoordinatesModule.enabled);
+            CoordinatesModule.hudX = getInt(props, "coordinatesHudX", CoordinatesModule.hudX);
+            CoordinatesModule.hudY = getInt(props, "coordinatesHudY", CoordinatesModule.hudY);
+            CoordinatesModule.scale = getFloat(props, "coordinatesScale", CoordinatesModule.scale);
+            CoordinatesModule.bgMode = getInt(props, "coordinatesBgMode", CoordinatesModule.bgMode);
+            CoordinatesModule.expanded = getBool(props, "coordinatesExpanded", CoordinatesModule.expanded);
+            CoordinatesModule.layoutMode = getInt(props, "coordinatesLayoutMode", CoordinatesModule.layoutMode);
+            CoordinatesModule.style = getInt(props, "coordinatesStyle", CoordinatesModule.style);
+            CoordinatesModule.showX = getBool(props, "coordinatesShowX", CoordinatesModule.showX);
+            CoordinatesModule.showY = getBool(props, "coordinatesShowY", CoordinatesModule.showY);
+            CoordinatesModule.showZ = getBool(props, "coordinatesShowZ", CoordinatesModule.showZ);
+            CoordinatesModule.decimals = getBool(props, "coordinatesDecimals", CoordinatesModule.decimals);
+            CoordinatesModule.showNether = getBool(props, "coordinatesShowNether", CoordinatesModule.showNether);
+            CoordinatesModule.showDirection = getBool(props, "coordinatesShowDirection", CoordinatesModule.showDirection);
 
-            if (props.containsKey("potionsEnabled")) PotionsModule.enabled = Boolean.parseBoolean(props.getProperty("potionsEnabled"));
-            if (props.containsKey("potionsHudX")) PotionsModule.hudX = Integer.parseInt(props.getProperty("potionsHudX"));
-            if (props.containsKey("potionsHudY")) PotionsModule.hudY = Integer.parseInt(props.getProperty("potionsHudY"));
-            if (props.containsKey("potionsScale")) PotionsModule.scale = Float.parseFloat(props.getProperty("potionsScale"));
-            if (props.containsKey("potionsBgMode")) PotionsModule.bgMode = Integer.parseInt(props.getProperty("potionsBgMode"));
+            PotionsModule.enabled = getBool(props, "potionsEnabled", PotionsModule.enabled);
+            PotionsModule.hudX = getInt(props, "potionsHudX", PotionsModule.hudX);
+            PotionsModule.hudY = getInt(props, "potionsHudY", PotionsModule.hudY);
+            PotionsModule.scale = getFloat(props, "potionsScale", PotionsModule.scale);
+            PotionsModule.bgMode = getInt(props, "potionsBgMode", PotionsModule.bgMode);
 
-            if (props.containsKey("targetHudEnabled")) TargetHudModule.enabled = Boolean.parseBoolean(props.getProperty("targetHudEnabled"));
-            if (props.containsKey("targetHudExpanded")) TargetHudModule.expanded = Boolean.parseBoolean(props.getProperty("targetHudExpanded"));
-            if (props.containsKey("targetHudShowHearts")) TargetHudModule.showHearts = Boolean.parseBoolean(props.getProperty("targetHudShowHearts"));
-            if (props.containsKey("targetHudShowArmor")) TargetHudModule.showArmor = Boolean.parseBoolean(props.getProperty("targetHudShowArmor"));
-            if (props.containsKey("targetHudPlayersOnly")) TargetHudModule.playersOnly = Boolean.parseBoolean(props.getProperty("targetHudPlayersOnly"));
-            if (props.containsKey("targetHudHudX")) TargetHudModule.hudX = Integer.parseInt(props.getProperty("targetHudHudX"));
-            if (props.containsKey("targetHudHudY")) TargetHudModule.hudY = Integer.parseInt(props.getProperty("targetHudHudY"));
-            if (props.containsKey("targetHudScale")) TargetHudModule.scale = Float.parseFloat(props.getProperty("targetHudScale"));
-            if (props.containsKey("targetHudBgMode")) TargetHudModule.bgMode = Integer.parseInt(props.getProperty("targetHudBgMode"));
+            TargetHudModule.enabled = getBool(props, "targetHudEnabled", TargetHudModule.enabled);
+            TargetHudModule.expanded = getBool(props, "targetHudExpanded", TargetHudModule.expanded);
+            TargetHudModule.showHearts = getBool(props, "targetHudShowHearts", TargetHudModule.showHearts);
+            TargetHudModule.showArmor = getBool(props, "targetHudShowArmor", TargetHudModule.showArmor);
+            TargetHudModule.playersOnly = getBool(props, "targetHudPlayersOnly", TargetHudModule.playersOnly);
+            TargetHudModule.hudX = getInt(props, "targetHudHudX", TargetHudModule.hudX);
+            TargetHudModule.hudY = getInt(props, "targetHudHudY", TargetHudModule.hudY);
+            TargetHudModule.scale = getFloat(props, "targetHudScale", TargetHudModule.scale);
+            TargetHudModule.bgMode = getInt(props, "targetHudBgMode", TargetHudModule.bgMode);
 
-            if (props.containsKey("armorHudEnabled")) ArmorHudModule.enabled = Boolean.parseBoolean(props.getProperty("armorHudEnabled"));
-            if (props.containsKey("armorHudHudX")) ArmorHudModule.hudX = Integer.parseInt(props.getProperty("armorHudHudX"));
-            if (props.containsKey("armorHudHudY")) ArmorHudModule.hudY = Integer.parseInt(props.getProperty("armorHudHudY"));
-            if (props.containsKey("armorHudScale")) ArmorHudModule.scale = Float.parseFloat(props.getProperty("armorHudScale"));
-            if (props.containsKey("armorHudBgMode")) ArmorHudModule.bgMode = Integer.parseInt(props.getProperty("armorHudBgMode"));
+            ArmorHudModule.enabled = getBool(props, "armorHudEnabled", ArmorHudModule.enabled);
+            ArmorHudModule.hudX = getInt(props, "armorHudHudX", ArmorHudModule.hudX);
+            ArmorHudModule.hudY = getInt(props, "armorHudHudY", ArmorHudModule.hudY);
+            ArmorHudModule.scale = getFloat(props, "armorHudScale", ArmorHudModule.scale);
+            ArmorHudModule.bgMode = getInt(props, "armorHudBgMode", ArmorHudModule.bgMode);
 
-            if (props.containsKey("keyStrokesEnabled")) KeyStrokesModule.enabled = Boolean.parseBoolean(props.getProperty("keyStrokesEnabled"));
-            if (props.containsKey("keyStrokesKeyBind")) KeyStrokesModule.keyBind = Integer.parseInt(props.getProperty("keyStrokesKeyBind"));
-            if (props.containsKey("keyStrokesHudX")) KeyStrokesModule.hudX = Integer.parseInt(props.getProperty("keyStrokesHudX"));
-            if (props.containsKey("keyStrokesHudY")) KeyStrokesModule.hudY = Integer.parseInt(props.getProperty("keyStrokesHudY"));
-            if (props.containsKey("keyStrokesScale")) KeyStrokesModule.scale = Float.parseFloat(props.getProperty("keyStrokesScale"));
+            KeyStrokesModule.enabled = getBool(props, "keyStrokesEnabled", KeyStrokesModule.enabled);
+            KeyStrokesModule.keyBind = getInt(props, "keyStrokesKeyBind", KeyStrokesModule.keyBind);
+            KeyStrokesModule.hudX = getInt(props, "keyStrokesHudX", KeyStrokesModule.hudX);
+            KeyStrokesModule.hudY = getInt(props, "keyStrokesHudY", KeyStrokesModule.hudY);
+            KeyStrokesModule.scale = getFloat(props, "keyStrokesScale", KeyStrokesModule.scale);
             for (KeyStrokesModule.KeyStroke key : KeyStrokesModule.keys) {
-                if (props.containsKey("ks_" + key.name + "_x")) key.relX = Integer.parseInt(props.getProperty("ks_" + key.name + "_x"));
-                if (props.containsKey("ks_" + key.name + "_y")) key.relY = Integer.parseInt(props.getProperty("ks_" + key.name + "_y"));
-                if (props.containsKey("ks_" + key.name + "_w")) key.width = Integer.parseInt(props.getProperty("ks_" + key.name + "_w"));
-                if (props.containsKey("ks_" + key.name + "_h")) key.height = Integer.parseInt(props.getProperty("ks_" + key.name + "_h"));
+                key.relX = getInt(props, "ks_" + key.name + "_x", key.relX);
+                key.relY = getInt(props, "ks_" + key.name + "_y", key.relY);
+                key.width = getInt(props, "ks_" + key.name + "_w", key.width);
+                key.height = getInt(props, "ks_" + key.name + "_h", key.height);
             }
 
-            if (props.containsKey("cpsEnabled")) CpsModule.enabled = Boolean.parseBoolean(props.getProperty("cpsEnabled"));
-            if (props.containsKey("cpsKeyBind")) CpsModule.keyBind = Integer.parseInt(props.getProperty("cpsKeyBind"));
-            if (props.containsKey("cpsHudX")) CpsModule.hudX = Integer.parseInt(props.getProperty("cpsHudX"));
-            if (props.containsKey("cpsHudY")) CpsModule.hudY = Integer.parseInt(props.getProperty("cpsHudY"));
-            if (props.containsKey("cpsScale")) CpsModule.scale = Float.parseFloat(props.getProperty("cpsScale"));
-            if (props.containsKey("cpsBgMode")) CpsModule.bgMode = Integer.parseInt(props.getProperty("cpsBgMode"));
+            CpsModule.enabled = getBool(props, "cpsEnabled", CpsModule.enabled);
+            CpsModule.keyBind = getInt(props, "cpsKeyBind", CpsModule.keyBind);
+            CpsModule.hudX = getInt(props, "cpsHudX", CpsModule.hudX);
+            CpsModule.hudY = getInt(props, "cpsHudY", CpsModule.hudY);
+            CpsModule.scale = getFloat(props, "cpsScale", CpsModule.scale);
+            CpsModule.bgMode = getInt(props, "cpsBgMode", CpsModule.bgMode);
 
-            if (props.containsKey("fpsEnabled")) FpsModule.enabled = Boolean.parseBoolean(props.getProperty("fpsEnabled"));
-            if (props.containsKey("fpsKeyBind")) FpsModule.keyBind = Integer.parseInt(props.getProperty("fpsKeyBind"));
-            if (props.containsKey("fpsHudX")) FpsModule.hudX = Integer.parseInt(props.getProperty("fpsHudX"));
-            if (props.containsKey("fpsHudY")) FpsModule.hudY = Integer.parseInt(props.getProperty("fpsHudY"));
-            if (props.containsKey("fpsScale")) FpsModule.scale = Float.parseFloat(props.getProperty("fpsScale"));
-            if (props.containsKey("fpsBgMode")) FpsModule.bgMode = Integer.parseInt(props.getProperty("fpsBgMode"));
+            FpsModule.enabled = getBool(props, "fpsEnabled", FpsModule.enabled);
+            FpsModule.keyBind = getInt(props, "fpsKeyBind", FpsModule.keyBind);
+            FpsModule.hudX = getInt(props, "fpsHudX", FpsModule.hudX);
+            FpsModule.hudY = getInt(props, "fpsHudY", FpsModule.hudY);
+            FpsModule.scale = getFloat(props, "fpsScale", FpsModule.scale);
+            FpsModule.bgMode = getInt(props, "fpsBgMode", FpsModule.bgMode);
 
-            if (props.containsKey("pingEnabled")) PingModule.enabled = Boolean.parseBoolean(props.getProperty("pingEnabled"));
-            if (props.containsKey("pingKeyBind")) PingModule.keyBind = Integer.parseInt(props.getProperty("pingKeyBind"));
-            if (props.containsKey("pingHudX")) PingModule.hudX = Integer.parseInt(props.getProperty("pingHudX"));
-            if (props.containsKey("pingHudY")) PingModule.hudY = Integer.parseInt(props.getProperty("pingHudY"));
-            if (props.containsKey("pingScale")) PingModule.scale = Float.parseFloat(props.getProperty("pingScale"));
-            if (props.containsKey("pingBgMode")) PingModule.bgMode = Integer.parseInt(props.getProperty("pingBgMode"));
+            PingModule.enabled = getBool(props, "pingEnabled", PingModule.enabled);
+            PingModule.keyBind = getInt(props, "pingKeyBind", PingModule.keyBind);
+            PingModule.hudX = getInt(props, "pingHudX", PingModule.hudX);
+            PingModule.hudY = getInt(props, "pingHudY", PingModule.hudY);
+            PingModule.scale = getFloat(props, "pingScale", PingModule.scale);
+            PingModule.bgMode = getInt(props, "pingBgMode", PingModule.bgMode);
 
-            if (props.containsKey("serverInfoEnabled")) ServerInfoModule.enabled = Boolean.parseBoolean(props.getProperty("serverInfoEnabled"));
-            if (props.containsKey("serverInfoKeyBind")) ServerInfoModule.keyBind = Integer.parseInt(props.getProperty("serverInfoKeyBind"));
-            if (props.containsKey("serverInfoHudX")) ServerInfoModule.hudX = Integer.parseInt(props.getProperty("serverInfoHudX"));
-            if (props.containsKey("serverInfoHudY")) ServerInfoModule.hudY = Integer.parseInt(props.getProperty("serverInfoHudY"));
-            if (props.containsKey("serverInfoScale")) ServerInfoModule.scale = Float.parseFloat(props.getProperty("serverInfoScale"));
-            if (props.containsKey("serverInfoBgMode")) ServerInfoModule.bgMode = Integer.parseInt(props.getProperty("serverInfoBgMode"));
-            if (props.containsKey("serverInfoShowName")) ServerInfoModule.showName = Boolean.parseBoolean(props.getProperty("serverInfoShowName"));
-            if (props.containsKey("serverInfoShowServer")) ServerInfoModule.showServer = Boolean.parseBoolean(props.getProperty("serverInfoShowServer"));
-            if (props.containsKey("serverInfoShowTime")) ServerInfoModule.showTime = Boolean.parseBoolean(props.getProperty("serverInfoShowTime"));
+            ServerInfoModule.enabled = getBool(props, "serverInfoEnabled", ServerInfoModule.enabled);
+            ServerInfoModule.keyBind = getInt(props, "serverInfoKeyBind", ServerInfoModule.keyBind);
+            ServerInfoModule.hudX = getInt(props, "serverInfoHudX", ServerInfoModule.hudX);
+            ServerInfoModule.hudY = getInt(props, "serverInfoHudY", ServerInfoModule.hudY);
+            ServerInfoModule.scale = getFloat(props, "serverInfoScale", ServerInfoModule.scale);
+            ServerInfoModule.bgMode = getInt(props, "serverInfoBgMode", ServerInfoModule.bgMode);
+            ServerInfoModule.showName = getBool(props, "serverInfoShowName", ServerInfoModule.showName);
+            ServerInfoModule.showServer = getBool(props, "serverInfoShowServer", ServerInfoModule.showServer);
+            ServerInfoModule.showTime = getBool(props, "serverInfoShowTime", ServerInfoModule.showTime);
 
-            if (props.containsKey("nameProtectEnabled")) NameProtectModule.enabled = Boolean.parseBoolean(props.getProperty("nameProtectEnabled"));
-            if (props.containsKey("nameProtectKeyBind")) NameProtectModule.keyBind = Integer.parseInt(props.getProperty("nameProtectKeyBind"));
-            if (props.containsKey("nameProtectAlias")) NameProtectModule.alias = props.getProperty("nameProtectAlias");
-            if (props.containsKey("nameProtectExpanded")) NameProtectModule.expanded = Boolean.parseBoolean(props.getProperty("nameProtectExpanded"));
+            NameProtectModule.enabled = getBool(props, "nameProtectEnabled", NameProtectModule.enabled);
+            NameProtectModule.keyBind = getInt(props, "nameProtectKeyBind", NameProtectModule.keyBind);
+            NameProtectModule.alias = getString(props, "nameProtectAlias", NameProtectModule.alias);
+            NameProtectModule.expanded = getBool(props, "nameProtectExpanded", NameProtectModule.expanded);
 
-            if (props.containsKey("tabBadgeEnabled")) TabBadgeModule.enabled = Boolean.parseBoolean(props.getProperty("tabBadgeEnabled"));
-            if (props.containsKey("tabBadgeKeyBind")) TabBadgeModule.keyBind = Integer.parseInt(props.getProperty("tabBadgeKeyBind"));
-            if (props.containsKey("tabBadgeExpanded")) TabBadgeModule.expanded = Boolean.parseBoolean(props.getProperty("tabBadgeExpanded"));
+            TabBadgeModule.enabled = getBool(props, "tabBadgeEnabled", TabBadgeModule.enabled);
+            TabBadgeModule.keyBind = getInt(props, "tabBadgeKeyBind", TabBadgeModule.keyBind);
+            TabBadgeModule.expanded = getBool(props, "tabBadgeExpanded", TabBadgeModule.expanded);
 
-            if (props.containsKey("autoCartEnabled")) AutoCartModule.enabled = Boolean.parseBoolean(props.getProperty("autoCartEnabled"));
-            if (props.containsKey("autoCartKeyBind")) AutoCartModule.keyBind = Integer.parseInt(props.getProperty("autoCartKeyBind"));
-            if (props.containsKey("autoCartExpanded")) AutoCartModule.expanded = Boolean.parseBoolean(props.getProperty("autoCartExpanded"));
-            if (props.containsKey("autoCartSwitchBack")) AutoCartModule.switchBack = Boolean.parseBoolean(props.getProperty("autoCartSwitchBack"));
-            if (props.containsKey("autoCartSwitchDelay")) AutoCartModule.switchDelay = Integer.parseInt(props.getProperty("autoCartSwitchDelay"));
+            AutoCartModule.enabled = getBool(props, "autoCartEnabled", AutoCartModule.enabled);
+            AutoCartModule.keyBind = getInt(props, "autoCartKeyBind", AutoCartModule.keyBind);
+            AutoCartModule.expanded = getBool(props, "autoCartExpanded", AutoCartModule.expanded);
+            AutoCartModule.switchBack = getBool(props, "autoCartSwitchBack", AutoCartModule.switchBack);
+            AutoCartModule.switchDelay = getInt(props, "autoCartSwitchDelay", AutoCartModule.switchDelay);
             if (props.containsKey("autoCartMode")) {
                 try {
                     AutoCartModule.mode = AutoCartModule.CartMode.valueOf(props.getProperty("autoCartMode"));
                 } catch (Exception ignored) {}
             }
 
-            if (props.containsKey("autoMaceEnabled")) AutoMaceModule.enabled = Boolean.parseBoolean(props.getProperty("autoMaceEnabled"));
-            if (props.containsKey("autoMaceKeyBind")) AutoMaceModule.keyBind = Integer.parseInt(props.getProperty("autoMaceKeyBind"));
-            if (props.containsKey("autoMaceExpanded")) AutoMaceModule.expanded = Boolean.parseBoolean(props.getProperty("autoMaceExpanded"));
-            if (props.containsKey("autoMaceSwitchBack")) AutoMaceModule.switchBack = Boolean.parseBoolean(props.getProperty("autoMaceSwitchBack"));
-            if (props.containsKey("autoMaceSwitchDelay")) AutoMaceModule.switchDelay = Integer.parseInt(props.getProperty("autoMaceSwitchDelay"));
-            if (props.containsKey("autoMaceCooldownCheck")) AutoMaceModule.cooldownCheck = Boolean.parseBoolean(props.getProperty("autoMaceCooldownCheck"));
-            if (props.containsKey("autoMaceOnlyPlayers")) AutoMaceModule.onlyPlayers = Boolean.parseBoolean(props.getProperty("autoMaceOnlyPlayers"));
-            if (props.containsKey("autoMaceMinFallDistance")) AutoMaceModule.minFallDistance = Double.parseDouble(props.getProperty("autoMaceMinFallDistance"));
+            AutoMaceModule.enabled = getBool(props, "autoMaceEnabled", AutoMaceModule.enabled);
+            AutoMaceModule.keyBind = getInt(props, "autoMaceKeyBind", AutoMaceModule.keyBind);
+            AutoMaceModule.expanded = getBool(props, "autoMaceExpanded", AutoMaceModule.expanded);
+            AutoMaceModule.switchBack = getBool(props, "autoMaceSwitchBack", AutoMaceModule.switchBack);
+            AutoMaceModule.switchDelay = getInt(props, "autoMaceSwitchDelay", AutoMaceModule.switchDelay);
+            AutoMaceModule.cooldownCheck = getBool(props, "autoMaceCooldownCheck", AutoMaceModule.cooldownCheck);
+            AutoMaceModule.onlyPlayers = getBool(props, "autoMaceOnlyPlayers", AutoMaceModule.onlyPlayers);
+            AutoMaceModule.minFallDistance = getDouble(props, "autoMaceMinFallDistance", AutoMaceModule.minFallDistance);
             if (props.containsKey("autoMaceMode")) {
                 try {
                     AutoMaceModule.mode = AutoMaceModule.MaceMode.valueOf(props.getProperty("autoMaceMode"));
                 } catch (Exception ignored) {}
             }
 
-            if (props.containsKey("dTapEnabled")) DTapModule.enabled = Boolean.parseBoolean(props.getProperty("dTapEnabled"));
-            if (props.containsKey("dTapKeyBind")) DTapModule.keyBind = Integer.parseInt(props.getProperty("dTapKeyBind"));
-            if (props.containsKey("dTapExpanded")) DTapModule.expanded = Boolean.parseBoolean(props.getProperty("dTapExpanded"));
-            if (props.containsKey("dTapTapDelay")) DTapModule.tapDelay = Integer.parseInt(props.getProperty("dTapTapDelay"));
-            if (props.containsKey("dTapSwitchBack")) DTapModule.switchBack = Boolean.parseBoolean(props.getProperty("dTapSwitchBack"));
+            DTapModule.enabled = getBool(props, "dTapEnabled", DTapModule.enabled);
+            DTapModule.keyBind = getInt(props, "dTapKeyBind", DTapModule.keyBind);
+            DTapModule.expanded = getBool(props, "dTapExpanded", DTapModule.expanded);
+            DTapModule.tapDelay = getInt(props, "dTapTapDelay", DTapModule.tapDelay);
+            DTapModule.switchBack = getBool(props, "dTapSwitchBack", DTapModule.switchBack);
             if (props.containsKey("dTapMode")) {
                 try {
                     DTapModule.mode = DTapModule.DTapMode.valueOf(props.getProperty("dTapMode"));
                 } catch (Exception ignored) {}
             }
 
-            if (props.containsKey("pearlCatchEnabled")) PearlCatchModule.enabled = Boolean.parseBoolean(props.getProperty("pearlCatchEnabled"));
-            if (props.containsKey("pearlCatchKeyBind")) PearlCatchModule.keyBind = Integer.parseInt(props.getProperty("pearlCatchKeyBind"));
-            if (props.containsKey("pearlCatchExpanded")) PearlCatchModule.expanded = Boolean.parseBoolean(props.getProperty("pearlCatchExpanded"));
-            if (props.containsKey("pearlCatchTimingDelay")) PearlCatchModule.timingDelay = Integer.parseInt(props.getProperty("pearlCatchTimingDelay"));
-            if (props.containsKey("pearlCatchAutoAim")) PearlCatchModule.autoAim = Boolean.parseBoolean(props.getProperty("pearlCatchAutoAim"));
-            if (props.containsKey("pearlCatchSwitchToMace")) PearlCatchModule.switchToMace = Boolean.parseBoolean(props.getProperty("pearlCatchSwitchToMace"));
-            if (props.containsKey("pearlCatchSwitchBack")) PearlCatchModule.switchBack = Boolean.parseBoolean(props.getProperty("pearlCatchSwitchBack"));
+            PearlCatchModule.enabled = getBool(props, "pearlCatchEnabled", PearlCatchModule.enabled);
+            PearlCatchModule.keyBind = getInt(props, "pearlCatchKeyBind", PearlCatchModule.keyBind);
+            PearlCatchModule.expanded = getBool(props, "pearlCatchExpanded", PearlCatchModule.expanded);
+            PearlCatchModule.timingDelay = getInt(props, "pearlCatchTimingDelay", PearlCatchModule.timingDelay);
+            PearlCatchModule.autoAim = getBool(props, "pearlCatchAutoAim", PearlCatchModule.autoAim);
+            PearlCatchModule.switchToMace = getBool(props, "pearlCatchSwitchToMace", PearlCatchModule.switchToMace);
+            PearlCatchModule.switchBack = getBool(props, "pearlCatchSwitchBack", PearlCatchModule.switchBack);
 
-            if (props.containsKey("theme")) theme = props.getProperty("theme");
-            if (props.containsKey("seeThrough")) seeThrough = Boolean.parseBoolean(props.getProperty("seeThrough"));
-            if (props.containsKey("frostedBlur")) frostedBlur = Boolean.parseBoolean(props.getProperty("frostedBlur"));
-            if (props.containsKey("ambientBackground")) ambientBackground = Boolean.parseBoolean(props.getProperty("ambientBackground"));
-            if (props.containsKey("customMainColor")) customMainColor = Boolean.parseBoolean(props.getProperty("customMainColor"));
-            if (props.containsKey("classicToggle")) classicToggle = Boolean.parseBoolean(props.getProperty("classicToggle"));
-            if (props.containsKey("mainColor")) mainColor = Integer.parseInt(props.getProperty("mainColor"));
-            if (props.containsKey("ambientPrimary")) ambientPrimary = Integer.parseInt(props.getProperty("ambientPrimary"));
-            if (props.containsKey("ambientSecondary")) ambientSecondary = Integer.parseInt(props.getProperty("ambientSecondary"));
-            if (props.containsKey("ambientMode")) ambientMode = Integer.parseInt(props.getProperty("ambientMode"));
-            if (props.containsKey("ambientIntensity")) ambientIntensity = Math.clamp(Float.parseFloat(props.getProperty("ambientIntensity")), 0f, 1f);
-            if (props.containsKey("ambientOpacity")) ambientOpacity = Math.clamp(Float.parseFloat(props.getProperty("ambientOpacity")), 0f, 1f);
-            if (props.containsKey("ambientRadius")) ambientRadius = Math.clamp(Float.parseFloat(props.getProperty("ambientRadius")), 0f, 1f);
-            if (props.containsKey("ambientAnimation")) ambientAnimation = Boolean.parseBoolean(props.getProperty("ambientAnimation"));
-            if (props.containsKey("animationSpeed")) animationSpeed = Math.clamp(Float.parseFloat(props.getProperty("animationSpeed")), 0f, 1f);
+            theme = getString(props, "theme", theme);
+            seeThrough = getBool(props, "seeThrough", seeThrough);
+            frostedBlur = getBool(props, "frostedBlur", frostedBlur);
+            ambientBackground = getBool(props, "ambientBackground", ambientBackground);
+            customMainColor = getBool(props, "customMainColor", customMainColor);
+            classicToggle = getBool(props, "classicToggle", classicToggle);
+            mainColor = getInt(props, "mainColor", mainColor);
+            ambientPrimary = getInt(props, "ambientPrimary", ambientPrimary);
+            ambientSecondary = getInt(props, "ambientSecondary", ambientSecondary);
+            ambientMode = getInt(props, "ambientMode", ambientMode);
+            ambientIntensity = Math.clamp(getFloat(props, "ambientIntensity", ambientIntensity), 0f, 1f);
+            ambientOpacity = Math.clamp(getFloat(props, "ambientOpacity", ambientOpacity), 0f, 1f);
+            ambientRadius = Math.clamp(getFloat(props, "ambientRadius", ambientRadius), 0f, 1f);
+            ambientAnimation = getBool(props, "ambientAnimation", ambientAnimation);
+            animationSpeed = Math.clamp(getFloat(props, "animationSpeed", animationSpeed), 0f, 1f);
 
-            if (props.containsKey("menuBind")) menuBind = Integer.parseInt(props.getProperty("menuBind"));
-            if (props.containsKey("quickFriend")) quickFriend = Boolean.parseBoolean(props.getProperty("quickFriend"));
-            if (props.containsKey("guiAnimation")) guiAnimation = Integer.parseInt(props.getProperty("guiAnimation"));
-            if (props.containsKey("threeDGui")) threeDGui = Boolean.parseBoolean(props.getProperty("threeDGui"));
-            if (props.containsKey("selectedCategory")) {
-                selectedCategory = props.getProperty("selectedCategory");
-                com.bame.client.gui.BameClientScreen.selected = selectedCategory;
-            }
+            menuBind = getInt(props, "menuBind", menuBind);
+            quickFriend = getBool(props, "quickFriend", quickFriend);
+            guiAnimation = getInt(props, "guiAnimation", guiAnimation);
+            threeDGui = getBool(props, "threeDGui", threeDGui);
+            selectedCategory = sanitizeCategory(getString(props, "selectedCategory", selectedCategory));
         } catch (Exception e) {
             e.printStackTrace();
         }

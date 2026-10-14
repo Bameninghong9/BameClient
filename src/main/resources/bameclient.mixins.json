@@ -6,6 +6,8 @@
   "mixins": [],
   "client": [
     "ChatHudMixin",
+    "ChatScreenMixin",
+    "DrawContextPanel3DMixin",
     "SimpleOptionMixin",
     "GameRendererMixin",
     "KeyBindingMixin",

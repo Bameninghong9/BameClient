@@ -95,13 +95,13 @@ public class ScoreboardRenderer {
 
         if (objective != null) {
             lastObjective = objective;
-            renderRealScoreboard(context, client, objective, customX, customY, scale);
+            renderRealScoreboard(context, client, objective, customX, customY, scale, !isPreview);
         } else if (isPreview) {
             renderPreviewScoreboard(context, client, customX, customY, scale);
         }
     }
 
-    private static void renderRealScoreboard(DrawContext context, MinecraftClient client, ScoreboardObjective objective, int customX, int customY, float scale) {
+    private static void renderRealScoreboard(DrawContext context, MinecraftClient client, ScoreboardObjective objective, int customX, int customY, float scale, boolean clampToScreen) {
         TextRenderer tr = client.textRenderer;
         Scoreboard scoreboard = objective.getScoreboard();
         NumberFormat numberFormat = objective.getNumberFormatOr(StyledNumberFormat.RED);
@@ -136,6 +136,11 @@ public class ScoreboardRenderer {
         int defY = (client.getWindow().getScaledHeight() - (int)(h * scale)) / 2;
         int drawX = customX == -1 ? defX : customX;
         int drawY = customY == -1 ? defY : customY;
+        if (clampToScreen) {
+            // In-game HUD: keep the scoreboard fully on screen (render-time only, config untouched)
+            drawX = StatusHudRenderer.clampHudX(drawX, w, scale);
+            drawY = StatusHudRenderer.clampHudY(drawY, h, scale);
+        }
 
         context.getMatrices().pushMatrix();
         context.getMatrices().translate((float) drawX, (float) drawY);

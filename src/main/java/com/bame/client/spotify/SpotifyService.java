@@ -28,6 +28,31 @@ public class SpotifyService {
     public static volatile boolean hasCoverTexture = false;
     public static volatile int coverWidth = 64;
     public static volatile int coverHeight = 64;
+    /** Durchschnittsfarbe des aktuellen Covers (ARGB, deckend), für den Card-Stil und den Cover-Akzent. */
+    public static volatile int coverColor = 0xFF1DB954;
+
+    /** Steuerbefehle an die aktuelle Windows-Mediensitzung (SMTC), siehe {@link #control(Command)}. */
+    public enum Command {
+        PLAY_PAUSE("PLAYPAUSE"), NEXT("NEXT"), PREVIOUS("PREV");
+
+        final String token;
+
+        Command(String token) {
+            this.token = token;
+        }
+    }
+
+    private static final java.util.concurrent.ExecutorService CONTROL_EXECUTOR =
+        java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "SpotifyControlThread");
+            t.setDaemon(true);
+            return t;
+        });
+    /** Optimistisch gesetzter Play-Zustand nach einem Klick; veraltete Statuszeilen überschreiben ihn bis dahin nicht. */
+    private static volatile Boolean pendingPlaying = null;
+    private static volatile long pendingPlayingUntilMs = 0;
+    /** Nach Weiter/Zurück bleibt die Position bei 0, bis der Titel wechselt oder die Frist abläuft. */
+    private static volatile long pendingSkipUntilMs = 0;
 
     private static Process trackerProcess = null;
     private static Thread readerThread = null;
@@ -77,6 +102,9 @@ public class SpotifyService {
                         line = line.trim();
                         if (line.startsWith("MEDIA|")) {
                             parseMediaLine(line);
+                        } else if (line.startsWith("CTRL|") && line.toLowerCase(java.util.Locale.ROOT).endsWith("|false")) {
+                            pendingPlaying = null;
+                            showToast("Die aktuelle Medienquelle unterstützt diese Steuerung nicht");
                         }
                     }
                 } catch (Exception ignored) {
@@ -88,6 +116,51 @@ public class SpotifyService {
             readerThread.start();
         } catch (Exception e) {
             running = false;
+        }
+    }
+
+    /**
+     * Sendet Play/Pause, Weiter oder Zurück an die aktuelle Windows-Mediensitzung (dieselbe, die das HUD anzeigt).
+     * Der Befehl geht asynchron über stdin an den laufenden PowerShell-Tracker; der Zustand wird sofort
+     * optimistisch angepasst und vom Tracker direkt danach neu gemeldet. Blockiert den Aufrufer nie.
+     */
+    public static void control(Command cmd) {
+        long now = System.currentTimeMillis();
+        if (cmd == Command.PLAY_PAUSE) {
+            position = getInterpolatedPosition();
+            lastUpdateMs = now;
+            boolean target = !isPlaying;
+            isPlaying = target;
+            pendingPlaying = target;
+            pendingPlayingUntilMs = now + 1500;
+        } else {
+            position = 0f;
+            lastUpdateMs = now;
+            pendingSkipUntilMs = now + 1500;
+        }
+        CONTROL_EXECUTOR.execute(() -> {
+            try {
+                start();
+                Process p = currentProcess();
+                if (p == null || !p.isAlive()) throw new IOException("tracker not running");
+                OutputStream out = p.getOutputStream();
+                out.write((cmd.token + "\n").getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            } catch (Exception e) {
+                pendingPlaying = null;
+                showToast("Mediensteuerung nicht verfügbar");
+            }
+        });
+    }
+
+    private static synchronized Process currentProcess() {
+        return trackerProcess;
+    }
+
+    private static void showToast(String message) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null) {
+            client.execute(() -> com.bame.client.notification.NotificationManager.showInfo("Spotify", message));
         }
     }
 
@@ -121,6 +194,14 @@ public class SpotifyService {
 
             boolean active = (!t.isEmpty() || dur > 0);
             boolean titleChanged = !t.equals(title) || !a.equals(artist);
+            long nowMs = System.currentTimeMillis();
+            Boolean pending = pendingPlaying;
+            if (pending != null) {
+                if (playing == pending || nowMs > pendingPlayingUntilMs) pendingPlaying = null;
+                else playing = pending; // Statuszeile von vor dem Klick
+            }
+            if (titleChanged || nowMs > pendingSkipUntilMs) pendingSkipUntilMs = 0;
+            boolean skipPending = pendingSkipUntilMs != 0;
             boolean playStateChanged = (isPlaying != playing);
 
             isPlaying = playing;
@@ -131,7 +212,9 @@ public class SpotifyService {
             hasMedia = active;
 
             long now = System.currentTimeMillis();
-            if (titleChanged || playStateChanged || !playing) {
+            if (skipPending) {
+                // Position bleibt nach Weiter/Zurück optimistisch bei 0, bis der neue Titel gemeldet wird
+            } else if (titleChanged || playStateChanged || !playing) {
                 position = pos;
                 lastUpdateMs = now;
             } else {
@@ -168,6 +251,7 @@ public class SpotifyService {
                     if (image != null) {
                         coverWidth = image.getWidth();
                         coverHeight = image.getHeight();
+                        coverColor = averageColor(image);
                         NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "spotify_cover", image);
                         MinecraftClient.getInstance().getTextureManager().registerTexture(COVER_ID, tex);
                         hasCoverTexture = true;
@@ -176,6 +260,24 @@ public class SpotifyService {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    /** Durchschnittsfarbe des Covers (Stichproben auf einem Raster, ARGB deckend). */
+    private static int averageColor(NativeImage image) {
+        int w = image.getWidth(), h = image.getHeight();
+        int step = Math.max(1, Math.min(w, h) / 24);
+        long r = 0, g = 0, b = 0, n = 0;
+        for (int y = 0; y < h; y += step) {
+            for (int x = 0; x < w; x += step) {
+                int c = image.getColorArgb(x, y);
+                r += (c >> 16) & 0xFF;
+                g += (c >> 8) & 0xFF;
+                b += c & 0xFF;
+                n++;
+            }
+        }
+        if (n == 0) return 0xFF1DB954;
+        return 0xFF000000 | (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (b / n);
     }
 
     private static void writeScriptFile(Path path) throws IOException {
@@ -196,6 +298,34 @@ public class SpotifyService {
             "\n" +
             "$lastTrackKey = \"\"\n" +
             "$coverPath = $args[0]\n" +
+            "\n" +
+            "# Steuerbefehle (PLAYPAUSE, NEXT, PREV) kommen zeilenweise ueber stdin; asynchron lesen, damit die Schleife weiterlaeuft\n" +
+            "$stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())\n" +
+            "$script:cmdTask = $stdin.ReadLineAsync()\n" +
+            "\n" +
+            "Function Invoke-Commands {\n" +
+            "    $did = $false\n" +
+            "    while ($script:cmdTask -and $script:cmdTask.IsCompleted) {\n" +
+            "        $cmd = $null\n" +
+            "        if (-not $script:cmdTask.IsFaulted) { $cmd = $script:cmdTask.Result }\n" +
+            "        if ($cmd -eq $null) { exit }\n" +
+            "        $script:cmdTask = $stdin.ReadLineAsync()\n" +
+            "        $cmd = $cmd.Trim()\n" +
+            "        $ok = $false\n" +
+            "        $s = $manager.GetCurrentSession()\n" +
+            "        if ($s) {\n" +
+            "            switch ($cmd) {\n" +
+            "                'PLAYPAUSE' { $ok = Await ($s.TryTogglePlayPauseAsync()) ([bool]) }\n" +
+            "                'NEXT' { $ok = Await ($s.TrySkipNextAsync()) ([bool]) }\n" +
+            "                'PREV' { $ok = Await ($s.TrySkipPreviousAsync()) ([bool]) }\n" +
+            "            }\n" +
+            "        }\n" +
+            "        [Console]::Out.WriteLine(\"CTRL|$cmd|$ok\")\n" +
+            "        [Console]::Out.Flush()\n" +
+            "        $did = $true\n" +
+            "    }\n" +
+            "    return $did\n" +
+            "}\n" +
             "\n" +
             "while ($true) {\n" +
             "    try {\n" +
@@ -262,7 +392,10 @@ public class SpotifyService {
             "        [Console]::Out.WriteLine(\"MEDIA|false|0|0||||0\")\n" +
             "        [Console]::Out.Flush()\n" +
             "    }\n" +
-            "    Start-Sleep -Milliseconds 500\n" +
+            "    for ($i = 0; $i -lt 10; $i++) {\n" +
+            "        if (Invoke-Commands) { Start-Sleep -Milliseconds 150; break }\n" +
+            "        Start-Sleep -Milliseconds 50\n" +
+            "    }\n" +
             "}\n";
 
         Files.writeString(path, script, StandardCharsets.UTF_8);

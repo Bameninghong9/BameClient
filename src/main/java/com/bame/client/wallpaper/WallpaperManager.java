@@ -296,6 +296,15 @@ public class WallpaperManager {
     }
 
     public static void render(DrawContext c, int x, int y, int w, int h, float alphaProgress) {
+        render(c, x, y, w, h, alphaProgress, false, 0f, 0f);
+    }
+
+    /**
+     * Wie {@link #render(DrawContext, int, int, int, int, float)}; mit {@code parallax} wird ein um 4 % vergrößerter
+     * Ausschnitt gezeigt und um {@code parX}/{@code parY} (-1..1) innerhalb des Randes verschoben (3D-GUI-Parallax).
+     * Nur die UV-Koordinaten ändern sich, die Textur bleibt dieselbe.
+     */
+    public static void render(DrawContext c, int x, int y, int w, int h, float alphaProgress, boolean parallax, float parX, float parY) {
         if (!BameClientConfig.customWallpaper) return;
         updateTexture(false);
         if (!hasTexture || imageW <= 0 || imageH <= 0) return;
@@ -314,6 +323,15 @@ public class WallpaperManager {
         } else {
             regionW = imageH * boxAspect;
             u = (imageW - regionW) / 2.0f;
+        }
+
+        if (parallax) {
+            float zoomedW = regionW * 0.96f;
+            float zoomedH = regionH * 0.96f;
+            u += (regionW - zoomedW) * 0.5f * (1.0f + Math.clamp(parX, -1.0f, 1.0f));
+            v += (regionH - zoomedH) * 0.5f * (1.0f + Math.clamp(parY, -1.0f, 1.0f));
+            regionW = zoomedW;
+            regionH = zoomedH;
         }
 
         u = Math.max(0.0f, Math.min((float)imageW - 1.0f, u));

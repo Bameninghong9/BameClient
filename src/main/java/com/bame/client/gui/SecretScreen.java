@@ -499,6 +499,54 @@ public class SecretScreen extends Screen {
         new CustomToggleWidget(x, y, 26, 14, on).render(c, mx, my, delta);
     }
 
+    /** Tasten-Knopf mit Konfliktanzeige (rot + "Also: Modul"), wie im Hauptmenü. */
+    private void keybindButton(DrawContext c, String id, int key, boolean listening, int x, int y, int w, int h, int mx, int my, int cardW) {
+        String label = listening ? "..." : formatKey(key);
+        String conflict = listening ? null : KeybindConflicts.conflictFor(id, key);
+        int hintX = x + w + 6;
+        int maxHintW = cardW - 158; // Karte beginnt 60 px links vom Knopf, rechts sitzt der Schalter
+        String hint = listening ? "Esc = none" : (conflict != null ? "Also: " + conflict : null);
+        if (conflict == null) {
+            button(c, label, x, y, w, h, mx, my);
+        } else {
+            boolean hover = inside(mx, my, x, y, w, h);
+            CustomGuiUtils.fillUltraRounded(c, x, y, w, h, hover ? 0xFF3A1C22 : 0xFF2A161B, 4);
+            CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, 0xFFEF4444, 4);
+            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+            text(c, label, x + (w - tw) / 2, y + (h - 8) / 2, 0xFFFCA5A5);
+        }
+        if (hint != null && maxHintW >= 12) {
+            String t = hint;
+            if (textRenderer.getWidth(CustomGuiUtils.getFontText(t)) > maxHintW) {
+                while (t.length() > 1 && textRenderer.getWidth(CustomGuiUtils.getFontText(t + "...")) > maxHintW) {
+                    t = t.substring(0, t.length() - 1);
+                }
+                t = t + "...";
+            }
+            text(c, t, hintX, y + (h - 8) / 2, conflict != null ? 0xFFF87171 : 0xFF8E95A4);
+        }
+    }
+
+    private boolean anyModuleKeyListening() {
+        return listeningPearlKey || listeningCartKey || listeningMaceKey || listeningDTapKey || listeningCatchKey
+                || listeningAggroKey || listeningNameKey || listeningFakeKey || listeningSkinKey
+                || listeningTriggerbotKey || listeningShieldBreakerKey;
+    }
+
+    private void clearModuleKeyListening() {
+        listeningPearlKey = false;
+        listeningCartKey = false;
+        listeningMaceKey = false;
+        listeningDTapKey = false;
+        listeningCatchKey = false;
+        listeningAggroKey = false;
+        listeningNameKey = false;
+        listeningFakeKey = false;
+        listeningSkinKey = false;
+        listeningTriggerbotKey = false;
+        listeningShieldBreakerKey = false;
+    }
+
     private String formatKey(int key) {
         if (key < 0) return "None";
         if (key == GLFW.GLFW_KEY_RIGHT_SHIFT) return "RSHIFT";
@@ -680,8 +728,7 @@ public class SecretScreen extends Screen {
             text(context, "Pearl Prediction", card1X + 12, leftY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kb1 = listeningPearlKey ? "..." : formatKey(PearlPredictionModule.keyBind);
-            button(context, kb1, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "PearlPredictionModule", PearlPredictionModule.keyBind, listeningPearlKey, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card1X + cardW - 38, leftY + 12, PearlPredictionModule.enabled, mouseX, mouseY, delta);
 
             if (PearlPredictionModule.expanded) {
@@ -714,12 +761,11 @@ public class SecretScreen extends Screen {
             int acH = getAutoCartHeight();
             card(context, card1X, leftY, cardW, acH, AutoCartModule.enabled);
 
-            text(context, "AutoCart", card1X + 12, leftY + 12, 0xFFE2E5ED);
+            text(context, "Auto Cart", card1X + 12, leftY + 12, 0xFFE2E5ED);
 
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kbCart = listeningCartKey ? "..." : formatKey(AutoCartModule.keyBind);
-            button(context, kbCart, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "AutoCartModule", AutoCartModule.keyBind, listeningCartKey, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card1X + cardW - 38, leftY + 12, AutoCartModule.enabled, mouseX, mouseY, delta);
 
             if (AutoCartModule.expanded) {
@@ -760,8 +806,7 @@ public class SecretScreen extends Screen {
 
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kbMace = listeningMaceKey ? "..." : formatKey(AutoMaceModule.keyBind);
-            button(context, kbMace, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "AutoMaceModule", AutoMaceModule.keyBind, listeningMaceKey, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card1X + cardW - 38, leftY + 12, AutoMaceModule.enabled, mouseX, mouseY, delta);
 
             if (AutoMaceModule.expanded) {
@@ -820,8 +865,7 @@ public class SecretScreen extends Screen {
 
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kbDTap = listeningDTapKey ? "..." : formatKey(DTapModule.keyBind);
-            button(context, kbDTap, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "DTapModule", DTapModule.keyBind, listeningDTapKey, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card1X + cardW - 38, leftY + 12, DTapModule.enabled, mouseX, mouseY, delta);
 
             if (DTapModule.expanded) {
@@ -868,8 +912,7 @@ public class SecretScreen extends Screen {
             text(context, "Triggerbot", card1X + 12, leftY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card1X + 12, leftY + 29, 0xFF8E95A4);
 
-            String kbTb = listeningTriggerbotKey ? "..." : formatKey(TriggerbotModule.keyBind);
-            button(context, kbTb, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "TriggerbotModule", TriggerbotModule.keyBind, listeningTriggerbotKey, card1X + 60, leftY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card1X + cardW - 38, leftY + 12, TriggerbotModule.enabled, mouseX, mouseY, delta);
 
             if (TriggerbotModule.expanded) {
@@ -975,8 +1018,7 @@ public class SecretScreen extends Screen {
             text(context, "Pearl Catch", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kbCatch = listeningCatchKey ? "..." : formatKey(PearlCatchModule.keyBind);
-            button(context, kbCatch, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "PearlCatchModule", PearlCatchModule.keyBind, listeningCatchKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, PearlCatchModule.enabled, mouseX, mouseY, delta);
 
             if (PearlCatchModule.expanded) {
@@ -1018,8 +1060,7 @@ public class SecretScreen extends Screen {
             text(context, "Aggro Pearl", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kbAggro = listeningAggroKey ? "..." : formatKey(AggroPearlModule.keyBind);
-            button(context, kbAggro, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "AggroPearlModule", AggroPearlModule.keyBind, listeningAggroKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, AggroPearlModule.enabled, mouseX, mouseY, delta);
 
             if (AggroPearlModule.expanded) {
@@ -1057,8 +1098,7 @@ public class SecretScreen extends Screen {
             text(context, "Name Protect", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kbName = listeningNameKey ? "..." : formatKey(NameProtectModule.keyBind);
-            button(context, kbName, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "NameProtectModule", NameProtectModule.keyBind, listeningNameKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, NameProtectModule.enabled, mouseX, mouseY, delta);
 
             if (NameProtectModule.expanded) {
@@ -1096,8 +1136,7 @@ public class SecretScreen extends Screen {
             text(context, "Fake Scoreboard", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kb2 = listeningFakeKey ? "..." : formatKey(FakeScoreboardModule.keyBind);
-            button(context, kb2, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "FakeScoreboardModule", FakeScoreboardModule.keyBind, listeningFakeKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, FakeScoreboardModule.enabled, mouseX, mouseY, delta);
 
             int labelW = 44;
@@ -1186,11 +1225,10 @@ public class SecretScreen extends Screen {
             int c4H = getSkinProtectHeight();
             card(context, card2X, rightY, cardW, c4H, SkinProtectModule.enabled);
 
-            text(context, "SkinProtect", card2X + 12, rightY + 12, 0xFFE2E5ED);
+            text(context, "Skin Protect", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kbSkin = listeningSkinKey ? "..." : formatKey(SkinProtectModule.keyBind);
-            button(context, kbSkin, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "SkinProtectModule", SkinProtectModule.keyBind, listeningSkinKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, SkinProtectModule.enabled, mouseX, mouseY, delta);
 
             if (SkinProtectModule.expanded) {
@@ -1261,8 +1299,7 @@ public class SecretScreen extends Screen {
             text(context, "Shield Breaker", card2X + 12, rightY + 12, 0xFFE2E5ED);
             text(context, "KeyBind:", card2X + 12, rightY + 29, 0xFF8E95A4);
 
-            String kbSb = listeningShieldBreakerKey ? "..." : formatKey(ShieldBreakerModule.keyBind);
-            button(context, kbSb, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY);
+            keybindButton(context, "ShieldBreakerModule", ShieldBreakerModule.keyBind, listeningShieldBreakerKey, card2X + 60, rightY + 25, 48, 16, mouseX, mouseY, cardW);
             toggle(context, card2X + cardW - 38, rightY + 12, ShieldBreakerModule.enabled, mouseX, mouseY, delta);
 
             if (ShieldBreakerModule.expanded) {
@@ -1352,11 +1389,11 @@ public class SecretScreen extends Screen {
         int bindBtnH = 16;
 
         if (inside(mx, my, bindBtnX, bindBtnY, bindBtnW, bindBtnH)) {
-            if (click.button() == 1) { // Right click -> Reset to default Ctrl + C
-                BameClientConfig.secretRequireShift = false;
-                BameClientConfig.secretRequireCtrl = true;
-                BameClientConfig.secretRequireAlt = false;
-                BameClientConfig.secretKey = GLFW.GLFW_KEY_C;
+            if (click.button() == 1) { // Right click -> Reset to default (Ctrl + Shift + K)
+                BameClientConfig.secretRequireShift = BameClientConfig.DEFAULT_SECRET_SHIFT;
+                BameClientConfig.secretRequireCtrl = BameClientConfig.DEFAULT_SECRET_CTRL;
+                BameClientConfig.secretRequireAlt = BameClientConfig.DEFAULT_SECRET_ALT;
+                BameClientConfig.secretKey = BameClientConfig.DEFAULT_SECRET_KEY;
                 listeningCombo = false;
                 ClientSoundManager.playClick();
                 BameClientConfig.save();
@@ -2648,6 +2685,18 @@ public class SecretScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        // Wartet ein Modul auf eine Taste, bekommt es die Taste zuerst (Escape = Belegung entfernen);
+        // danach werden alle Warte-Zustände zurückgesetzt, damit kein Flag hängen bleibt
+        if (anyModuleKeyListening()) {
+            boolean handled = handleKeyPressed(input);
+            clearModuleKeyListening();
+            if (input.key() != GLFW.GLFW_KEY_ESCAPE) KeybindConflicts.notifyIfKeyShared(input.key());
+            return handled;
+        }
+        return handleKeyPressed(input);
+    }
+
+    private boolean handleKeyPressed(KeyInput input) {
         int key = input.key();
 
         if (listeningTriggerbotKey) {

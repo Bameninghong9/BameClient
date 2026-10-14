@@ -91,7 +91,121 @@ public final class GuiGeometryTest {
         testCrosshairRuns();
         testPresetCache();
         testGridLineMask();
+        testPanel3D();
         System.out.println("ALL GUI GEOMETRY TESTS PASSED!");
+    }
+
+    /**
+     * 3D GUI: die Panel-Matrix ist exakt invertierbar. Ein Klick auf eine sichtbare Stelle des geneigten Panels trifft
+     * nach der Umrechnung genau das Element, das dort gezeichnet wurde (auch Hover mit abgerundeten int-Koordinaten).
+     */
+    static void testPanel3D() {
+        Panel3D panel = new Panel3D();
+        double[] same = panel.toLocal(123.5, 77.25);
+        check(same[0] == 123.5 && same[1] == 77.25, "inactive panel must not change mouse coordinates");
+
+        float px = 150, py = 60, pw = 660, ph = 400;
+        float cx = px + pw / 2f, cy = py + ph / 2f;
+        // Elemente wie im Mod-Menü: Seitenleisten-Knöpfe, Kategorie-Tabs, Schalter, Karten-Köpfe (lückenlos benachbart)
+        java.util.List<int[]> rects = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) rects.add(new int[]{(int) px + 5, (int) py + 10 + i * 52, 58, 46});
+        for (int i = 0; i < 5; i++) rects.add(new int[]{(int) px + 82 + i * 60, (int) py + 9, 60, 18});
+        for (int i = 0; i < 6; i++) rects.add(new int[]{(int) (px + pw) - 38, (int) py + 60 + i * 14, 26, 14});
+        for (int i = 0; i < 4; i++) rects.add(new int[]{(int) px + 80, (int) py + 120 + i * 50, 280, 50});
+
+        float[] tilts = {-1f, -0.55f, 0f, 0.37f, 1f};
+        float[] opens = {0f, 0.35f, 1f};
+        float[] floats = {-Panel3D.FLOAT_AMPLITUDE, 0f, Panel3D.FLOAT_AMPLITUDE};
+        Random random = new Random(3);
+        int clicks = 0;
+        for (float tx : tilts) for (float ty : tilts) for (float open : opens) for (float fy : floats) {
+            panel.compose(cx, cy, tx, ty, open, fy);
+            check(panel.isActive(), "compose activates the panel");
+            for (int r = 0; r < rects.size(); r++) {
+                int[] rect = rects.get(r);
+                for (int s = 0; s < 12; s++) {
+                    // Punkt im Element (lokal), so wie er gezeichnet wird -> Bildschirm -> zurück
+                    double lx = rect[0] + 0.01 + random.nextDouble() * (rect[2] - 0.02);
+                    double ly = rect[1] + 0.01 + random.nextDouble() * (rect[3] - 0.02);
+                    double[] screen = panel.toScreen(lx, ly);
+                    double[] back = panel.toLocal(screen[0], screen[1]);
+                    check(Math.abs(back[0] - lx) < 1e-3 && Math.abs(back[1] - ly) < 1e-3,
+                            "round trip off by " + (back[0] - lx) + "," + (back[1] - ly));
+                    int hit = -1;
+                    for (int k = 0; k < rects.size(); k++) {
+                        int[] o = rects.get(k);
+                        if (back[0] >= o[0] && back[0] < o[0] + o[2] && back[1] >= o[1] && back[1] < o[1] + o[3]) {
+                            check(hit < 0, "click hits two elements");
+                            hit = k;
+                        }
+                    }
+                    check(hit == r, "click on element " + r + " hit " + hit + " (tilt " + tx + "," + ty + " open " + open + ")");
+                    clicks++;
+                }
+            }
+            // Ganze Bildschirmpixel: Hover (abgerundet, wie render) und Klick (double) treffen dasselbe Element
+            for (int s = 0; s < 200; s++) {
+                double sx = px - 20 + random.nextInt((int) pw + 40) + 0.5;
+                double sy = py - 20 + random.nextInt((int) ph + 40) + 0.5;
+                double[] l = panel.toLocal(sx, sy);
+                int fx = (int) Math.floor(l[0]), fyy = (int) Math.floor(l[1]);
+                for (int[] o : rects) {
+                    boolean click = l[0] >= o[0] && l[0] < o[0] + o[2] && l[1] >= o[1] && l[1] < o[1] + o[3];
+                    boolean hover = fx >= o[0] && fx < o[0] + o[2] && fyy >= o[1] && fyy < o[1] + o[3];
+                    check(click == hover, "hover and click disagree at " + sx + "," + sy);
+                }
+            }
+            // Hüllrechteck für Modell-Vorschauen enthält alle Ecken
+            int[] b = panel.boundsOnScreen(200, 100, 300, 260);
+            for (int[] corner : new int[][]{{200, 100}, {300, 100}, {200, 260}, {300, 260}}) {
+                double[] sc = panel.toScreen(corner[0], corner[1]);
+                check(sc[0] >= b[0] - 0.5 && sc[0] <= b[2] + 0.5 && sc[1] >= b[1] - 0.5 && sc[1] <= b[3] + 0.5, "bounds miss a corner");
+            }
+        }
+
+        // Neigung bleibt klein: bei voller Neigung (offen, ohne Schweben) bewegt sich keine Panel-Ecke mehr als 5 px
+        panel.compose(cx, cy, 1f, 1f, 1f, 0f);
+        double maxMove = 0;
+        for (float[] corner : new float[][]{{px, py}, {px + pw, py}, {px, py + ph}, {px + pw, py + ph}}) {
+            double[] sc = panel.toScreen(corner[0], corner[1]);
+            maxMove = Math.max(maxMove, Math.hypot(sc[0] - corner[0], sc[1] - corner[1]));
+        }
+        check(maxMove <= 5.0, "tilt moves panel corners too far: " + maxMove);
+        // Offen, ohne Neigung und Schweben: exakt flach (Identität)
+        panel.compose(cx, cy, 0f, 0f, 1f, 0f);
+        float[] m = panel.matrix();
+        check(m[0] == 1f && m[1] == 0f && m[2] == 0f && m[3] == 1f && Math.abs(m[4]) < 1e-4 && Math.abs(m[5]) < 1e-4,
+                "resting panel must be untransformed");
+
+        // Dämpfung: Maus am rechten Rand -> Neigung folgt sanft; Maustaste gedrückt -> Neigung hält; Dialog -> gerade
+        Panel3D sim = new Panel3D();
+        Panel3D.Input in = new Panel3D.Input();
+        in.px = px; in.py = py; in.pw = pw; in.ph = ph;
+        in.mouseX = px + pw + 100; in.mouseY = cy;
+        in.dtSeconds = 1f / 60f; in.openSeconds = 10f;
+        sim.update(in);
+        check(sim.tiltX() > 0f && sim.tiltX() < 0.2f, "tilt must be damped, got " + sim.tiltX());
+        for (int f = 0; f < 120; f++) sim.update(in);
+        check(sim.tiltX() > 0.99f && Math.abs(sim.tiltY()) < 1e-4, "tilt must settle at the mouse side, got " + sim.tiltX());
+        in.hold = true;
+        in.mouseX = px - 100;
+        for (int f = 0; f < 30; f++) sim.update(in);
+        check(sim.tiltX() > 0.99f, "held mouse button must freeze the tilt");
+        in.hold = false;
+        in.calm = true;
+        for (int f = 0; f < 30; f++) sim.update(in);
+        check(Math.abs(sim.tiltX()) < 0.01f, "open dialog must straighten the panel, got " + sim.tiltX());
+        in.calm = false;
+        in.motion = false;
+        in.dtSeconds = Float.NaN;
+        sim.update(in);
+        float[] still = sim.matrix();
+        check(still[0] == 1f && still[1] == 0f && still[2] == 0f && still[3] == 1f, "reduced motion must be flat");
+        sim.deactivate();
+        check(!sim.isActive() && sim.toLocal(5, 6)[0] == 5, "deactivate restores identity");
+
+        System.out.println("Panel 3D: " + clicks + " clicks on the tilted panel hit the drawn element, hover = click, "
+                + String.format(java.util.Locale.ROOT, "max corner shift %.2f px", maxMove));
     }
 
     static void testRoundedRects() {

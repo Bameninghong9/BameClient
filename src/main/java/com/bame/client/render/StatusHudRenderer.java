@@ -87,30 +87,55 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.fill(x + size - 1, y + 1, x + size, y + size - 1, 0x1EFFFFFF);
     }
 
+    /**
+     * Clamps a HUD element's X position so that the element (with its scaled width) stays
+     * fully inside the visible scaled window. Render-time only: the stored config value is
+     * never modified, so the layout recovers when the window grows again.
+     */
+    public static int clampHudX(int x, int w, float scale) {
+        int screenW = MinecraftClient.getInstance().getWindow().getScaledWidth();
+        int ew = (int) Math.ceil(w * scale);
+        return Math.max(0, Math.min(x, screenW - ew));
+    }
+
+    /** Vertical counterpart of {@link #clampHudX(int, int, float)}. */
+    public static int clampHudY(int y, int h, float scale) {
+        int screenH = MinecraftClient.getInstance().getWindow().getScaledHeight();
+        int eh = (int) Math.ceil(h * scale);
+        return Math.max(0, Math.min(y, screenH - eh));
+    }
+
     @Override
     public void onHudRender(DrawContext context, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.options.hudHidden) return;
 
         if (com.bame.client.module.SpotifyHudModule.enabled) {
-            SpotifyHudRenderer.render(context, com.bame.client.module.SpotifyHudModule.hudX, com.bame.client.module.SpotifyHudModule.hudY, com.bame.client.module.SpotifyHudModule.scale, false);
+            float s = SpotifyHudModule.scale;
+            int x = clampHudX(SpotifyHudModule.hudX, SpotifyHudRenderer.getWidth(), s);
+            int y = clampHudY(SpotifyHudModule.hudY, SpotifyHudRenderer.getHeight(), s);
+            SpotifyHudRenderer.render(context, x, y, s, false);
         }
 
         if (!com.bame.client.module.ShowHudModule.enabled) return;
 
         if (FpsModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("fps"))) {
-            renderFps(context, FpsModule.hudX, FpsModule.hudY, FpsModule.scale);
+            float s = FpsModule.scale;
+            renderFps(context, clampHudX(FpsModule.hudX, getFpsWidth(client), s), clampHudY(FpsModule.hudY, getFpsHeight(), s), s);
         }
 
         if (PingModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("ping"))) {
-            renderPing(context, PingModule.hudX, PingModule.hudY, PingModule.scale);
+            float s = PingModule.scale;
+            renderPing(context, clampHudX(PingModule.hudX, getPingWidth(client), s), clampHudY(PingModule.hudY, getPingHeight(), s), s);
         }
 
         if (CpsModule.enabled) {
-            renderCps(context, CpsModule.hudX, CpsModule.hudY, CpsModule.scale);
+            float s = CpsModule.scale;
+            renderCps(context, clampHudX(CpsModule.hudX, getCpsWidth(client), s), clampHudY(CpsModule.hudY, getCpsHeight(), s), s);
         }
 
         if (ServerInfoModule.enabled) {
+            float s = ServerInfoModule.scale;
             if (!ServerInfoModule.getActiveDockedElements().isEmpty()) {
                 int w = getServerInfoWidth(client);
                 int x = ServerInfoModule.hudX;
@@ -118,29 +143,32 @@ public class StatusHudRenderer implements HudRenderCallback {
                     x = client.getWindow().getScaledWidth() - (int)(w * ServerInfoModule.scale) - 10;
                     ServerInfoModule.hudX = x;
                 }
-                renderServerInfo(context, x, ServerInfoModule.hudY, ServerInfoModule.scale);
+                renderServerInfo(context, clampHudX(x, w, s), clampHudY(ServerInfoModule.hudY, getServerInfoHeight(), s), s);
             }
             if (ServerInfoModule.showName && !ServerInfoModule.isDocked("name")) {
-                renderStandaloneName(context, ServerInfoModule.nameX, ServerInfoModule.nameY, ServerInfoModule.scale);
+                renderStandaloneName(context, clampHudX(ServerInfoModule.nameX, getNameWidth(client), s), clampHudY(ServerInfoModule.nameY, 18, s), s);
             }
             if (ServerInfoModule.showServer && !ServerInfoModule.isDocked("server")) {
-                renderStandaloneServer(context, ServerInfoModule.serverX, ServerInfoModule.serverY, ServerInfoModule.scale);
+                renderStandaloneServer(context, clampHudX(ServerInfoModule.serverX, getServerWidth(client), s), clampHudY(ServerInfoModule.serverY, 18, s), s);
             }
             if (ServerInfoModule.showTime && !ServerInfoModule.isDocked("time")) {
-                renderStandaloneTime(context, ServerInfoModule.timeX, ServerInfoModule.timeY, ServerInfoModule.scale);
+                renderStandaloneTime(context, clampHudX(ServerInfoModule.timeX, getTimeWidth(client), s), clampHudY(ServerInfoModule.timeY, 18, s), s);
             }
         }
 
         if (ClockModule.enabled) {
-            renderClock(context, ClockModule.hudX, ClockModule.hudY, ClockModule.scale);
+            float s = ClockModule.scale;
+            renderClock(context, clampHudX(ClockModule.hudX, getClockWidth(client), s), clampHudY(ClockModule.hudY, getClockHeight(), s), s);
         }
 
         if (CoordinatesModule.enabled) {
-            renderCoordinates(context, CoordinatesModule.hudX, CoordinatesModule.hudY, CoordinatesModule.scale);
+            float s = CoordinatesModule.scale;
+            renderCoordinates(context, clampHudX(CoordinatesModule.hudX, getCoordinatesWidth(client), s), clampHudY(CoordinatesModule.hudY, getCoordinatesHeight(client), s), s);
         }
 
         if (PotionsModule.enabled) {
-            renderPotions(context, PotionsModule.hudX, PotionsModule.hudY, PotionsModule.scale, false);
+            float s = PotionsModule.scale;
+            renderPotions(context, clampHudX(PotionsModule.hudX, getPotionsWidth(client, false), s), clampHudY(PotionsModule.hudY, getPotionsHeight(client, false), s), s, false);
         }
 
         if (TargetHudModule.enabled) {
@@ -153,7 +181,8 @@ public class StatusHudRenderer implements HudRenderCallback {
             if (y == -1) {
                 y = client.getWindow().getScaledHeight() - 120;
             }
-            renderTargetHud(context, x, y, TargetHudModule.scale, false);
+            float s = TargetHudModule.scale;
+            renderTargetHud(context, clampHudX(x, w, s), clampHudY(y, getTargetHudHeight(), s), s, false);
         }
 
         if (ArmorHudModule.enabled) {
@@ -166,11 +195,13 @@ public class StatusHudRenderer implements HudRenderCallback {
             if (y == -1) {
                 y = client.getWindow().getScaledHeight() - 56;
             }
-            renderArmorHud(context, x, y, ArmorHudModule.scale, false);
+            float s = ArmorHudModule.scale;
+            renderArmorHud(context, clampHudX(x, w, s), clampHudY(y, getArmorHudHeight(client, false), s), s, false);
         }
 
         if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
-            renderReachDisplay(context, ReachDisplayModule.hudX, ReachDisplayModule.hudY, ReachDisplayModule.scale);
+            float s = ReachDisplayModule.scale;
+            renderReachDisplay(context, clampHudX(ReachDisplayModule.hudX, getReachDisplayWidth(client), s), clampHudY(ReachDisplayModule.hudY, getReachDisplayHeight(), s), s);
         }
     }
 

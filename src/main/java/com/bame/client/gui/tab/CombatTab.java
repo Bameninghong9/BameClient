@@ -27,36 +27,66 @@ public class CombatTab implements ClientTab {
     private boolean draggingHitboxAlpha = false;
     private boolean draggingHitboxWidth = false;
 
+    /**
+     * Anzeige-Zuordnung: Die rein optischen Module (Reach Display, Hit Color, Low Shield, Hitboxes) erscheinen
+     * im Tab "Visuals", Auto Clicker bleibt in "Combat". Es gibt dafür zwei Instanzen dieser Klasse; Logik,
+     * Layout innerhalb der Karten und Config-Schlüssel bleiben unverändert.
+     */
+    private final boolean visualPart;
+
+    public CombatTab() {
+        this(false);
+    }
+
+    public CombatTab(boolean visualPart) {
+        this.visualPart = visualPart;
+    }
+
     @Override
     public String getCategory() {
-        return "Combat";
+        return visualPart ? "Visuals" : "Combat";
+    }
+
+    @Override
+    public boolean isListeningForKey() {
+        return listeningAutoClicker || listeningReachDisplay || listeningHitColor || listeningLowShield || listeningHitboxes;
+    }
+
+    @Override
+    public void cancelKeyListening() {
+        clearKeyListeners();
     }
 
     public boolean autoClickerVisible(String search) {
+        if (visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "autoclicker".contains(q) || "auto clicker".contains(q) || "cps".contains(q);
         return true;
     }
 
     public boolean reachDisplayVisible(String search) {
+        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "reachdisplay".contains(q) || "reach display".contains(q) || "reach".contains(q);
         return true;
     }
 
     public boolean hitColorVisible(String search) {
+        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "hitcolor".contains(q) || "hit color".contains(q) || "color".contains(q) || "hurt".contains(q);
         return true;
     }
 
     public boolean lowShieldVisible(String search) {
+        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q) || "totem".contains(q);
         return true;
     }
 
     public boolean customHitboxesVisible(String search) {
+        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "customhitboxes".contains(q) || "custom hitboxes".contains(q) || "hitbox".contains(q) || "hitboxes".contains(q) || "f3+b".contains(q) || "esp".contains(q);
         return true;
@@ -64,7 +94,7 @@ public class CombatTab implements ClientTab {
 
     @Override
     public boolean isVisible(String search) {
-        if (search.isEmpty()) return true;
+        if (search.isEmpty()) return true; // mindestens ein Modul pro Instanz
         return autoClickerVisible(search) || reachDisplayVisible(search) || hitColorVisible(search)
                 || lowShieldVisible(search) || customHitboxesVisible(search);
     }
@@ -149,14 +179,13 @@ public class CombatTab implements ClientTab {
     private void renderAutoClicker(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getAutoClickerHeight();
         screen.moduleCard(c, x, y, w, h, AutoClickerModule.enabled, AutoClickerModule.expanded,
-                "AutoClicker", "Automatically clicks when holding", "NEW", "combat", mx, my);
+                "Auto Clicker", "Automatically clicks when holding", null, "combat", mx, my);
 
         if (!AutoClickerModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningAutoClicker ? "..." : screen.formatKey(AutoClickerModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "AutoClickerModule", AutoClickerModule.keyBind, listeningAutoClicker, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Mode:", x + 14, curY + 4, 0xFFD4D8E0);
@@ -216,14 +245,13 @@ public class CombatTab implements ClientTab {
     private void renderReachDisplay(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getReachDisplayHeight();
         screen.moduleCard(c, x, y, w, h, ReachDisplayModule.enabled, ReachDisplayModule.expanded,
-                "ReachDisplay", "Shows hit distance when attacking", "NEW", "combat", mx, my);
+                "Reach Display", "Shows hit distance when attacking", null, "visuals", mx, my);
 
         if (!ReachDisplayModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningReachDisplay ? "..." : screen.formatKey(ReachDisplayModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "ReachDisplayModule", ReachDisplayModule.keyBind, listeningReachDisplay, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Display Mode:", x + 14, curY + 4, 0xFFD4D8E0);
@@ -242,14 +270,13 @@ public class CombatTab implements ClientTab {
     private void renderHitColor(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getHitColorHeight();
         screen.moduleCard(c, x, y, w, h, HitColorModule.enabled, HitColorModule.expanded,
-                "HitColor", "Custom hurt effect color and opacity", "NEW", "combat", mx, my);
+                "Hit Color", "Custom hurt effect color and opacity", null, "visuals", mx, my);
 
         if (!HitColorModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningHitColor ? "..." : screen.formatKey(HitColorModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "HitColorModule", HitColorModule.keyBind, listeningHitColor, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Color:", x + 14, curY + 4, 0xFFD4D8E0);
@@ -277,14 +304,13 @@ public class CombatTab implements ClientTab {
     private void renderLowShield(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getLowShieldHeight();
         screen.moduleCard(c, x, y, w, h, LowShieldModule.enabled, LowShieldModule.expanded,
-                "LowShield", "Lowers shield and totem viewmodel height", "NEW", "combat", mx, my);
+                "Low Shield", "Lowers shield and totem viewmodel height", null, "visuals", mx, my);
 
         if (!LowShieldModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningLowShield ? "..." : screen.formatKey(LowShieldModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "LowShieldModule", LowShieldModule.keyBind, listeningLowShield, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         int sx = x + 84;
@@ -312,14 +338,13 @@ public class CombatTab implements ClientTab {
     private void renderCustomHitboxes(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getCustomHitboxesHeight();
         screen.moduleCard(c, x, y, w, h, CustomHitboxesModule.enabled, CustomHitboxesModule.expanded,
-                "Hitboxes", "Custom colored hitboxes & view vectors", "NEW", "combat", mx, my);
+                "Hitboxes", "Custom colored hitboxes & view vectors", null, "visuals", mx, my);
 
         if (!CustomHitboxesModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningHitboxes ? "..." : screen.formatKey(CustomHitboxesModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "CustomHitboxesModule", CustomHitboxesModule.keyBind, listeningHitboxes, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Color:", x + 14, curY + 4, 0xFFD4D8E0);
@@ -381,7 +406,7 @@ public class CombatTab implements ClientTab {
             if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth,
                     () -> {
                         AutoClickerModule.enabled = !AutoClickerModule.enabled;
-                        com.bame.client.notification.NotificationManager.showModuleToggle("AutoClicker", AutoClickerModule.enabled);
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Auto Clicker", AutoClickerModule.enabled);
                     },
                     () -> AutoClickerModule.expanded = !AutoClickerModule.expanded)) {
                 return true;

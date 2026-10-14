@@ -48,6 +48,10 @@ public class GalleryScreen extends Screen {
     private double maxScroll = 0;
     private long openTime = System.currentTimeMillis();
 
+    // 3D GUI: schwebendes Panel wie im Mod-Menü (Matrix des letzten Frames = Grundlage der Mausumrechnung)
+    private final Panel3D panel3D = new Panel3D();
+    private final long panelOpenNanos = System.nanoTime();
+
     private CustomTextFieldWidget searchField;
     private CustomTextFieldWidget renameField;
     private ScreenshotItem renamingItem = null;
@@ -184,12 +188,28 @@ public class GalleryScreen extends Screen {
         int dimAlpha = (int) (0x65 * p);
         c.fill(0, 0, width, height, (dimAlpha << 24));
 
+        // 3D GUI: Panel-Lage berechnen, Tiefe dahinter, Transformation aufsetzen; ab hier sind mx/my Panel-Koordinaten
+        boolean threeD = BameClientConfig.threeDGui;
+        if (threeD) {
+            boolean motion = ThreeDGuiManager.motionEnabled();
+            panel3D.frame(px, py, pw, ph, mx, my, panelOpenNanos, motion, previewItem != null || renamingItem != null, leftMouseDown());
+            ThreeDGuiManager.renderBackDepth(c, panel3D, px, py, pw, ph, Panel3D.openProgress((System.nanoTime() - panelOpenNanos) / 1.0e9f, motion));
+            ThreeDGuiManager.pushPanel(c, panel3D);
+            ThreeDGuiManager.renderPanelShadow(c, panel3D, px, py, pw, ph);
+            double[] local = panel3D.toLocal(mx, my);
+            mx = (int) Math.floor(local[0]);
+            my = (int) Math.floor(local[1]);
+        } else {
+            panel3D.deactivate();
+        }
+
         // Window background
         CustomGuiUtils.fillUltraRounded(c, px, py, pw, ph, 0xF511131A, 8.0f);
 
-        // Wallpaper overlay
+        // Wallpaper overlay (3D GUI: minimal gegenläufige Parallax-Verschiebung)
         if (BameClientConfig.customWallpaper) {
-            WallpaperManager.render(c, px, py, pw, ph, p);
+            if (threeD) WallpaperManager.render(c, px, py, pw, ph, p, true, panel3D.tiltX(), panel3D.tiltY());
+            else WallpaperManager.render(c, px, py, pw, ph, p);
         }
 
         int accent = GuiTheme.accent();
@@ -371,6 +391,8 @@ public class GalleryScreen extends Screen {
         int twBack = textRenderer.getWidth(CustomGuiUtils.getFontText("← Back"));
         c.drawText(textRenderer, CustomGuiUtils.getFontText("← Back"), backX + (backW - twBack) / 2, backY + 8, hoverBack ? 0xFFFFFFFF : 0xFF9CA3AF, false);
 
+        if (threeD) ThreeDGuiManager.renderPanelRim(c, panel3D, px, py, pw, ph);
+
         // Modal: Fullscreen Image Preview
         if (previewItem != null) {
             renderPreviewModal(c, mx, my, delta);
@@ -380,6 +402,8 @@ public class GalleryScreen extends Screen {
         if (renamingItem != null) {
             renderRenameModal(c, mx, my, delta);
         }
+
+        if (threeD) ThreeDGuiManager.popPanel(c, panel3D);
 
         NotificationManager.render(c, delta);
     }
@@ -485,9 +509,15 @@ public class GalleryScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean twice) {
-        int mx = (int) click.x();
-        int my = (int) click.y();
+    public boolean mouseClicked(Click screenClick, boolean twice) {
+        // 3D GUI: mit der Inversen der zuletzt gezeichneten Panel-Matrix in Panel-Koordinaten umrechnen
+        Click click = screenClick;
+        if (panel3D.isActive()) {
+            double[] local = panel3D.toLocal(screenClick.x(), screenClick.y());
+            click = new Click(local[0], local[1], screenClick.buttonInfo());
+        }
+        int mx = (int) Math.floor(click.x());
+        int my = (int) Math.floor(click.y());
 
         if (previewItem != null) {
             int maxW = Math.min(width - 80, 840);
@@ -559,7 +589,7 @@ public class GalleryScreen extends Screen {
             File runDir = MinecraftClient.getInstance().runDirectory;
             File dir = new File(runDir, "screenshots");
             if (!dir.exists()) dir.mkdirs();
-            ScreenshotHelper.openScreenshot(dir.getAbsolutePath());
+            ScreenshotHelper.openScreenshotsFolder();
             return true;
         }
 
@@ -772,6 +802,11 @@ public class GalleryScreen extends Screen {
         if (client != null) {
             client.setScreen(parent);
         }
+    }
+
+    private boolean leftMouseDown() {
+        if (client == null || client.getWindow() == null) return false;
+        return GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
     }
 
     private static boolean inside(double mx, double my, int x, int y, int w, int h) {

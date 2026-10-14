@@ -7,10 +7,8 @@ import com.bame.client.module.*;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.PlayerSkinWidget;
 import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.util.DefaultSkinHelper;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -35,10 +33,14 @@ public class BameClientScreen extends Screen {
     }
     public static ViewMode currentView = ViewMode.HUB;
     public static final String[] CATEGORIES = {"Combat", "Movement", "Visuals", "World", "Misc"};
-    public static String selectedCategory = "Combat";
-    public static String selected = "Combat";
+    // Der aktive Tab hat genau eine Quelle: BameClientConfig.selectedCategory (wird gespeichert und geladen)
 
+    /**
+     * Alle Tabs in Anzeige-Reihenfolge. Ein Tab-Objekt gehört über getCategory() zu genau einer Kategorie;
+     * eine Kategorie kann mehrere Tab-Objekte haben (z. B. Visuals = RenderTab + optische Combat-Module).
+     */
     private final Map<String, ClientTab> tabs = new LinkedHashMap<>();
+    private static final String COSMETICS_TAB = "Cosmetics";
 
     private boolean listeningMenuBind = false;
     private boolean scrollDragging = false;
@@ -75,17 +77,64 @@ public class BameClientScreen extends Screen {
     private long openTime = 0;
     private final ThemeSettingsPanel themeSettings = new ThemeSettingsPanel();
     private final AmbientLighting ambient = new AmbientLighting();
-    private PlayerSkinWidget leftSkinWidget;
+
+    // 3D GUI: Lage des schwebenden Panels (Matrix des zuletzt gezeichneten Frames, Grundlage der Mausumrechnung)
+    private final Panel3D panel3D = new Panel3D();
+    private long panelOpenNanos = 0;
     private ViewMode lastRenderedView = null;
 
     public BameClientScreen() {
         super(Text.literal("Caeser Client"));
-        tabs.put("Combat", new CombatTab());
-        tabs.put("Movement", new MovementTab());
+        tabs.put("Combat", new CombatTab(false));
+        tabs.put("Movement", new MovementTab(false));
         tabs.put("Visuals", new RenderTab());
+        tabs.put("VisualsCombat", new CombatTab(true));   // Reach Display, Hit Color, Low Shield, Hitboxes
         tabs.put("Misc", new MiscTab());
+        tabs.put("MiscEmotes", new MovementTab(true));    // Animations & Emotes
         tabs.put("World", new WorldTab());
-        tabs.put("Cosmetics", new CosmeticsTab());
+        tabs.put(COSMETICS_TAB, new CosmeticsTab());
+        BameClientConfig.selectedCategory = BameClientConfig.sanitizeCategory(BameClientConfig.selectedCategory);
+    }
+
+    /** Aktiver Tab des Mod-Menüs (einzige Quelle). */
+    private static String activeCategory() {
+        return BameClientConfig.selectedCategory;
+    }
+
+    /** Tab-Objekte, die in der Mod-Ansicht gerade gezeigt werden (bei Suche: alle). */
+    private List<ClientTab> modTabsForView(String q) {
+        List<ClientTab> out = new java.util.ArrayList<>();
+        String cat = activeCategory();
+        for (Map.Entry<String, ClientTab> e : tabs.entrySet()) {
+            if (e.getKey().equals(COSMETICS_TAB)) continue;
+            if (!q.isEmpty() || e.getValue().getCategory().equalsIgnoreCase(cat)) out.add(e.getValue());
+        }
+        return out;
+    }
+
+    /** Alle Mod-Tabs ohne Cosmetics. */
+    private List<ClientTab> allModTabs() {
+        List<ClientTab> out = new java.util.ArrayList<>();
+        for (Map.Entry<String, ClientTab> e : tabs.entrySet()) {
+            if (!e.getKey().equals(COSMETICS_TAB)) out.add(e.getValue());
+        }
+        return out;
+    }
+
+    private void cancelAllKeyListening() {
+        for (ClientTab tab : tabs.values()) tab.cancelKeyListening();
+    }
+
+    /** Ist irgendwo ein Textfeld fokussiert? Dann werden keine Tastenkombinationen ausgewertet. */
+    private boolean isAnyTextFieldFocused() {
+        if (search != null && search.isFocused()) return true;
+        if (itemSearchWidget != null && itemSearchWidget.isFocused()) return true;
+        if (getFocused() instanceof CustomTextFieldWidget f && f.isFocused()) return true;
+        if (CosmeticsTab.customSkinModalOpen && CosmeticsTab.modalPlayerField.isFocused()) return true;
+        for (ClientTab tab : tabs.values()) {
+            if (tab.hasFocusedTextField()) return true;
+        }
+        return false;
     }
 
     public void text(DrawContext c, String s, int x, int y, int color) {
@@ -144,9 +193,11 @@ public class BameClientScreen extends Screen {
             c.fill(chevX + 1, chevY + 1, chevX + 4, chevY + 2, GuiTheme.accent());
             c.fill(chevX + 2, chevY, chevX + 3, chevY + 1, GuiTheme.accent());
         } else {
-            c.fill(chevX, chevY, chevX + 5, chevY + 1, 0xFF656B7C);
-            c.fill(chevX + 1, chevY + 1, chevX + 4, chevY + 2, 0xFF656B7C);
-            c.fill(chevX + 2, chevY + 2, chevX + 3, chevY + 3, 0xFF656B7C);
+            // Beim Überfahren der Karte heller: die ganze Karte (außer dem Schalter) klappt die Einstellungen auf
+            int chevCol = hover ? 0xFFFFFFFF : 0xFF656B7C;
+            c.fill(chevX, chevY, chevX + 5, chevY + 1, chevCol);
+            c.fill(chevX + 1, chevY + 1, chevX + 4, chevY + 2, chevCol);
+            c.fill(chevX + 2, chevY + 2, chevX + 3, chevY + 3, chevCol);
         }
 
         int maxDescW = w - 90;
@@ -220,6 +271,41 @@ public class BameClientScreen extends Screen {
         CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, hover ? GuiTheme.accent() : 0xFF292D36, 4);
         int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
         text(c, label, x + (w - tw) / 2, y + (h - 8) / 2, 0xFFD4D8E0);
+    }
+
+    /**
+     * Tasten-Knopf einer Modul-Karte. Doppelt belegte Tasten werden rot markiert, rechts daneben steht,
+     * welches Modul die Taste schon hat. Beim Warten auf eine Taste steht dort der Hinweis zu Escape.
+     */
+    public void keybindButton(DrawContext c, String id, int key, boolean listening, int x, int y, int w, int h, int mx, int my) {
+        String label = listening ? "..." : formatKey(key);
+        String conflict = listening ? null : KeybindConflicts.conflictFor(id, key);
+        int hintX = x + w + 6;
+        // Karten beginnen 64 px links vom Knopf und sind eine Spalte breit
+        int maxHintW = (x - 64 + getColumnWidth()) - hintX - 8;
+        if (conflict == null) {
+            button(c, label, x, y, w, h, mx, my);
+            if (listening) drawHint(c, "Esc = none", hintX, y + (h - 8) / 2, maxHintW, 0xFF8E95A4);
+            return;
+        }
+        boolean hover = inside(mx, my, x, y, w, h);
+        CustomGuiUtils.fillUltraRounded(c, x, y, w, h, hover ? 0xFF3A1C22 : 0xFF2A161B, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, 0xFFEF4444, 4);
+        int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+        text(c, label, x + (w - tw) / 2, y + (h - 8) / 2, 0xFFFCA5A5);
+        drawHint(c, "Also: " + conflict, hintX, y + (h - 8) / 2, maxHintW, 0xFFF87171);
+    }
+
+    private void drawHint(DrawContext c, String s, int x, int y, int maxW, int color) {
+        if (maxW < 12) return;
+        String t = s;
+        if (textRenderer.getWidth(CustomGuiUtils.getFontText(t)) > maxW) {
+            while (t.length() > 1 && textRenderer.getWidth(CustomGuiUtils.getFontText(t + "...")) > maxW) {
+                t = t.substring(0, t.length() - 1);
+            }
+            t = t + "...";
+        }
+        text(c, t, x, y, color);
     }
 
     public void toggle(DrawContext c, int x, int y, boolean on, int mx, int my, float delta) {
@@ -373,7 +459,7 @@ public class BameClientScreen extends Screen {
             cx = px + sidebar + 12;
             cy = py + 42;
             cw = pw - sidebar - 24;
-            ch = ph - 54;
+            ch = ph - 58; // Unterkante = Scissor-Unterkante (py + ph - 16), damit Klick- und Sichtbereich gleich sind
             if (search != null) {
                 search.setX(cx + 4);
                 search.setY(py + 9);
@@ -389,7 +475,7 @@ public class BameClientScreen extends Screen {
             cx = px + sidebar + 10;
             cy = py + 42;
             cw = pw - sidebar - 20;
-            ch = ph - 54;
+            ch = ph - 62; // Unterkante = Scissor-Unterkante (py + ph - 20), damit Klick- und Sichtbereich gleich sind
             if (search != null) {
                 search.setX(cx + cw - 128);
                 search.setY(py + 9);
@@ -397,7 +483,6 @@ public class BameClientScreen extends Screen {
                 search.setHeight(20);
             }
         }
-        updateLeftSkinGeometry();
     }
 
     @Override
@@ -419,169 +504,40 @@ public class BameClientScreen extends Screen {
         });
         addSelectableChild(itemSearchWidget);
 
-        initLeftSkinWidget();
         layout();
     }
 
-    private void initLeftSkinWidget() {
-        if (client == null || client.getLoadedEntityModels() == null) return;
-        int leftW = Math.max(100, px - 20);
-        int skinW = Math.clamp(leftW, 130, 200);
-        int skinH = Math.clamp(ph - 50, 220, 290);
-        int skinX = Math.max(10, (px - skinW) / 2);
-        int skinY = py + (ph - skinH) / 2 + 16;
-
-        leftSkinWidget = new PlayerSkinWidget(skinW, skinH, client.getLoadedEntityModels(), () -> {
-            if (SkinProtectModule.enabled) {
-                return SkinProtectModule.getCurrentSkin();
-            }
-            return (client.player != null) ? client.player.getSkin() : DefaultSkinHelper.getSteve();
-        });
-        leftSkinWidget.setPosition(skinX, skinY);
-        setSkinWidgetInitialRotation(leftSkinWidget, -22.0f);
+    /**
+     * Klick in Panel-Koordinaten. Bei aktivem 3D GUI wird mit der Inversen der zuletzt gezeichneten Panel-Matrix
+     * umgerechnet (genau das, was zu sehen ist); sonst bleibt der Klick unverändert.
+     */
+    private Click toPanelClick(Click click) {
+        if (!panel3D.isActive()) return click;
+        double[] local = panel3D.toLocal(click.x(), click.y());
+        return new Click(local[0], local[1], click.buttonInfo());
     }
 
-    private void updateLeftSkinGeometry() {
-        if (!BameClientConfig.threeDGui) return;
-        if (leftSkinWidget == null) {
-            initLeftSkinWidget();
-            return;
-        }
-        int leftW = Math.max(100, px - 20);
-        int skinW = Math.clamp(leftW, 130, 200);
-        int skinH = Math.clamp(ph - 50, 220, 290);
-        int skinX = Math.max(10, (px - skinW) / 2);
-        int skinY = py + (ph - skinH) / 2 + 16;
-        leftSkinWidget.setDimensionsAndPosition(skinW, skinH, skinX, skinY);
+    /** Ein Dialog liegt über dem Panel: Neigung und Schweben ausblenden, damit er gerade und ruhig steht. */
+    private boolean panelModalOpen() {
+        return itemModalOpen || crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen
+                || blockOutlineColorPickerOpen
+                || (currentView == ViewMode.COSMETICS && (CosmeticsTab.customSkinModalOpen || ShopOverlay.isModalOpen()));
     }
 
-    private void setSkinWidgetInitialRotation(PlayerSkinWidget widget, float yRot) {
-        if (widget == null) return;
-        try {
-            for (java.lang.reflect.Field f : PlayerSkinWidget.class.getDeclaredFields()) {
-                if (f.getType() == float.class && (f.getName().equals("yRotation") || f.getName().contains("yRot"))) {
-                    f.setAccessible(true);
-                    f.setFloat(widget, yRot);
-                    break;
-                }
-            }
-        } catch (Throwable ignored) {}
-    }
-
-    private void renderLeftSkin(DrawContext c, int mx, int my, float delta, float p) {
-        if (!BameClientConfig.threeDGui || px < 100) return;
-        if (leftSkinWidget == null) initLeftSkinWidget();
-        if (leftSkinWidget == null) return;
-
-        int leftCenterX = px / 2;
-
-        // Player Name Badge (NameProtect integration: alias when enabled, own name when disabled)
-        String displayName = (client != null && client.player != null) ? client.player.getName().getString() : "Player";
-        if (NameProtectModule.enabled) {
-            displayName = NameProtectModule.getProtectedName(displayName);
-        }
-        int nameW = textRenderer.getWidth(CustomGuiUtils.getFontText(displayName));
-        int badgeW = nameW + 16;
-        int badgeH = 15;
-        int badgeX = leftCenterX - badgeW / 2;
-        int badgeY = py + 12;
-        CustomGuiUtils.fillUltraRounded(c, badgeX, badgeY, badgeW, badgeH, 0xD0131722, 4);
-        CustomGuiUtils.drawUltraRoundedOutline(c, badgeX, badgeY, badgeW, badgeH, GuiTheme.alpha(GuiTheme.accent(), 110), 4);
-        c.drawText(textRenderer, CustomGuiUtils.getFontText(displayName), badgeX + 8, badgeY + 4, GuiTheme.accent(), false);
-
-        // Pedestal & Drop Shadow under feet
-        int skinW = leftSkinWidget.getWidth();
-        int skinH = leftSkinWidget.getHeight();
-        int pedW = Math.min(130, (int) (skinW * 0.72));
-        int pedX = leftCenterX - pedW / 2;
-        int pedY = leftSkinWidget.getY() + skinH - 14;
-
-        CustomGuiUtils.fillUltraRounded(c, pedX - 10, pedY + 2, pedW + 24, 10, 0x45000000, 4);
-        CustomGuiUtils.fillUltraRounded(c, pedX, pedY, pedW, 6, 0x30000000 | (GuiTheme.accent() & 0x00FFFFFF), 3);
-        CustomGuiUtils.drawUltraRoundedOutline(c, pedX, pedY, pedW, 6, GuiTheme.alpha(GuiTheme.accent(), 85), 3);
-
-        // 3D Player Model
-        leftSkinWidget.render(c, mx, my, delta);
-
-        // Equipped Cosmetics Badges on 3D Player Preview
-        int cosBadgeY = pedY + 12;
-        if (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.wings)) {
-            String wName = "angel".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.wings) ? "🪽 GOLD WINGS" : "🪽 DRAGON WINGS";
-            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(wName));
-            int bx = leftCenterX - (tw + 12) / 2;
-            CustomGuiUtils.fillUltraRounded(c, bx, cosBadgeY, tw + 12, 13, 0xD0131722, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, bx, cosBadgeY, tw + 12, 13, 0xFFF59E0B, 3.0f);
-            c.drawText(textRenderer, CustomGuiUtils.getFontText(wName), bx + 6, cosBadgeY + 3, 0xFFFDE047, false);
-            cosBadgeY += 15;
-        }
-        if (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.head)) {
-            String hName = "halo".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.head) ? "👑 ANGEL HALO" : "😈 DEMON HORNS";
-            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(hName));
-            int bx = leftCenterX - (tw + 12) / 2;
-            CustomGuiUtils.fillUltraRounded(c, bx, cosBadgeY, tw + 12, 13, 0xD0131722, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, bx, cosBadgeY, tw + 12, 13, 0xFFEF4444, 3.0f);
-            c.drawText(textRenderer, CustomGuiUtils.getFontText(hName), bx + 6, cosBadgeY + 3, 0xFFFCA5A5, false);
-            cosBadgeY += 15;
-        }
-        if (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.pet)) {
-            String target = com.bame.client.cosmetics.CosmeticsConfig.petCustomPlayer;
-            String pName = "self".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.pet) ? "🐾 MINI-ME" : ("🐾 " + ((target != null && !target.isEmpty()) ? target.toUpperCase(java.util.Locale.ROOT) : "PLAYER PET"));
-            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(pName));
-            int bx = leftCenterX - (tw + 12) / 2;
-            CustomGuiUtils.fillUltraRounded(c, bx, cosBadgeY, tw + 12, 13, 0xD0131722, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, bx, cosBadgeY, tw + 12, 13, GuiTheme.accent(), 3.0f);
-            c.drawText(textRenderer, CustomGuiUtils.getFontText(pName), bx + 6, cosBadgeY + 3, GuiTheme.accent(), false);
-        }
+    private boolean leftMouseDown() {
+        if (client == null || client.getWindow() == null) return false;
+        return GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
     }
 
     private int columns() { return 4; }
     private int effectsY() { return 44 + ((GuiTheme.PRESETS.length + columns() - 1) / columns()) * 58 + 18; }
     private int settingsY() { return effectsY(); }
 
-    private String getCategoryStats(String cat) {
-        switch (cat) {
-            case "Combat" -> {
-                int on = (AutoClickerModule.enabled ? 1 : 0) + (ReachDisplayModule.enabled ? 1 : 0)
-                        + (HitColorModule.enabled ? 1 : 0) + (LowShieldModule.enabled ? 1 : 0)
-                        + (CustomHitboxesModule.enabled ? 1 : 0);
-                return "5 modules  •  " + on + " on";
-            }
-            case "Movement" -> {
-                int on = (InvMoveModule.enabled ? 1 : 0) + (FreelookModule.enabled ? 1 : 0) + (com.bame.client.module.EmoteModule.enabled ? 1 : 0);
-                return "3 modules  •  " + on + " on";
-            }
-            case "Visuals" -> {
-                int on = (FullbrightModule.enabled ? 1 : 0) + (ShowHudModule.enabled ? 1 : 0)
-                        + (ZoomModule.enabled ? 1 : 0) + (SpotifyHudModule.enabled ? 1 : 0)
-                        + (ScoreboardModule.enabled ? 1 : 0) + (CustomCrosshairModule.enabled ? 1 : 0)
-                        + (BlockOutlineModule.enabled ? 1 : 0) + (ItemSizeModule.enabled ? 1 : 0)
-                        + (HandPositionModule.enabled ? 1 : 0) + (TabBadgeModule.enabled ? 1 : 0);
-                return "10 modules  •  " + on + " on";
-            }
-            case "Misc" -> {
-                int on = (AutoToolModule.enabled ? 1 : 0) + (DurabilityGuardModule.enabled ? 1 : 0);
-                return "2 modules  •  " + on + " on";
-            }
-            case "World" -> {
-                int on = (AutoAreaMinerModule.enabled ? 1 : 0) + (TimeChangerModule.enabled ? 1 : 0)
-                        + (NoFogModule.enabled ? 1 : 0);
-                return "3 modules  •  " + on + " on";
-            }
-            case "Cosmetics" -> {
-                int on = (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.wings) ? 1 : 0)
-                        + (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.head) ? 1 : 0)
-                        + (!"none".equalsIgnoreCase(com.bame.client.cosmetics.CosmeticsConfig.pet) ? 1 : 0);
-                return "3 slots  •  " + on + " on";
-            }
-            default -> { return ""; }
-        }
-    }
-
     private int contentHeight() {
         if (currentView == ViewMode.THEME) return settingsY() + themeSettings.height() + 8;
-        if (currentView == ViewMode.SETTINGS) return 360;
+        if (currentView == ViewMode.SETTINGS) return settingsContentHeight;
         if (currentView == ViewMode.COSMETICS) {
-            ClientTab cosTab = tabs.get("Cosmetics");
+            ClientTab cosTab = tabs.get(COSMETICS_TAB);
             if (cosTab != null) {
                 ColumnTracker tracker = new ColumnTracker(0);
                 cosTab.calculateHeight(this, getColumnWidth(), tracker, search != null ? search.getText().trim() : "");
@@ -591,19 +547,14 @@ public class BameClientScreen extends Screen {
         }
         String q = (search != null) ? search.getText().trim() : "";
         ColumnTracker tracker = new ColumnTracker(0);
-        if (selectedCategory.equalsIgnoreCase("MODS") || !q.isEmpty()) {
-            for (Map.Entry<String, ClientTab> entry : tabs.entrySet()) {
-                if (entry.getKey().equals("Cosmetics")) continue;
-                entry.getValue().calculateHeight(this, getColumnWidth(), tracker, q);
-            }
-        } else {
-            ClientTab activeTab = tabs.get(selectedCategory);
-            if (activeTab != null) {
-                activeTab.calculateHeight(this, getColumnWidth(), tracker, q);
-            }
+        for (ClientTab tab : modTabsForView(q)) {
+            tab.calculateHeight(this, getColumnWidth(), tracker, q);
         }
         return Math.max(tracker.leftY, tracker.rightY);
     }
+
+    /** Höhe der Einstellungs-Ansicht (wird beim Zeichnen ermittelt). */
+    private int settingsContentHeight = 420;
 
     private double maxScroll() { return Math.max(0, contentHeight() - ch); }
     public double getScroll() { return scroll; }
@@ -622,7 +573,7 @@ public class BameClientScreen extends Screen {
         ColumnTracker tracker = new ColumnTracker(baseY());
 
         if (currentView == ViewMode.COSMETICS) {
-            ClientTab cosTab = tabs.get("Cosmetics");
+            ClientTab cosTab = tabs.get(COSMETICS_TAB);
             if (cosTab != null) {
                 cosTab.layout(this, leftX, rightX, columnWidth, tracker, q);
             }
@@ -633,17 +584,10 @@ public class BameClientScreen extends Screen {
             themeSettings.layout(cx, baseY() + settingsY(), cw);
             return;
         }
+        if (currentView == ViewMode.SETTINGS) return;
 
-        if (selectedCategory.equalsIgnoreCase("MODS") || !q.isEmpty()) {
-            for (Map.Entry<String, ClientTab> entry : tabs.entrySet()) {
-                if (entry.getKey().equals("Cosmetics")) continue;
-                entry.getValue().layout(this, leftX, rightX, columnWidth, tracker, q);
-            }
-        } else {
-            ClientTab activeTab = tabs.get(selectedCategory);
-            if (activeTab != null) {
-                activeTab.layout(this, leftX, rightX, columnWidth, tracker, q);
-            }
+        for (ClientTab tab : modTabsForView(q)) {
+            tab.layout(this, leftX, rightX, columnWidth, tracker, q);
         }
     }
 
@@ -700,6 +644,9 @@ public class BameClientScreen extends Screen {
         if (BameClientConfig.frostedBlur && !BameClientConfig.threeDGui) applyBlur(c);
     }
 
+    private static final net.minecraft.util.Identifier HUB_LOGO =
+        net.minecraft.util.Identifier.of("bameclient", "textures/font/caeser_badge.png");
+
     private void renderHub(DrawContext c, int mx, int my, float delta) {
         c.fill(0, 0, width, height, 0x65000000);
 
@@ -712,12 +659,15 @@ public class BameClientScreen extends Screen {
         c.getMatrices().translate((float) cxCenter, (float) (cyCenter - 54));
         c.getMatrices().scale(1.85f, 1.85f);
         int wCaeser = textRenderer.getWidth(CustomGuiUtils.getFontText("CAESER"));
-        int wLogo = 14;
+        int wLogo = 12;
         int wClient = textRenderer.getWidth(CustomGuiUtils.getFontText("CLIENT"));
         int totalLogoW = wCaeser + 6 + wLogo + 6 + wClient;
         int startX = -totalLogoW / 2;
         c.drawText(textRenderer, CustomGuiUtils.getFontText("CAESER"), startX, 0, 0xFFFFFFFF, false);
-        CustomGuiUtils.drawCLogo(c, startX + wCaeser + 6, -1, 14, 0xFFFFFFFF);
+        // Gleiches Logo wie in der Tab-Liste, in der Theme-Farbe, vertikal mittig zur Großbuchstaben-Höhe der Schrift
+        int logoY = (textRenderer.fontHeight - 1) / 2 - wLogo / 2;
+        c.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, HUB_LOGO, startX + wCaeser + 6, logoY,
+            0.0f, 0.0f, wLogo, wLogo, 32, 32, 32, 32, 0xFF000000 | (accent & 0xFFFFFF));
         c.drawText(textRenderer, CustomGuiUtils.getFontText("CLIENT"), startX + wCaeser + 6 + wLogo + 6, 0, 0xFFFFFFFF, false);
         c.getMatrices().popMatrix();
 
@@ -790,7 +740,7 @@ public class BameClientScreen extends Screen {
             renderScreen(c, mx, my, delta);
         } finally {
             String view = currentView == ViewMode.MODS
-                    ? "MODS/" + selectedCategory + (search != null && !search.getText().trim().isEmpty() ? " (search)" : "")
+                    ? "MODS/" + activeCategory() + (search != null && !search.getText().trim().isEmpty() ? " (search)" : "")
                     : currentView.name();
             GuiProfiler.endFrame(start, view);
         }
@@ -806,9 +756,11 @@ public class BameClientScreen extends Screen {
         } else if (lastRenderedView == ViewMode.COSMETICS) {
             ShopOverlay.close();
         }
+        ViewMode previousView = lastRenderedView;
         lastRenderedView = currentView;
 
         if (currentView == ViewMode.HUB) {
+            panel3D.deactivate();
             renderHub(c, mx, my, delta);
             return;
         }
@@ -823,11 +775,37 @@ public class BameClientScreen extends Screen {
             c.fill(0, 0, width, height, (dimAlpha << 24) | 0x000000);
         }
 
+        // 3D GUI: Panel-Lage für diesen Frame berechnen, Tiefe dahinter zeichnen und die Transformation aufsetzen.
+        // Ab hier sind mx/my Panel-Koordinaten (exakt mit der Inversen derselben Matrix umgerechnet).
+        boolean threeD = BameClientConfig.threeDGui;
+        if (threeD) {
+            if (previousView == null || previousView == ViewMode.HUB || panelOpenNanos == 0) {
+                panelOpenNanos = System.nanoTime(); // Panel fliegt beim Öffnen (auch aus dem Hub) herein
+            }
+            panel3D.frame(px, py, pw, ph, mx, my, panelOpenNanos, ThreeDGuiManager.motionEnabled(),
+                    panelModalOpen(), leftMouseDown());
+            float open = Panel3D.openProgress((System.nanoTime() - panelOpenNanos) / 1.0e9f, ThreeDGuiManager.motionEnabled());
+            ThreeDGuiManager.renderBackDepth(c, panel3D, px, py, pw, ph, open);
+            ThreeDGuiManager.pushPanel(c, panel3D);
+            ThreeDGuiManager.renderPanelShadow(c, panel3D, px, py, pw, ph);
+            double[] local = panel3D.toLocal(mx, my);
+            mx = (int) Math.floor(local[0]);
+            my = (int) Math.floor(local[1]);
+        } else {
+            panel3D.deactivate();
+            panelOpenNanos = 0;
+        }
+
         int bg = BameClientConfig.seeThrough ? 0xD810121A : 0xF710121A;
         CustomGuiUtils.fillUltraRounded(c, px, py, pw, ph, bg, 8.0f);
 
         if (BameClientConfig.customWallpaper) {
-            com.bame.client.wallpaper.WallpaperManager.render(c, px, py, pw, ph, p);
+            if (threeD) {
+                // Parallax: das Hintergrundbild bewegt sich minimal gegenläufig zur Neigung
+                com.bame.client.wallpaper.WallpaperManager.render(c, px, py, pw, ph, p, true, panel3D.tiltX(), panel3D.tiltY());
+            } else {
+                com.bame.client.wallpaper.WallpaperManager.render(c, px, py, pw, ph, p);
+            }
         }
 
         CustomGuiUtils.drawUltraRoundedOutline(c, px, py, pw, ph, 0xFF242834, 8.0f);
@@ -873,127 +851,76 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.drawUltraRoundedOutline(c, px + 8, backBtnY, catBtnW, backBtnH, hoverBack ? accent : 0xFF2A2F40, 4.0f);
             c.drawText(textRenderer, CustomGuiUtils.getFontText("← Back"), px + 18, backBtnY + 8, hoverBack ? 0xFFFFFFFF : 0xFF9CA3AF, false);
         } else {
-            int sbBtnW = 58;
-            int sbBtnH = 46;
+            // Linke Leiste: MODS, COSMETICS, SKINS, GALLERY, SETTINGS (Höhe passt sich kleinen Fenstern an), unten HUB
+            for (int i = 0; i < SIDEBAR_ENTRIES; i++) {
+                renderSidebarEntry(c, i, mx, my, accent);
+            }
+
+            // Bottom: ⌂ HUB
             int sbBtnX = px + 5;
-
-            // Tab 1: [C] MODS
-            boolean activeMods = (currentView == ViewMode.MODS);
-            boolean hoverMods = inside(mx, my, sbBtnX, py + 10, sbBtnW, sbBtnH);
-            if (activeMods || hoverMods) {
-                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
-                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 10, sbBtnW, sbBtnH, activeMods ? accent : 0xFF3A3F50, 4.0f);
-            }
-            int modsIconCol = activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF9CA3AF);
-            CustomGuiUtils.drawCLogo(c, sbBtnX + 20, py + 14, 18, modsIconCol);
-            int twMods = textRenderer.getWidth(CustomGuiUtils.getFontText("MODS"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("MODS"), sbBtnX + (sbBtnW - twMods) / 2, py + 38, activeMods ? accent : (hoverMods ? 0xFFFFFFFF : 0xFF8E95A4), false);
-
-            // Tab 2: 👕 COSMETICS
-            boolean activeCos = (currentView == ViewMode.COSMETICS && !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory));
-            boolean hoverCos = inside(mx, my, sbBtnX, py + 62, sbBtnW, sbBtnH);
-            if (activeCos || hoverCos) {
-                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
-                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 62, sbBtnW, sbBtnH, activeCos ? accent : 0xFF3A3F50, 4.0f);
-            }
-            int cosIconCol = activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF9CA3AF);
-            CustomGuiUtils.drawShirtIcon(c, sbBtnX + 20, py + 66, cosIconCol);
-            int twCos = textRenderer.getWidth(CustomGuiUtils.getFontText("COSMETICS"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("COSMETICS"), sbBtnX + (sbBtnW - twCos) / 2, py + 90, activeCos ? accent : (hoverCos ? 0xFFFFFFFF : 0xFF8E95A4), false);
-
-            // Tab 3: 👤 SKINS
-            boolean activeSkins = (currentView == ViewMode.COSMETICS && "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory));
-            boolean hoverSkins = inside(mx, my, sbBtnX, py + 114, sbBtnW, sbBtnH);
-            if (activeSkins || hoverSkins) {
-                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 114, sbBtnW, sbBtnH, activeSkins ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
-                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 114, sbBtnW, sbBtnH, activeSkins ? accent : 0xFF3A3F50, 4.0f);
-            }
-            int skinsIconCol = activeSkins ? accent : (hoverSkins ? 0xFFFFFFFF : 0xFF9CA3AF);
-            CustomGuiUtils.drawSkinIcon(c, sbBtnX + 20, py + 118, skinsIconCol);
-            int twSkins = textRenderer.getWidth(CustomGuiUtils.getFontText("SKINS"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("SKINS"), sbBtnX + (sbBtnW - twSkins) / 2, py + 142, activeSkins ? accent : (hoverSkins ? 0xFFFFFFFF : 0xFF8E95A4), false);
-
-            // Tab 4: 📷 GALLERY
-            boolean hoverGallery = inside(mx, my, sbBtnX, py + 166, sbBtnW, sbBtnH);
-            if (hoverGallery) {
-                CustomGuiUtils.fillUltraRounded(c, sbBtnX, py + 166, sbBtnW, sbBtnH, 0xFF20232E, 4.0f);
-                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, py + 166, sbBtnW, sbBtnH, 0xFF3A3F50, 4.0f);
-            }
-            int galleryIconCol = hoverGallery ? 0xFFFFFFFF : 0xFF9CA3AF;
-            CustomGuiUtils.drawCameraIcon(c, sbBtnX + 20, py + 170, galleryIconCol);
-            int twGallery = textRenderer.getWidth(CustomGuiUtils.getFontText("GALLERY"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("GALLERY"), sbBtnX + (sbBtnW - twGallery) / 2, py + 194, hoverGallery ? 0xFFFFFFFF : 0xFF8E95A4, false);
-
-            // Tab 3 (Bottom): ⌂ HUB
             int hubBtnH = 32;
             int hubBtnY = py + ph - 42;
-            boolean hoverHub = inside(mx, my, sbBtnX, hubBtnY, sbBtnW, hubBtnH);
+            boolean hoverHub = inside(mx, my, sbBtnX, hubBtnY, SIDEBAR_BTN_W, hubBtnH);
             if (hoverHub) {
-                CustomGuiUtils.fillUltraRounded(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF20232E, 4.0f);
-                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, hubBtnY, sbBtnW, hubBtnH, 0xFF3A3F50, 4.0f);
+                CustomGuiUtils.fillUltraRounded(c, sbBtnX, hubBtnY, SIDEBAR_BTN_W, hubBtnH, 0xFF20232E, 4.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, sbBtnX, hubBtnY, SIDEBAR_BTN_W, hubBtnH, 0xFF3A3F50, 4.0f);
             }
             int twHub = textRenderer.getWidth(CustomGuiUtils.getFontText("HUB"));
-            c.drawText(textRenderer, CustomGuiUtils.getFontText("HUB"), sbBtnX + (sbBtnW - twHub) / 2, hubBtnY + 12, hoverHub ? 0xFFFFFFFF : 0xFF8E95A4, false);
+            c.drawText(textRenderer, CustomGuiUtils.getFontText("HUB"), sbBtnX + (SIDEBAR_BTN_W - twHub) / 2, hubBtnY + 12, hoverHub ? 0xFFFFFFFF : 0xFF8E95A4, false);
         }
 
         // Content Area rendering by ViewMode:
         if (currentView == ViewMode.MODS) {
-            // Top Category Tabs Header (Combat | Movement | Visuals | World | Misc)
-            int tabX = cx + 4;
-            for (String cat : CATEGORIES) {
-                int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(cat.toUpperCase(java.util.Locale.ROOT)));
-                int tabW = tw + 16;
-                int tabH = 18;
-                int tabY = py + 9;
-                boolean active = selectedCategory.equalsIgnoreCase(cat);
+            // Top Category Tabs Header (Combat | Movement | Visuals | World | Misc) – passt sich der Breite an
+            HeaderLayout hl = modsHeaderLayout();
+            int tabH = 18;
+            int tabY = py + 9;
+            for (int i = 0; i < CATEGORIES.length; i++) {
+                int tabX = hl.tabX()[i];
+                int tabW = hl.tabW()[i];
+                String label = hl.labels()[i];
+                int lw = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+                int textX = tabX + (tabW - lw) / 2;
+                boolean active = activeCategory().equalsIgnoreCase(CATEGORIES[i]);
                 boolean hover = inside(mx, my, tabX, tabY, tabW, tabH);
                 if (active) {
                     CustomGuiUtils.fillUltraRounded(c, tabX, tabY, tabW, tabH, GuiTheme.alpha(accent, 38), 3.0f);
                     CustomGuiUtils.drawUltraRoundedOutline(c, tabX, tabY, tabW, tabH, accent, 3.0f);
-                    text(c, cat.toUpperCase(java.util.Locale.ROOT), tabX + 8, tabY + 5, accent);
+                    text(c, label, textX, tabY + 5, accent);
                 } else {
                     if (hover) {
                         CustomGuiUtils.fillUltraRounded(c, tabX, tabY, tabW, tabH, 0xFF1C1E28, 3.0f);
                     }
-                    text(c, cat.toUpperCase(java.util.Locale.ROOT), tabX + 8, tabY + 5, hover ? 0xFFFFFFFF : 0xFF8E95A4);
+                    text(c, label, textX, tabY + 5, hover ? 0xFFFFFFFF : 0xFF8E95A4);
                 }
-                tabX += tabW + 8;
             }
 
             // Top Search Widget
-            int searchBoxX = cx + cw - 128;
+            int searchBoxX = hl.searchX();
+            int searchBoxW = hl.searchW();
             int searchBoxY = py + 8;
-            CustomGuiUtils.fillUltraRounded(c, searchBoxX, searchBoxY, 126, 18, 0xFF16171E, 3.0f);
-            CustomGuiUtils.drawUltraRoundedOutline(c, searchBoxX, searchBoxY, 126, 18, 0xFF292C37, 3.0f);
+            CustomGuiUtils.fillUltraRounded(c, searchBoxX, searchBoxY, searchBoxW, 18, 0xFF16171E, 3.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, searchBoxX, searchBoxY, searchBoxW, 18, 0xFF292C37, 3.0f);
             CustomGuiUtils.drawSearchIcon(c, searchBoxX + 6, searchBoxY + 5, 0xFF8E95A4);
             search.setX(searchBoxX + 18);
             search.setY(searchBoxY + 1);
-            search.setWidth(104);
+            search.setWidth(Math.max(10, searchBoxW - 22));
             search.setHeight(16);
             search.render(c, mx, my, delta);
 
             // Divider line below top bar
             c.fill(cx, py + 34, cx + cw, py + 35, 0xFF222530);
 
-            // Modules Cards content
-            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, py + ph - 20);
+            // Modules Cards content (Scissor = Klickbereich cx..cx+cw, cy..cy+ch)
+            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, cy + ch);
 
             int columnWidth = getColumnWidth();
             int leftX = getContentLeftX();
             int rightX = getContentRightX();
             String q = search.getText().trim();
             ColumnTracker tracker = new ColumnTracker(baseY());
-
-            if (selectedCategory.equalsIgnoreCase("MODS") || !q.isEmpty()) {
-                for (Map.Entry<String, ClientTab> entry : tabs.entrySet()) {
-                    if (entry.getKey().equals("Cosmetics")) continue;
-                    entry.getValue().render(this, c, mx, my, delta, leftX, rightX, columnWidth, tracker, q);
-                }
-            } else {
-                ClientTab activeTab = tabs.get(selectedCategory);
-                if (activeTab != null) {
-                    activeTab.render(this, c, mx, my, delta, leftX, rightX, columnWidth, tracker, q);
-                }
+            for (ClientTab tab : modTabsForView(q)) {
+                tab.render(this, c, mx, my, delta, leftX, rightX, columnWidth, tracker, q);
             }
             c.disableScissor();
 
@@ -1004,13 +931,11 @@ public class BameClientScreen extends Screen {
                 box(c, sbX, thumbY(), 3, thumbHeight(), scrollDragging ? 0xFFFFFFFF : accent);
             }
 
-
-
         } else if (currentView == ViewMode.COSMETICS) {
             // Top Bar: Search Input (Left) + Category indicator (Middle) + Unequip All Button (Right)
             int searchBoxX = cx;
             int searchBoxY = py + 8;
-            int searchBoxW = 160;
+            int searchBoxW = Math.clamp(cw / 3, 80, 160);
             int searchBoxH = 20;
             CustomGuiUtils.fillUltraRounded(c, searchBoxX, searchBoxY, searchBoxW, searchBoxH, 0xFF141722, 3.5f);
             CustomGuiUtils.drawUltraRoundedOutline(c, searchBoxX, searchBoxY, searchBoxW, searchBoxH, 0xFF282F40, 3.5f);
@@ -1021,15 +946,19 @@ public class BameClientScreen extends Screen {
             search.setHeight(18);
             search.render(c, mx, my, delta);
 
-            // Active Category Label
-            String catTitle = CosmeticsTab.currentViewTitle();
-            text(c, catTitle, searchBoxX + searchBoxW + 16, py + 14, 0xFF94A3B8);
-
             // Top-Right: Quick Unequip All Button
             int unequipW = 110;
             int unequipH = 20;
             int unequipX = cx + cw - unequipW;
             int unequipY = py + 8;
+
+            // Active Category Label (nur wenn Platz zwischen Suche und Jeton-Anzeige/Unequip ist)
+            String catTitle = CosmeticsTab.currentViewTitle();
+            int titleX = searchBoxX + searchBoxW + 16;
+            if (titleX + textRenderer.getWidth(CustomGuiUtils.getFontText(catTitle)) < unequipX - 90) {
+                text(c, catTitle, titleX, py + 14, 0xFF94A3B8);
+            }
+
             boolean hoverUnequip = inside(mx, my, unequipX, unequipY, unequipW, unequipH);
             CustomGuiUtils.fillUltraRounded(c, unequipX, unequipY, unequipW, unequipH, hoverUnequip ? 0xFF351C24 : 0xFF17151D, 4.0f);
             CustomGuiUtils.drawUltraRoundedOutline(c, unequipX, unequipY, unequipW, unequipH, hoverUnequip ? 0xFFF43F5E : 0xFF2D2430, 4.0f);
@@ -1042,14 +971,14 @@ public class BameClientScreen extends Screen {
             // Divider line below top bar
             c.fill(cx, py + 34, cx + cw, py + 35, 0xFF222530);
 
-            // Content Area (Cards + Preview)
-            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, py + ph - 16);
+            // Content Area (Cards + Preview), Scissor = Klickbereich
+            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, cy + ch);
             int columnWidth = getColumnWidth();
             int leftX = getContentLeftX();
             int rightX = getContentRightX();
             String q = search.getText().trim();
             ColumnTracker tracker = new ColumnTracker(baseY());
-            ClientTab cosTab = tabs.get("Cosmetics");
+            ClientTab cosTab = tabs.get(COSMETICS_TAB);
             if (cosTab != null) {
                 cosTab.render(this, c, mx, my, delta, leftX, rightX, columnWidth, tracker, q);
             }
@@ -1062,15 +991,29 @@ public class BameClientScreen extends Screen {
                 box(c, sbX, thumbY(), 3, thumbHeight(), scrollDragging ? 0xFFFFFFFF : accent);
             }
 
-        } else if (currentView == ViewMode.THEME) {
-            c.enableScissor(cx - 4, py + 8, cx + cw + 4, py + ph - 8);
-            renderTheme(c, mx, my, delta);
+        } else if (currentView == ViewMode.THEME || currentView == ViewMode.SETTINGS) {
+            // Kopfzeile der Einstellungen: GENERAL | APPEARANCE
+            renderSettingsHeader(c, mx, my, accent);
+            c.fill(cx, py + 34, cx + cw, py + 35, 0xFF222530);
+
+            c.enableScissor(cx - 4, cy - 2, cx + cw + 4, cy + ch);
+            if (currentView == ViewMode.THEME) {
+                renderTheme(c, mx, my, delta);
+            } else {
+                renderSettings(c, mx, my, delta);
+            }
             c.disableScissor();
 
-        } else if (currentView == ViewMode.SETTINGS) {
-            c.enableScissor(cx - 4, py + 8, cx + cw + 4, py + ph - 8);
-            renderSettings(c, mx, my, delta);
-            c.disableScissor();
+            if (maxScroll() > 0) {
+                int sbX = cx + cw + 2;
+                box(c, sbX, cy, 3, ch - 8, 0xFF232631);
+                box(c, sbX, thumbY(), 3, thumbHeight(), scrollDragging ? 0xFFFFFFFF : accent);
+            }
+        }
+
+        if (threeD) {
+            // Glas-Kante: Rim-Light in der Akzentfarbe und Glanz an der Oberkante (über dem Inhalt, unter Dialogen)
+            ThreeDGuiManager.renderPanelRim(c, panel3D, px, py, pw, ph);
         }
 
         if (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) {
@@ -1089,7 +1032,205 @@ public class BameClientScreen extends Screen {
             ShopOverlay.renderOverlay(this, c, mx, my);
         }
 
+        if (threeD) ThreeDGuiManager.popPanel(c, panel3D);
+
         com.bame.client.notification.NotificationManager.render(c, delta);
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Linke Leiste (MODS, COSMETICS, SKINS, GALLERY, SETTINGS)
+    // ------------------------------------------------------------------------------------------------
+
+    private static final int SIDEBAR_ENTRIES = 5;
+    private static final int SIDEBAR_BTN_W = 58;
+    private static final int SIDEBAR_GAP = 6;
+
+    /** Knopfhöhe der linken Leiste: 46 px, bei kleinen Fenstern so klein, dass alles über HUB passt. */
+    private int sidebarBtnH() {
+        int avail = ph - 10 - 48; // oben 10 px, unten Platz für HUB (py + ph - 42) plus Abstand
+        int h = (avail - (SIDEBAR_ENTRIES - 1) * SIDEBAR_GAP) / SIDEBAR_ENTRIES;
+        return Math.clamp(h, 20, 46);
+    }
+
+    private int sidebarBtnY(int i) {
+        return py + 10 + i * (sidebarBtnH() + SIDEBAR_GAP);
+    }
+
+    private boolean sidebarEntryActive(int i) {
+        return switch (i) {
+            case 0 -> currentView == ViewMode.MODS;
+            case 1 -> currentView == ViewMode.COSMETICS && !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory);
+            case 2 -> currentView == ViewMode.COSMETICS && "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory);
+            case 4 -> currentView == ViewMode.SETTINGS || currentView == ViewMode.THEME;
+            default -> false;
+        };
+    }
+
+    private void renderSidebarEntry(DrawContext c, int i, int mx, int my, int accent) {
+        int x = px + 5;
+        int y = sidebarBtnY(i);
+        int h = sidebarBtnH();
+        boolean active = sidebarEntryActive(i);
+        boolean hover = inside(mx, my, x, y, SIDEBAR_BTN_W, h);
+        if (active || hover) {
+            CustomGuiUtils.fillUltraRounded(c, x, y, SIDEBAR_BTN_W, h, active ? GuiTheme.alpha(accent, 38) : 0xFF20232E, 4.0f);
+            CustomGuiUtils.drawUltraRoundedOutline(c, x, y, SIDEBAR_BTN_W, h, active ? accent : 0xFF3A3F50, 4.0f);
+        }
+        boolean withLabel = h >= 38;
+        int iconY = withLabel ? y + 4 : y + (h - 18) / 2;
+        int iconCol = active ? accent : (hover ? 0xFFFFFFFF : 0xFF9CA3AF);
+        String label;
+        switch (i) {
+            case 0 -> { CustomGuiUtils.drawCLogo(c, x + 20, iconY, 18, iconCol); label = "MODS"; }
+            case 1 -> { CustomGuiUtils.drawShirtIcon(c, x + 20, iconY, iconCol); label = "COSMETICS"; }
+            case 2 -> { CustomGuiUtils.drawSkinIcon(c, x + 20, iconY, iconCol); label = "SKINS"; }
+            case 3 -> { CustomGuiUtils.drawCameraIcon(c, x + 20, iconY, iconCol); label = "GALLERY"; }
+            default -> { CustomGuiUtils.drawGearIcon(c, x + 20, iconY, iconCol); label = "SETTINGS"; }
+        }
+        if (withLabel) {
+            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(label));
+            c.drawText(textRenderer, CustomGuiUtils.getFontText(label), x + (SIDEBAR_BTN_W - tw) / 2, y + 28,
+                    active ? accent : (hover ? 0xFFFFFFFF : 0xFF8E95A4), false);
+        }
+    }
+
+    /** Klick auf einen Eintrag der linken Leiste oder HUB; true wenn behandelt. */
+    private boolean clickSidebar(double mx, double my) {
+        int x = px + 5;
+        for (int i = 0; i < SIDEBAR_ENTRIES; i++) {
+            if (!inside(mx, my, x, sidebarBtnY(i), SIDEBAR_BTN_W, sidebarBtnH())) continue;
+            switch (i) {
+                case 0 -> {
+                    if (currentView != ViewMode.MODS) switchView(ViewMode.MODS);
+                }
+                case 1 -> {
+                    if (currentView != ViewMode.COSMETICS || "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
+                        CosmeticsTab.subCategory = "ALL";
+                        switchView(ViewMode.COSMETICS);
+                    }
+                }
+                case 2 -> {
+                    if (currentView != ViewMode.COSMETICS || !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
+                        CosmeticsTab.subCategory = "SKINS";
+                        switchView(ViewMode.COSMETICS);
+                    }
+                }
+                case 3 -> {
+                    com.bame.client.sound.ClientSoundManager.playClick();
+                    client.setScreen(new GalleryScreen(this));
+                }
+                default -> {
+                    if (currentView != ViewMode.SETTINGS && currentView != ViewMode.THEME) switchView(ViewMode.SETTINGS);
+                }
+            }
+            return true;
+        }
+        if (inside(mx, my, x, py + ph - 42, SIDEBAR_BTN_W, 34)) {
+            switchView(ViewMode.HUB);
+            return true;
+        }
+        return false;
+    }
+
+    private void switchView(ViewMode view) {
+        currentView = view;
+        scroll = 0;
+        listeningMenuBind = false;
+        cancelAllKeyListening();
+        themeSettings.close();
+        com.bame.client.sound.ClientSoundManager.playClick();
+        geometry();
+        layout();
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Kopfzeile der Mod-Ansicht: Kategorie-Tabs links, Suchfeld rechts, ohne Überlappung
+    // ------------------------------------------------------------------------------------------------
+
+    private record HeaderLayout(int[] tabX, int[] tabW, String[] labels, int searchX, int searchW) {}
+
+    private static final String[] SHORT_CATEGORY_LABELS = {"CMB", "MOVE", "VIS", "WRLD", "MISC"};
+
+    private HeaderLayout modsHeaderLayout() {
+        int startX = cx + 4;
+        int right = cx + cw - 2;            // rechte Kante des Suchfelds
+        int searchW = 126;
+        String[] labels = new String[CATEGORIES.length];
+        for (int i = 0; i < CATEGORIES.length; i++) labels[i] = CATEGORIES[i].toUpperCase(java.util.Locale.ROOT);
+        int pad = 16, gap = 8;
+        int total = headerTabsWidth(labels, pad, gap);
+        if (startX + total + 8 + searchW > right) {
+            searchW = Math.max(70, right - startX - total - 8);
+        }
+        if (startX + total + 8 + searchW > right) {
+            pad = 8;
+            gap = 3;
+            total = headerTabsWidth(labels, pad, gap);
+        }
+        if (startX + total + 8 + searchW > right) {
+            labels = SHORT_CATEGORY_LABELS.clone();
+            total = headerTabsWidth(labels, pad, gap);
+            searchW = Math.max(40, Math.min(126, right - startX - total - 8));
+        }
+        int[] tabX = new int[labels.length];
+        int[] tabW = new int[labels.length];
+        int x = startX;
+        for (int i = 0; i < labels.length; i++) {
+            tabX[i] = x;
+            tabW[i] = textRenderer.getWidth(CustomGuiUtils.getFontText(labels[i])) + pad;
+            x += tabW[i] + gap;
+        }
+        return new HeaderLayout(tabX, tabW, labels, right - searchW, searchW);
+    }
+
+    private int headerTabsWidth(String[] labels, int pad, int gap) {
+        int total = 0;
+        for (String l : labels) total += textRenderer.getWidth(CustomGuiUtils.getFontText(l)) + pad;
+        return total + gap * (labels.length - 1);
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Einstellungen: Kopfzeile GENERAL | APPEARANCE
+    // ------------------------------------------------------------------------------------------------
+
+    private static final String[] SETTINGS_TABS = {"GENERAL", "APPEARANCE"};
+
+    private int settingsTabX(int i) {
+        int x = cx + 4;
+        for (int k = 0; k < i; k++) x += settingsTabW(k) + 8;
+        return x;
+    }
+
+    private int settingsTabW(int i) {
+        return textRenderer.getWidth(CustomGuiUtils.getFontText(SETTINGS_TABS[i])) + 16;
+    }
+
+    private void renderSettingsHeader(DrawContext c, int mx, int my, int accent) {
+        int tabY = py + 9;
+        for (int i = 0; i < SETTINGS_TABS.length; i++) {
+            int tabX = settingsTabX(i);
+            int tabW = settingsTabW(i);
+            boolean active = (i == 0) == (currentView == ViewMode.SETTINGS);
+            boolean hover = inside(mx, my, tabX, tabY, tabW, 18);
+            if (active) {
+                CustomGuiUtils.fillUltraRounded(c, tabX, tabY, tabW, 18, GuiTheme.alpha(accent, 38), 3.0f);
+                CustomGuiUtils.drawUltraRoundedOutline(c, tabX, tabY, tabW, 18, accent, 3.0f);
+            } else if (hover) {
+                CustomGuiUtils.fillUltraRounded(c, tabX, tabY, tabW, 18, 0xFF1C1E28, 3.0f);
+            }
+            text(c, SETTINGS_TABS[i], tabX + 8, tabY + 5, active ? accent : (hover ? 0xFFFFFFFF : 0xFF8E95A4));
+        }
+    }
+
+    private boolean clickSettingsHeader(double mx, double my) {
+        for (int i = 0; i < SETTINGS_TABS.length; i++) {
+            if (inside(mx, my, settingsTabX(i), py + 9, settingsTabW(i), 18)) {
+                ViewMode target = i == 0 ? ViewMode.SETTINGS : ViewMode.THEME;
+                if (currentView != target) switchView(target);
+                return true;
+            }
+        }
+        return false;
     }
 
     private void syncHitboxHsv() {
@@ -1225,10 +1366,15 @@ public class BameClientScreen extends Screen {
     }
 
     private void renderSettingCard(DrawContext c, int x, int y, int w, int h, String title, String subtitle) {
+        renderSettingCard(c, x, y, w, h, title, subtitle, 0xFF7E8496);
+    }
+
+    private void renderSettingCard(DrawContext c, int x, int y, int w, int h, String title, String subtitle, int subtitleColor) {
         CustomGuiUtils.fillUltraRounded(c, x, y, w, h, 0xE8131620, 6.0f);
         CustomGuiUtils.drawUltraRoundedOutline(c, x, y, w, h, 0xFF222634, 6.0f);
-        text(c, title, x + 12, y + 8, 0xFFEEEEF2);
-        text(c, subtitle, x + 12, y + 22, 0xFF7E8496);
+        // Rechts sitzt das Bedienelement (max. ~90 px): Texte vorher kürzen, damit nichts überlappt
+        drawHint(c, title, x + 12, y + 8, w - 12 - 96, 0xFFEEEEF2);
+        drawHint(c, subtitle, x + 12, y + 22, w - 12 - 96, subtitleColor);
     }
 
     private void renderSettings(DrawContext c, int mx, int my, float delta) {
@@ -1237,24 +1383,42 @@ public class BameClientScreen extends Screen {
         int col2X = cx + colW + 12;
         int cardH = 38;
         int cardGap = 8;
-        int curY = baseY() + 4;
+        int startY = baseY();
+        int curY = startY + 4;
 
         // Section: INTERFACE
         text(c, "INTERFACE", cx + 2, curY + 2, 0xFF7E8496);
         c.fill(cx + 62, curY + 6, cx + cw, curY + 7, 0xFF202430);
         curY += 16;
 
-        // Row 1: Menu Bind | 3D GUI
-        renderSettingCard(c, col1X, curY, colW, cardH, "Menu Bind", "Key that opens this menu");
-        button(c, keyNameMenuBind(), col1X + colW - 68, curY + 10, 58, 18, mx, my);
+        // Row 1: Menu Key | 3D GUI
+        String menuConflict = listeningMenuBind ? null : KeybindConflicts.conflictFor(KeybindConflicts.MENU_ID, BameClientConfig.menuBind);
+        String menuSub = listeningMenuBind ? "Press a key - Esc: cancel - Del: remove"
+                : (menuConflict != null ? "Also used by " + menuConflict : "Key that opens this menu");
+        renderSettingCard(c, col1X, curY, colW, cardH, "Menu Key", menuSub,
+                listeningMenuBind ? GuiTheme.accent() : (menuConflict != null ? 0xFFF87171 : 0xFF7E8496));
+        int mbX = col1X + colW - 68, mbY = curY + 10;
+        if (menuConflict != null) {
+            boolean hover = inside(mx, my, mbX, mbY, 58, 18);
+            CustomGuiUtils.fillUltraRounded(c, mbX, mbY, 58, 18, hover ? 0xFF3A1C22 : 0xFF2A161B, 4);
+            CustomGuiUtils.drawUltraRoundedOutline(c, mbX, mbY, 58, 18, 0xFFEF4444, 4);
+            String l = keyNameMenuBind();
+            int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(l));
+            text(c, l, mbX + (58 - tw) / 2, mbY + 5, 0xFFFCA5A5);
+        } else {
+            button(c, keyNameMenuBind(), mbX, mbY, 58, 18, mx, my);
+        }
 
         renderSettingCard(c, col2X, curY, colW, cardH, "3D GUI", "Floating panel in the world");
         toggle(c, col2X + colW - 36, curY + 12, BameClientConfig.threeDGui, mx, my, delta);
         curY += cardH + cardGap;
 
-        // Row 2: GUI Animation
+        // Row 2: GUI Animation | Toast Notifications
         renderSettingCard(c, col1X, curY, colW, cardH, "GUI Animation", "Smooth window open animations");
         button(c, animName(), col1X + colW - 88, curY + 10, 78, 18, mx, my);
+
+        renderSettingCard(c, col2X, curY, colW, cardH, "Notifications", "Toasts when modules toggle");
+        toggle(c, col2X + colW - 36, curY + 12, BameClientConfig.notifications, mx, my, delta);
         curY += cardH + 16;
 
         // Section: SOUNDS
@@ -1286,13 +1450,79 @@ public class BameClientScreen extends Screen {
 
         renderSettingCard(c, col2X, curY, colW, cardH, "Hover Volume", "Hover tick volume (" + Math.round(BameClientConfig.hoverVolume * 100) + "%)");
         drawCustomSlider(c, col2X + colW - 88, curY + 17, 76, BameClientConfig.hoverVolume);
+        curY += cardH + 16;
+
+        // Section: KEYBINDS – Übersicht aller belegten Tasten, doppelte rot markiert
+        text(c, "KEYBINDS", cx + 2, curY + 2, 0xFF7E8496);
+        c.fill(cx + 58, curY + 6, cx + cw, curY + 7, 0xFF202430);
+        curY += 14;
+        int conflicts = KeybindConflicts.conflictCount();
+        text(c, conflicts == 0 ? "No key is used twice. Change keys in the module cards."
+                        : conflicts + " module(s) share a key with another module (red).",
+                cx + 2, curY + 2, conflicts == 0 ? 0xFF7E8496 : 0xFFF87171);
+        curY += 16;
+
+        java.util.List<KeybindConflicts.Entry> bound = new java.util.ArrayList<>();
+        for (KeybindConflicts.Entry e : KeybindConflicts.visibleEntries()) {
+            if (e.key().getAsInt() >= 0) bound.add(e);
+        }
+        int rowH = 16;
+        for (int i = 0; i < bound.size(); i++) {
+            KeybindConflicts.Entry e = bound.get(i);
+            int colX = (i % 2 == 0) ? col1X : col2X;
+            int rowY = curY + (i / 2) * rowH;
+            if (rowY + rowH < cy - 2 || rowY > cy + ch) continue;
+            int key = e.key().getAsInt();
+            String other = KeybindConflicts.conflictFor(e.id(), key);
+            int nameCol = other != null ? 0xFFF87171 : 0xFFD4D8E0;
+            String keyName = formatKey(key);
+            int kw = textRenderer.getWidth(CustomGuiUtils.getFontText(keyName));
+            int keyX = colX + colW - kw - 10;
+            CustomGuiUtils.fillUltraRounded(c, keyX - 5, rowY, kw + 10, 13, other != null ? 0xFF2A161B : 0xFF181C24, 3);
+            CustomGuiUtils.drawUltraRoundedOutline(c, keyX - 5, rowY, kw + 10, 13, other != null ? 0xFFEF4444 : 0xFF292D36, 3);
+            text(c, keyName, keyX, rowY + 3, other != null ? 0xFFFCA5A5 : 0xFFD4D8E0);
+            String label = e.name() + (other != null ? "  (also " + other + ")" : "");
+            drawHint(c, label, colX + 4, rowY + 3, keyX - 10 - (colX + 4), nameCol);
+        }
+        curY += ((bound.size() + 1) / 2) * rowH + 8;
+
+        settingsContentHeight = curY - startY;
+    }
+
+    /**
+     * Geometrie des Item-/Werkzeug-Fensters: höchstens 350x285, bei großer GUI-Skalierung auf den Bildschirm
+     * begrenzt (8 px Rand). Spaltenzahl und Rasterhöhe passen sich an, der Inhalt bleibt scrollbar.
+     */
+    private record ItemModalGeom(int x, int y, int w, int h, int gridX, int gridY, int gridW, int gridH, int cols,
+                                 int btnY, int btnW, int btn1X, int btn2X, int btn3X, int scrollbarX) {
+        int totalRows(int items) { return (items + cols - 1) / cols; }
+        int maxScroll(int items) { return Math.max(0, totalRows(items) * 25 - gridH); }
+    }
+
+    private ItemModalGeom itemModalGeom() {
+        int w = Math.max(120, Math.min(350, width - 16));
+        int h = Math.max(140, Math.min(285, height - 16));
+        int x = (width - w) / 2;
+        int y = (height - h) / 2;
+        int gridX = x + 16;
+        int gridY = y + 50;
+        int cols = Math.max(1, Math.min(12, (w - 32 - 10) / 25));
+        int gridW = cols * 25 - 3;
+        int btnY = y + h - 34;
+        int gridH = Math.max(25, btnY - 16 - gridY);
+        int btnW = Math.max(30, Math.min(100, (w - 32 - 18) / 3));
+        int btn1X = x + 16;
+        int btn2X = btn1X + btnW + 9;
+        int btn3X = btn2X + btnW + 9;
+        return new ItemModalGeom(x, y, w, h, gridX, gridY, gridW, gridH, cols, btnY, btnW, btn1X, btn2X, btn3X, x + w - 18);
     }
 
     private void renderItemModal(DrawContext c, int mx, int my, float delta) {
-        int modalW = 350;
-        int modalH = 285;
-        int modalX = (width - modalW) / 2;
-        int modalY = (height - modalH) / 2;
+        ItemModalGeom g = itemModalGeom();
+        int modalW = g.w();
+        int modalH = g.h();
+        int modalX = g.x();
+        int modalY = g.y();
 
         c.fill(0, 0, width, height, 0x99000000);
         CustomGuiUtils.fillUltraRounded(c, modalX, modalY, modalW, modalH, 0xFA14161E, 6);
@@ -1318,15 +1548,16 @@ public class BameClientScreen extends Screen {
         if (cachedFilteredItems == null) {
             updateItemFilter();
         }
-        int gridX = modalX + 16;
-        int gridY = modalY + 50;
-        int gridW = 297;
-        int gridH = 185;
+        int gridX = g.gridX();
+        int gridY = g.gridY();
+        int gridW = g.gridW();
+        int gridH = g.gridH();
+        int cols = g.cols();
 
         int totalItems = cachedFilteredItems.size();
-        int totalRows = (totalItems + 11) / 12;
+        int totalRows = g.totalRows(totalItems);
         int totalContentH = totalRows * 25;
-        int maxScroll = Math.max(0, totalContentH - gridH);
+        int maxScroll = g.maxScroll(totalItems);
         itemModalScroll = Math.clamp(itemModalScroll, 0, maxScroll);
 
         c.enableScissor(gridX, gridY, gridX + gridW + 2, gridY + gridH);
@@ -1336,8 +1567,8 @@ public class BameClientScreen extends Screen {
         int endRow = Math.min(totalRows, startRow + (gridH / 25) + 2);
 
         for (int row = startRow; row < endRow; row++) {
-            for (int col = 0; col < 12; col++) {
-                int index = row * 12 + col;
+            for (int col = 0; col < cols; col++) {
+                int index = row * cols + col;
                 if (index >= totalItems) break;
 
                 Item item = cachedFilteredItems.get(index);
@@ -1364,7 +1595,7 @@ public class BameClientScreen extends Screen {
         }
         c.disableScissor();
 
-        int scrollbarX = modalX + modalW - 18;
+        int scrollbarX = g.scrollbarX();
         int scrollbarW = 4;
         if (maxScroll > 0) {
             box(c, scrollbarX, gridY, scrollbarW, gridH, 0xFF1E212A);
@@ -1373,12 +1604,12 @@ public class BameClientScreen extends Screen {
             CustomGuiUtils.fillUltraRounded(c, scrollbarX, thumbY, scrollbarW, thumbH, itemScrollDragging ? 0xFFFFFFFF : GuiTheme.accent(), 2);
         }
 
-        int btnY = modalY + modalH - 34;
+        int btnY = g.btnY();
         int btnH = 22;
-        int btnW = 100;
-        int btn1X = modalX + 16;
-        int btn2X = btn1X + btnW + 9;
-        int btn3X = btn2X + btnW + 9;
+        int btnW = g.btnW();
+        int btn1X = g.btn1X();
+        int btn2X = g.btn2X();
+        int btn3X = g.btn3X();
 
         boolean rHover = inside(mx, my, btn1X, btnY, btnW, btnH);
         CustomGuiUtils.fillUltraRounded(c, btn1X, btnY, btnW, btnH, rHover ? 0xFF2A1C20 : 0xFF1B1D25, 4);
@@ -1415,16 +1646,16 @@ public class BameClientScreen extends Screen {
         setFocused(null);
     }
 
-    private void select(String category) {
-        if (!selected.equals(category)) {
-            CosmeticsTab.resetPreview();
+    /** Kategorie-Tab der Mod-Ansicht wählen (einzige Quelle: BameClientConfig.selectedCategory, wird gespeichert). */
+    private void selectCategory(String category) {
+        String cat = BameClientConfig.sanitizeCategory(category);
+        if (!cat.equals(BameClientConfig.selectedCategory)) {
+            BameClientConfig.selectedCategory = cat;
+            BameClientConfig.save();
         }
-        itemModalOpen = false;
-        themeSettings.close();
-        selected = category;
-        BameClientConfig.save();
         scroll = 0;
         listeningMenuBind = false;
+        cancelAllKeyListening();
         unfocus();
         layout();
     }
@@ -1438,15 +1669,7 @@ public class BameClientScreen extends Screen {
     public boolean mouseClicked(Click click, boolean twice) {
         geometry();
         layout();
-        if (BameClientConfig.threeDGui && leftSkinWidget != null) {
-            if (inside(click.x(), click.y(), leftSkinWidget.getX(), leftSkinWidget.getY(), leftSkinWidget.getWidth(), leftSkinWidget.getHeight())) {
-                return true;
-            }
-        }
-        double[] localPos = ThreeDGuiManager.screenToLocal(click.x(), click.y());
-        Click localClick = (ThreeDGuiManager.isActive())
-                ? new Click(localPos[0], localPos[1], click.buttonInfo())
-                : click;
+        Click localClick = toPanelClick(click);
         double mx = localClick.x(), my = localClick.y();
         if (localClick.button() != 0) return false;
 
@@ -1508,10 +1731,11 @@ public class BameClientScreen extends Screen {
         }
 
         if (itemModalOpen) {
-            int modalW = 350;
-            int modalH = 285;
-            int modalX = (width - modalW) / 2;
-            int modalY = (height - modalH) / 2;
+            ItemModalGeom g = itemModalGeom();
+            int modalW = g.w();
+            int modalH = g.h();
+            int modalX = g.x();
+            int modalY = g.y();
 
             if (itemSearchWidget != null) {
                 int searchX = modalX + 16;
@@ -1525,14 +1749,11 @@ public class BameClientScreen extends Screen {
                 }
             }
 
-            int btnY = modalY + modalH - 34;
+            int btnY = g.btnY();
             int btnH = 22;
-            int btnW = 100;
-            int btn1X = modalX + 16;
-            int btn2X = btn1X + btnW + 9;
-            int btn3X = btn2X + btnW + 9;
+            int btnW = g.btnW();
 
-            if (inside(mx, my, btn1X, btnY, btnW, btnH)) {
+            if (inside(mx, my, g.btn1X(), btnY, btnW, btnH)) {
                 if (itemModalType == 1) {
                     tempToolThresholds.clear();
                 } else {
@@ -1540,26 +1761,25 @@ public class BameClientScreen extends Screen {
                 }
                 return true;
             }
-            if (inside(mx, my, btn2X, btnY, btnW, btnH)) {
+            if (inside(mx, my, g.btn2X(), btnY, btnW, btnH)) {
                 itemModalOpen = false;
                 return true;
             }
-            if (inside(mx, my, btn3X, btnY, btnW, btnH)) {
+            if (inside(mx, my, g.btn3X(), btnY, btnW, btnH)) {
                 applyModalSave();
                 return true;
             }
 
             if (cachedFilteredItems == null) updateItemFilter();
-            int gridX = modalX + 16;
-            int gridY = modalY + 50;
-            int gridW = 297;
-            int gridH = 185;
+            int gridX = g.gridX();
+            int gridY = g.gridY();
+            int gridW = g.gridW();
+            int gridH = g.gridH();
+            int cols = g.cols();
             int totalItems = cachedFilteredItems.size();
-            int totalRows = (totalItems + 11) / 12;
-            int totalContentH = totalRows * 25;
-            int maxScroll = Math.max(0, totalContentH - gridH);
+            int maxScroll = g.maxScroll(totalItems);
 
-            int scrollbarX = modalX + modalW - 18;
+            int scrollbarX = g.scrollbarX();
             int scrollbarW = 6;
             if (maxScroll > 0 && inside(mx, my, scrollbarX - 2, gridY, scrollbarW + 4, gridH)) {
                 itemScrollDragging = true;
@@ -1572,8 +1792,8 @@ public class BameClientScreen extends Screen {
                 int relY = (int) (my - gridY + itemModalScroll);
                 int col = relX / 25;
                 int row = relY / 25;
-                if (col >= 0 && col < 12 && (relX % 25) < 22 && (relY % 25) < 22) {
-                    int index = row * 12 + col;
+                if (col >= 0 && col < cols && (relX % 25) < 22 && (relY % 25) < 22) {
+                    int index = row * cols + col;
                     if (index >= 0 && index < totalItems) {
                         Item item = cachedFilteredItems.get(index);
                         String id = Registries.ITEM.getId(item).toString();
@@ -1719,7 +1939,7 @@ public class BameClientScreen extends Screen {
             }
 
             // Content Area Clicks
-            ClientTab cosTab = tabs.get("Cosmetics");
+            ClientTab cosTab = tabs.get(COSMETICS_TAB);
             if (cosTab != null) {
                 int columnWidth = getColumnWidth();
                 int leftX = getContentLeftX();
@@ -1733,66 +1953,24 @@ public class BameClientScreen extends Screen {
             return false;
         }
 
-        // Left vertical sidebar clicks (sidebar = 68, matching Bild 4)
-        int sbBtnW = 58;
-        int sbBtnH = 46;
-        int sbBtnX = px + 5;
-        if (inside(mx, my, sbBtnX, py + 10, sbBtnW, sbBtnH)) {
-            if (currentView != ViewMode.MODS) {
-                currentView = ViewMode.MODS;
-                com.bame.client.sound.ClientSoundManager.playClick();
-                geometry();
-                layout();
-            }
-            return true;
-        }
-        if (inside(mx, my, sbBtnX, py + 62, sbBtnW, sbBtnH)) {
-            if (currentView != ViewMode.COSMETICS || "SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
-                currentView = ViewMode.COSMETICS;
-                CosmeticsTab.subCategory = "ALL";
-                com.bame.client.sound.ClientSoundManager.playClick();
-                geometry();
-                layout();
-            }
-            return true;
-        }
-        if (inside(mx, my, sbBtnX, py + 114, sbBtnW, sbBtnH)) {
-            if (currentView != ViewMode.COSMETICS || !"SKINS".equalsIgnoreCase(CosmeticsTab.subCategory)) {
-                currentView = ViewMode.COSMETICS;
-                CosmeticsTab.subCategory = "SKINS";
-                com.bame.client.sound.ClientSoundManager.playClick();
-                geometry();
-                layout();
-            }
-            return true;
-        }
-        if (inside(mx, my, sbBtnX, py + 166, sbBtnW, sbBtnH)) {
-            com.bame.client.sound.ClientSoundManager.playClick();
-            client.setScreen(new GalleryScreen(this));
-            return true;
-        }
-        if (inside(mx, my, sbBtnX, py + ph - 42, sbBtnW, 34)) {
-            currentView = ViewMode.HUB;
-            com.bame.client.sound.ClientSoundManager.playClick();
-            geometry();
-            layout();
+        // Ein Klick beendet ein offenes Warten auf eine Taste (der Knopf selbst startet es gleich neu)
+        listeningMenuBind = false;
+        cancelAllKeyListening();
+
+        // Left vertical sidebar clicks (MODS, COSMETICS, SKINS, GALLERY, SETTINGS, HUB)
+        if (clickSidebar(mx, my)) {
             return true;
         }
 
         if (currentView == ViewMode.MODS) {
             // Category tabs
-            int tabX = cx + 4;
-            for (String cat : CATEGORIES) {
-                int tw = textRenderer.getWidth(CustomGuiUtils.getFontText(cat.toUpperCase(java.util.Locale.ROOT)));
-                int tabW = tw + 16;
-                if (inside(mx, my, tabX, py + 9, tabW, 18)) {
-                    selectedCategory = cat;
-                    scroll = 0;
+            HeaderLayout hl = modsHeaderLayout();
+            for (int i = 0; i < CATEGORIES.length; i++) {
+                if (inside(mx, my, hl.tabX()[i], py + 9, hl.tabW()[i], 18)) {
+                    selectCategory(CATEGORIES[i]);
                     com.bame.client.sound.ClientSoundManager.playClick();
-                    layout();
                     return true;
                 }
-                tabX += tabW + 8;
             }
 
             if (maxScroll() > 0 && inside(mx, my, cx + cw - 2, cy, 14, ch)) {
@@ -1814,41 +1992,45 @@ public class BameClientScreen extends Screen {
             int rightX = getContentRightX();
             String q = search.getText().trim();
             ColumnTracker tracker = new ColumnTracker(baseY());
-
-            if (selectedCategory.equalsIgnoreCase("MODS") || !q.isEmpty()) {
-                for (Map.Entry<String, ClientTab> entry : tabs.entrySet()) {
-                    if (entry.getKey().equals("Cosmetics")) continue;
-                    if (entry.getValue().mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
-                        return true;
-                    }
-                }
-            } else {
-                ClientTab activeTab = tabs.get(selectedCategory);
-                if (activeTab != null) {
-                    if (activeTab.mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
-                        return true;
-                    }
-                }
-            }
-        } else if (currentView == ViewMode.THEME) {
-            int y = baseY();
-            int cols = columns(), tw = (cw - 8 * (cols - 1)) / cols;
-            for (int i = 0; i < GuiTheme.PRESETS.length; i++) {
-                if (inside(mx, my, cx + i % cols * (tw + 8), y + 44 + i / cols * 58, tw, 50)) {
-                    BameClientConfig.theme = GuiTheme.PRESETS[i].name();
-                    BameClientConfig.customMainColor = false;
-                    com.bame.client.sound.ClientSoundManager.playClick();
-                    themeSettings.close();
-                    BameClientConfig.save();
-                    layout();
+            for (ClientTab tab : modTabsForView(q)) {
+                if (tab.mouseClicked(this, localClick, twice, leftX, rightX, columnWidth, tracker, q)) {
                     return true;
                 }
             }
-            if (themeSettings.click(mx, my)) {
-                layout();
+        } else if (currentView == ViewMode.THEME || currentView == ViewMode.SETTINGS) {
+            if (clickSettingsHeader(mx, my)) {
                 return true;
             }
-        } else if (currentView == ViewMode.SETTINGS) {
+            if (maxScroll() > 0 && inside(mx, my, cx + cw - 2, cy, 14, ch)) {
+                scrollDragging = true;
+                scrollGrab = (inside(mx, my, cx + cw - 2, thumbY(), 14, thumbHeight())) ? my - thumbY() : thumbHeight() / 2.0;
+                dragScroll(my);
+                return true;
+            }
+            if (!inside(mx, my, cx - 4, cy - 2, cw + 8, ch + 2)) return false;
+
+            if (currentView == ViewMode.THEME) {
+                int y = baseY();
+                int cols = columns(), tw = (cw - 8 * (cols - 1)) / cols;
+                for (int i = 0; i < GuiTheme.PRESETS.length; i++) {
+                    if (inside(mx, my, cx + i % cols * (tw + 8), y + 44 + i / cols * 58, tw, 50)) {
+                        BameClientConfig.theme = GuiTheme.PRESETS[i].name();
+                        BameClientConfig.customMainColor = false;
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        themeSettings.close();
+                        BameClientConfig.save();
+                        layout();
+                        return true;
+                    }
+                }
+                if (themeSettings.click(mx, my)) {
+                    layout();
+                    return true;
+                }
+                return false;
+            }
+
+            // GENERAL (gleiche Positionen wie renderSettings)
             int colW = (cw - 12) / 2;
             int col1X = cx;
             int col2X = cx + colW + 12;
@@ -1859,6 +2041,7 @@ public class BameClientScreen extends Screen {
 
             if (inside(mx, my, col1X + colW - 68, curY + 10, 58, 18)) {
                 listeningMenuBind = true;
+                com.bame.client.sound.ClientSoundManager.playClick();
                 return true;
             }
             if (inside(mx, my, col2X + colW - 36, curY + 12, 26, 14)) {
@@ -1873,6 +2056,14 @@ public class BameClientScreen extends Screen {
 
             if (inside(mx, my, col1X + colW - 88, curY + 10, 78, 18)) {
                 BameClientConfig.guiAnimation = (BameClientConfig.guiAnimation + 1) % 5;
+                com.bame.client.sound.ClientSoundManager.playClick();
+                BameClientConfig.save();
+                return true;
+            }
+            if (inside(mx, my, col2X + colW - 36, curY + 12, 26, 14)) {
+                BameClientConfig.notifications = !BameClientConfig.notifications;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Notifications", BameClientConfig.notifications);
+                com.bame.client.sound.ClientSoundManager.playClick();
                 BameClientConfig.save();
                 return true;
             }
@@ -1929,16 +2120,7 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double dx, double dy) {
-        if (BameClientConfig.threeDGui && leftSkinWidget != null) {
-            if (inside(click.x(), click.y(), leftSkinWidget.getX(), leftSkinWidget.getY(), leftSkinWidget.getWidth(), leftSkinWidget.getHeight())) {
-                leftSkinWidget.mouseDragged(click, dx, dy);
-                return true;
-            }
-        }
-        double[] localPos = ThreeDGuiManager.screenToLocal(click.x(), click.y());
-        Click localClick = (ThreeDGuiManager.isActive())
-                ? new Click(localPos[0], localPos[1], click.buttonInfo())
-                : click;
+        Click localClick = toPanelClick(click);
 
         if ((crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) && cpDrag >= 0) {
             updateModalColor(localClick.x(), localClick.y());
@@ -1953,17 +2135,11 @@ public class BameClientScreen extends Screen {
             return true;
         }
         if (itemModalOpen && itemScrollDragging) {
-            int modalH = 285;
-            int modalY = (height - modalH) / 2;
-            int gridY = modalY + 50;
-            int gridH = 185;
+            ItemModalGeom g = itemModalGeom();
             if (cachedFilteredItems != null) {
-                int totalItems = cachedFilteredItems.size();
-                int totalRows = (totalItems + 11) / 12;
-                int totalContentH = totalRows * 25;
-                int maxScroll = Math.max(0, totalContentH - gridH);
+                int maxScroll = g.maxScroll(cachedFilteredItems.size());
                 if (maxScroll > 0) {
-                    itemModalScroll = Math.clamp((localClick.y() - gridY) / (double) gridH * maxScroll, 0, maxScroll);
+                    itemModalScroll = Math.clamp((localClick.y() - g.gridY()) / (double) g.gridH() * maxScroll, 0, maxScroll);
                 }
             }
             return true;
@@ -1987,22 +2163,15 @@ public class BameClientScreen extends Screen {
         }
 
         if (currentView == ViewMode.COSMETICS) {
-            ClientTab cosTab = tabs.get("Cosmetics");
+            ClientTab cosTab = tabs.get(COSMETICS_TAB);
             if (cosTab != null && cosTab.mouseDragged(this, localClick, dx, dy)) {
                 return true;
             }
         } else {
-            String q = search.getText().trim();
-            if (q.isEmpty()) {
-                ClientTab activeTab = tabs.get(selected);
-                if (activeTab != null && activeTab.mouseDragged(this, localClick, dx, dy)) {
+            // Jeder Tab reagiert nur, wenn er selbst gerade einen Regler zieht – deshalb unabhängig vom aktiven Tab
+            for (ClientTab tab : allModTabs()) {
+                if (tab.mouseDragged(this, localClick, dx, dy)) {
                     return true;
-                }
-            } else {
-                for (ClientTab tab : tabs.values()) {
-                    if (tab.mouseDragged(this, localClick, dx, dy)) {
-                        return true;
-                    }
                 }
             }
         }
@@ -2012,14 +2181,12 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
-        double[] localPos = ThreeDGuiManager.screenToLocal(click.x(), click.y());
-        Click localClick = (ThreeDGuiManager.isActive())
-                ? new Click(localPos[0], localPos[1], click.buttonInfo())
-                : click;
+        Click localClick = toPanelClick(click);
 
         cpDrag = -1;
         itemScrollDragging = false;
-        boolean handled = scrollDragging || themeSettings.dragging() || draggingSoundVolume || draggingHoverVolume;
+        boolean volumeDrag = draggingSoundVolume || draggingHoverVolume;
+        boolean handled = scrollDragging || themeSettings.dragging() || volumeDrag;
         scrollDragging = false;
         draggingSoundVolume = false;
         draggingHoverVolume = false;
@@ -2030,29 +2197,25 @@ public class BameClientScreen extends Screen {
             }
         }
 
-        BameClientConfig.save();
+        // Nur echte Änderungen merken; geschrieben wird gebündelt im Hintergrund (BameClientConfig.tick/flush)
+        if (volumeDrag) BameClientConfig.save();
         themeSettings.release();
         return handled || super.mouseReleased(localClick);
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontal, double vertical) {
-        double[] localPos = ThreeDGuiManager.screenToLocal(mx, my);
+        double[] localPos = panel3D.toLocal(mx, my);
         double lmx = localPos[0], lmy = localPos[1];
 
         if (currentView == ViewMode.COSMETICS && ShopOverlay.isModalOpen()) {
             return true;
         }
         if (itemModalOpen) {
-            int modalW = 350;
-            int modalH = 285;
-            int modalX = (width - modalW) / 2;
-            int modalY = (height - modalH) / 2;
-            if (inside(lmx, lmy, modalX, modalY, modalW, modalH)) {
+            ItemModalGeom g = itemModalGeom();
+            if (inside(lmx, lmy, g.x(), g.y(), g.w(), g.h())) {
                 if (cachedFilteredItems != null) {
-                    int totalRows = (cachedFilteredItems.size() + 11) / 12;
-                    int totalContentH = totalRows * 25;
-                    int maxScroll = Math.max(0, totalContentH - 185);
+                    int maxScroll = g.maxScroll(cachedFilteredItems.size());
                     if (maxScroll > 0) {
                         itemModalScroll = Math.clamp(itemModalScroll - vertical * 25, 0, maxScroll);
                     }
@@ -2061,10 +2224,14 @@ public class BameClientScreen extends Screen {
             }
             return true;
         }
-        if (inside(lmx, lmy, cx, cy, cw + 14, ch) && !themeSettings.dragging()) {
-            ClientTab currentTab = (currentView == ViewMode.COSMETICS) ? tabs.get("Cosmetics") : tabs.get(selected);
-            if (currentTab != null && currentTab.mouseScrolled(lmx, lmy, horizontal, vertical)) {
-                return true;
+        if (currentView != ViewMode.HUB && inside(lmx, lmy, cx, cy, cw + 14, ch) && !themeSettings.dragging()) {
+            if (currentView == ViewMode.COSMETICS) {
+                ClientTab cosTab = tabs.get(COSMETICS_TAB);
+                if (cosTab != null && cosTab.mouseScrolled(lmx, lmy, horizontal, vertical)) return true;
+            } else if (currentView == ViewMode.MODS) {
+                for (ClientTab tab : modTabsForView(getSearchQuery())) {
+                    if (tab.mouseScrolled(lmx, lmy, horizontal, vertical)) return true;
+                }
             }
             scroll = Math.clamp(scroll - vertical * 26, 0, maxScroll());
             layout();
@@ -2075,6 +2242,7 @@ public class BameClientScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        int key = input.key();
         if (currentView == ViewMode.COSMETICS && ShopOverlay.handleKey(input)) {
             return true;
         }
@@ -2084,7 +2252,7 @@ public class BameClientScreen extends Screen {
             }
         }
         if (itemModalOpen) {
-            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
                 applyModalSave();
                 return true;
             }
@@ -2093,7 +2261,7 @@ public class BameClientScreen extends Screen {
             }
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen)) {
+        if (key == GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen)) {
             crosshairColorPickerOpen = false;
             hitColorColorPickerOpen = false;
             hitboxColorPickerOpen = false;
@@ -2101,7 +2269,38 @@ public class BameClientScreen extends Screen {
             cpDrag = -1;
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE && !listeningMenuBind) {
+
+        // Menütaste belegen: Escape = abbrechen (Taste bleibt), Entf/Rücktaste = entfernen, sonst neue Taste
+        if (listeningMenuBind) {
+            listeningMenuBind = false;
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                com.bame.client.notification.NotificationManager.showInfo("Menu Key", "Unchanged: " + formatKey(BameClientConfig.menuBind));
+            } else if (key == GLFW.GLFW_KEY_DELETE || key == GLFW.GLFW_KEY_BACKSPACE) {
+                BameClientConfig.menuBind = -1;
+                BameClientConfig.save();
+                com.bame.client.notification.NotificationManager.showInfo("Menu Key", "Removed - open the menu with /caeserclient");
+            } else {
+                BameClientConfig.menuBind = key;
+                BameClientConfig.save();
+                KeybindConflicts.notifyIfConflict(KeybindConflicts.MENU_ID, key);
+            }
+            com.bame.client.sound.ClientSoundManager.playClick();
+            return true;
+        }
+
+        // Modul-Taste belegen: der wartende Tab bekommt die Taste zuerst (auch Escape = Belegung entfernen),
+        // danach wird das Warten immer beendet
+        for (ClientTab tab : tabs.values()) {
+            if (tab.isListeningForKey()) {
+                tab.keyPressed(this, input);
+                cancelAllKeyListening();
+                if (key != GLFW.GLFW_KEY_ESCAPE) KeybindConflicts.notifyIfKeyShared(key);
+                BameClientConfig.save();
+                return true;
+            }
+        }
+
+        if (key == GLFW.GLFW_KEY_ESCAPE) {
             themeSettings.close();
             if (currentView != ViewMode.HUB) {
                 currentView = ViewMode.HUB;
@@ -2109,13 +2308,8 @@ public class BameClientScreen extends Screen {
                 return true;
             }
         }
-        if (listeningMenuBind) {
-            BameClientConfig.menuBind = input.key() == GLFW.GLFW_KEY_ESCAPE ? -1 : input.key();
-            listeningMenuBind = false;
-            BameClientConfig.save();
-            return true;
-        }
-        if (isSecretComboPressed(input)) {
+        // Geheime Kombination nie auswerten, solange ein Textfeld fokussiert ist (z. B. Kopieren in der Suche)
+        if (!isAnyTextFieldFocused() && isSecretComboPressed(input)) {
             BameClientConfig.secretUnlocked = !BameClientConfig.secretUnlocked;
             com.bame.client.sound.ClientSoundManager.playClick();
             return true;
@@ -2158,7 +2352,10 @@ public class BameClientScreen extends Screen {
         CosmeticsTab.resetPreview();
         ShopOverlay.close();
         themeSettings.close();
-        BameClientConfig.save();
+        listeningMenuBind = false;
+        cancelAllKeyListening();
+        // Beim Schließen des Menüs ausstehende Änderungen sofort (im Hintergrund) schreiben
+        BameClientConfig.flush();
         super.removed();
     }
 
@@ -2171,6 +2368,6 @@ public class BameClientScreen extends Screen {
     public void close() {
         super.close();
         openTime = 0;
-        BameClientConfig.save();
+        BameClientConfig.flush();
     }
 }

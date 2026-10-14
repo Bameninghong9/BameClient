@@ -10,12 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class CustomGuiUtils {
-    public static void fillRounded(DrawContext context, int x, int y, int width, int height, int color) {
-        context.fill(x + 1, y, x + width - 1, y + height, color);
-        context.fill(x, y + 1, x + 1, y + height - 1, color);
-        context.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
-    }
-
     public static void drawRoundedOutline(DrawContext context, int x, int y, int width, int height, int color) {
         context.fill(x + 1, y, x + width - 1, y + 1, color);
         context.fill(x + 1, y + height - 1, x + width - 1, y + height, color);
@@ -24,16 +18,6 @@ public class CustomGuiUtils {
     }
 
     private static int ir(float r) { return (int) Math.ceil(r); }
-
-    public static void fillSuperRounded(DrawContext context, int x, int y, int width, int height, int color) {
-        context.fill(x + 2, y, x + width - 2, y + height, color);
-        context.fill(x, y + 2, x + 2, y + height - 2, color);
-        context.fill(x + width - 2, y + 2, x + width, y + height - 2, color);
-        context.fill(x + 1, y + 1, x + 2, y + 2, color);
-        context.fill(x + width - 2, y + 1, x + width - 1, y + 2, color);
-        context.fill(x + 1, y + height - 2, x + 2, y + height - 1, color);
-        context.fill(x + width - 2, y + height - 2, x + width - 1, y + height - 1, color);
-    }
 
     // Anti-aliased rounded rectangles: geometry lives in RoundedRectGeometry, the corners are drawn as small
     // tinted alpha-mask textures (one per radius, for fill and outline) instead of one fill per edge pixel.
@@ -77,26 +61,6 @@ public class CustomGuiUtils {
 
     public static void drawUltraRoundedOutline(DrawContext context, int x, int y, int width, int height, int color, float radius) {
         RoundedRectGeometry.outline(DRAW_TARGET, context, x, y, width, height, color, radius);
-    }
-
-    public static void drawSmoothRing(DrawContext context, int cx, int cy, float r, float thickness, int color) {
-        int ir = (int) Math.ceil(r + thickness);
-        int a = (color >> 24) & 0xFF;
-        if (a == 0) a = 255;
-        int rgb = color & 0x00FFFFFF;
-
-        for (int y = -ir; y <= ir; y++) {
-            for (int x = -ir; x <= ir; x++) {
-                float dist = (float) Math.hypot(x, y);
-                float distToEdge = Math.abs(dist - r);
-                float alphaMult = Math.max(0.0f, Math.min(1.0f, 0.5f + (thickness / 2.0f) - distToEdge));
-                if (alphaMult > 0.0f) {
-                    int newA = (int) (a * alphaMult);
-                    int newColor = (newA << 24) | rgb;
-                    context.fill(cx + x, cy + y, cx + x + 1, cy + y + 1, newColor);
-                }
-            }
-        }
     }
 
     public static void drawSmoothLine(DrawContext context, float x1, float y1, float x2, float y2, float thickness, int color) {
@@ -198,20 +162,6 @@ public class CustomGuiUtils {
             // Keyhole
             c.fill(x + 4, y + 6, x + 5, y + 9, 0xFF0E111A);
         }
-    }
-
-    public static void drawLightningBolt(DrawContext c, int x, int y, int w, int h, int color) {
-        drawIcon(c, "bolt", x, y, w, h, color);
-    }
-
-    public static void drawCheckmark(DrawContext c, int x, int y, int color) {
-        drawIcon(c, "search", x, y, 12, 12, color);
-    }
-
-    public static void drawDotsIcon(DrawContext c, int x, int y, int color) {
-        c.fill(x, y + 1, x + 2, y + 3, color);
-        c.fill(x + 4, y + 1, x + 6, y + 3, color);
-        c.fill(x + 8, y + 1, x + 10, y + 3, color);
     }
 
     public static void drawCLogo(DrawContext context, int x, int y, int size) {

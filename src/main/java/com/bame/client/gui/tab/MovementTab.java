@@ -19,24 +19,51 @@ public class MovementTab implements ClientTab {
     private boolean listeningEmote = false;
     private boolean draggingFreelookSensitivity = false;
 
+    /**
+     * Anzeige-Zuordnung: "Animations & Emotes" erscheint unter "Misc", Inv Move und Freelook unter "Movement".
+     * Dafür gibt es zwei Instanzen; Logik und Config-Schlüssel bleiben unverändert.
+     */
+    private final boolean miscPart;
+
+    public MovementTab() {
+        this(false);
+    }
+
+    public MovementTab(boolean miscPart) {
+        this.miscPart = miscPart;
+    }
+
     @Override
     public String getCategory() {
-        return "Movement";
+        return miscPart ? "Misc" : "Movement";
+    }
+
+    @Override
+    public boolean isListeningForKey() {
+        return listeningInvMove || listeningFreelook || listeningEmote;
+    }
+
+    @Override
+    public void cancelKeyListening() {
+        clearKeyListeners();
     }
 
     public boolean invMoveVisible(String search) {
+        if (miscPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "invmove".contains(q) || "inv move".contains(q) || "inventory walk".contains(q) || "inventory".contains(q) || "movement".contains(q);
         return true;
     }
 
     public boolean freelookVisible(String search) {
+        if (miscPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "freelook".contains(q) || "free look".contains(q) || "perspective".contains(q) || "360".contains(q) || "kamera".contains(q);
         return true;
     }
 
     public boolean emoteVisible(String search) {
+        if (!miscPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "emote".contains(q) || "emotes".contains(q) || "animation".contains(q) || "animations".contains(q) || "wave".contains(q) || "sit".contains(q) || "basketball".contains(q) || "wheel".contains(q) || "animator".contains(q);
         return true;
@@ -111,14 +138,13 @@ public class MovementTab implements ClientTab {
     private void renderInvMove(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getInvMoveHeight();
         screen.moduleCard(c, x, y, w, h, InvMoveModule.enabled, InvMoveModule.expanded,
-                "InvMove", "Move freely while inside inventories", "NEW", "movement", mx, my);
+                "Inv Move", "Move freely while inside inventories", null, "movement", mx, my);
 
         if (!InvMoveModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningInvMove ? "..." : screen.formatKey(InvMoveModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "InvMoveModule", InvMoveModule.keyBind, listeningInvMove, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Jump", x + 14, curY + 4, 0xFFD4D8E0);
@@ -143,14 +169,13 @@ public class MovementTab implements ClientTab {
     private void renderFreelook(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getFreelookHeight();
         screen.moduleCard(c, x, y, w, h, FreelookModule.enabled, FreelookModule.expanded,
-                "Freelook", "Look around 360 without turning player", "NEW", "movement", mx, my);
+                "Freelook", "Look around 360 without turning player", null, "movement", mx, my);
 
         if (!FreelookModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningFreelook ? "..." : screen.formatKey(FreelookModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "FreelookModule", FreelookModule.keyBind, listeningFreelook, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Mode", x + 14, curY + 4, 0xFFD4D8E0);
@@ -178,14 +203,13 @@ public class MovementTab implements ClientTab {
     private void renderEmote(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getEmoteHeight();
         screen.moduleCard(c, x, y, w, h, com.bame.client.module.EmoteModule.enabled, com.bame.client.module.EmoteModule.expanded,
-                "Animations & Emotes", "Emote Wheel radial menu & modern animations", "NEW", "movement", mx, my);
+                "Animations & Emotes", "Emote Wheel radial menu & modern animations", null, "misc", mx, my);
 
         if (!com.bame.client.module.EmoteModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningEmote ? "..." : screen.formatKey(com.bame.client.module.EmoteModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "EmoteModule", com.bame.client.module.EmoteModule.keyBind, listeningEmote, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Smooth Animations", x + 14, curY + 4, 0xFFD4D8E0);
@@ -211,7 +235,7 @@ public class MovementTab implements ClientTab {
             if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth,
                     () -> {
                         InvMoveModule.enabled = !InvMoveModule.enabled;
-                        com.bame.client.notification.NotificationManager.showModuleToggle("InvMove", InvMoveModule.enabled);
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Inv Move", InvMoveModule.enabled);
                     },
                     () -> InvMoveModule.expanded = !InvMoveModule.expanded)) {
                 return true;

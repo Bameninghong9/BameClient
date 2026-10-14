@@ -14,6 +14,8 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
@@ -83,18 +85,76 @@ public class ScreenshotHelper {
         return message;
     }
 
+    /** Minecraft-Ordner "screenshots" (echter Pfad, falls vorhanden). */
+    private static Path screenshotsDir() throws java.io.IOException {
+        Path dir = MinecraftClient.getInstance().runDirectory.toPath().resolve("screenshots");
+        Files.createDirectories(dir);
+        return dir.toRealPath();
+    }
+
+    /**
+     * Prüft einen Pfad aus einem Chat-Befehl: nur existierende Bilddateien (.png/.jpg/.jpeg) direkt oder in
+     * Unterordnern des Minecraft-Ordners "screenshots" sind erlaubt. Der Pfad wird normalisiert (echter Pfad,
+     * Symlinks und ".." aufgelöst), damit kein Befehl Dateien außerhalb öffnen, kopieren oder löschen kann.
+     * @return die Datei oder null (dann wurde schon eine Meldung gezeigt)
+     */
+    static File resolveScreenshot(String rawPath) {
+        try {
+            if (rawPath == null) return reject();
+            String cleanPath = rawPath.trim();
+            if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
+                cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
+            }
+            if (cleanPath.isEmpty()) return reject();
+            Path candidate = Path.of(cleanPath.replace('/', File.separatorChar));
+            if (!Files.isRegularFile(candidate)) {
+                sendMessage("§cScreenshot not found");
+                return null;
+            }
+            Path real = candidate.toRealPath();
+            if (!isAllowedScreenshot(screenshotsDir(), real)) return reject();
+            return real.toFile();
+        } catch (Throwable t) {
+            sendMessage("§cScreenshot not found");
+            return null;
+        }
+    }
+
+    /** Reine Prüfung (ohne Dateisystem): liegt {@code real} im Ordner {@code dir} und hat eine Bildendung? */
+    static boolean isAllowedScreenshot(Path dir, Path real) {
+        Path d = dir.toAbsolutePath().normalize();
+        Path r = real.toAbsolutePath().normalize();
+        if (!r.startsWith(d) || r.equals(d)) return false;
+        String name = r.getFileName() == null ? "" : r.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
+    }
+
+    private static File reject() {
+        sendMessage("§cOnly images inside the screenshots folder are allowed");
+        return null;
+    }
+
+    /** Öffnet den Screenshot-Ordner selbst (Galerie-Knopf "Open Folder"). */
+    public static void openScreenshotsFolder() {
+        new Thread(() -> {
+            try {
+                File dir = screenshotsDir().toFile();
+                try {
+                    Util.getOperatingSystem().open(dir);
+                } catch (Throwable t) {
+                    if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(dir);
+                }
+            } catch (Throwable t) {
+                sendMessage("§cScreenshot folder not found");
+            }
+        }, "Caeser-Screenshot-Folder").start();
+    }
+
     public static void openScreenshot(String rawPath) {
         new Thread(() -> {
             try {
-                String cleanPath = rawPath.trim();
-                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
-                    cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
-                }
-                File file = new File(cleanPath.replace('/', File.separatorChar));
-                if (!file.exists()) {
-                    sendMessage("§cScreenshot not found");
-                    return;
-                }
+                File file = resolveScreenshot(rawPath);
+                if (file == null) return;
 
                 boolean opened = false;
                 try {
@@ -124,15 +184,8 @@ public class ScreenshotHelper {
     public static void copyToClipboard(String rawPath) {
         new Thread(() -> {
             try {
-                String cleanPath = rawPath.trim();
-                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
-                    cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
-                }
-                File file = new File(cleanPath.replace('/', File.separatorChar));
-                if (!file.exists()) {
-                    sendMessage("§cScreenshot not found");
-                    return;
-                }
+                File file = resolveScreenshot(rawPath);
+                if (file == null) return;
 
                 boolean copied = false;
 
@@ -236,15 +289,8 @@ public class ScreenshotHelper {
 
     public static void deleteScreenshot(String rawPath) {
         try {
-            String cleanPath = rawPath.trim();
-            if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"") && cleanPath.length() >= 2) {
-                cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
-            }
-            File file = new File(cleanPath.replace('/', File.separatorChar));
-            if (!file.exists()) {
-                sendMessage("§cScreenshot not found");
-                return;
-            }
+            File file = resolveScreenshot(rawPath);
+            if (file == null) return;
             if (file.delete()) {
                 sendMessage("§aScreenshot deleted");
             } else {

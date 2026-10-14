@@ -282,6 +282,57 @@ public class HudEditorScreen extends Screen {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
 
+    // "Reset Positions" button (top center, below the ESC hint)
+    private static final String RESET_LABEL = "Reset Positions";
+    private static final int RESET_BTN_H = 18;
+    private static final int RESET_BTN_Y = 24;
+
+    private int getResetBtnW() {
+        return client.textRenderer.getWidth(CustomGuiUtils.getFontText(RESET_LABEL)) + 24;
+    }
+
+    private int getResetBtnX() {
+        return (width - getResetBtnW()) / 2;
+    }
+
+    private void renderResetButton(DrawContext context, int mouseX, int mouseY) {
+        int bw = getResetBtnW();
+        int bx = getResetBtnX();
+        boolean hover = inside(mouseX, mouseY, bx, RESET_BTN_Y, bw, RESET_BTN_H);
+        int fill = hover ? 0xFF252A34 : 0xFF181C24;
+        int outline = hover ? GuiTheme.accent() : 0xFF292D36;
+        CustomGuiUtils.fillUltraRounded(context, bx, RESET_BTN_Y, bw, RESET_BTN_H, fill, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(context, bx, RESET_BTN_Y, bw, RESET_BTN_H, outline, 4);
+        int tw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(RESET_LABEL));
+        context.drawText(client.textRenderer, CustomGuiUtils.getFontText(RESET_LABEL), bx + (bw - tw) / 2, RESET_BTN_Y + 5, hover ? 0xFFFFFFFF : 0xFFD4D8E0, false);
+    }
+
+    /**
+     * Resets the positions of all HUD elements (and sub-element positions such as the KeyStrokes
+     * key layout and the standalone Server Info segments) to the module field defaults.
+     * Scale, size, background and docking state are left unchanged.
+     */
+    public static void resetAllPositions() {
+        KeyStrokesModule.resetPosition();
+        FpsModule.hudX = 10;             FpsModule.hudY = 10;
+        PingModule.hudX = 10;            PingModule.hudY = 35;
+        CpsModule.hudX = 10;             CpsModule.hudY = 60;
+        ClockModule.hudX = 10;           ClockModule.hudY = 82;
+        CoordinatesModule.hudX = 10;     CoordinatesModule.hudY = 106;
+        PotionsModule.hudX = 10;         PotionsModule.hudY = 130;
+        SpotifyHudModule.hudX = 10;      SpotifyHudModule.hudY = 180;
+        ReachDisplayModule.hudX = 10;    ReachDisplayModule.hudY = 200;
+        ServerInfoModule.hudX = -1;      ServerInfoModule.hudY = 10;   // -1 = top-right
+        ServerInfoModule.nameX = 10;     ServerInfoModule.nameY = 10;
+        ServerInfoModule.serverX = 10;   ServerInfoModule.serverY = 32;
+        ServerInfoModule.timeX = 10;     ServerInfoModule.timeY = 54;
+        TargetHudModule.hudX = -1;       TargetHudModule.hudY = -1;    // -1 = auto (centered, bottom)
+        ArmorHudModule.hudX = -1;        ArmorHudModule.hudY = -1;     // -1 = auto (centered, bottom)
+        FakeScoreboardModule.hudX = -1;  FakeScoreboardModule.hudY = -1; // -1 = auto (right, centered)
+        ScoreboardModule.hudX = -1;      ScoreboardModule.hudY = -1;   // -1 = auto (right, centered)
+        BameClientConfig.save();
+    }
+
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // Darken background slightly
@@ -603,6 +654,7 @@ public class HudEditorScreen extends Screen {
         if (snapLineY != -1) context.fill(0, snapLineY, width, snapLineY + 1, 0xFF00FF00);
 
         context.drawText(client.textRenderer, "Press ESC to save and return", width / 2 - 70, 10, 0xFFFFFFFF, true);
+        renderResetButton(context, mouseX, mouseY);
 
         // Render right-click popup on top of everything
         if (popupTarget != null) {
@@ -629,7 +681,9 @@ public class HudEditorScreen extends Screen {
             context.drawText(client.textRenderer, Text.literal("×"), popupX + POPUP_W - 14, popupY + 6, 0xFF8E95A4, false);
 
             int curBg = getBgMode(popupTarget);
-            String[] bgs = {"Transparent", "Tooltip", "Dark", "Outline"};
+            // Spotify-Card zeichnet bei "Dark" die in der Cover-Farbe getönte Karte
+            boolean coverTint = "spotifyHud".equals(popupTarget) && SpotifyHudModule.style() == SpotifyHudModule.STYLE_CARD;
+            String[] bgs = {"Transparent", "Tooltip", coverTint ? "Cover Tint" : "Dark", "Outline"};
             for (int i = 0; i < 4; i++) {
                 int by = popupY + 24 + i * 21;
                 boolean selected = (curBg == i);
@@ -915,6 +969,12 @@ public class HudEditorScreen extends Screen {
             if (activeColorPickerTarget == null) {
                 popupTarget = null;
             }
+            return true;
+        }
+
+        // "Reset Positions" button
+        if (click.button() == 0 && inside(mouseX, mouseY, getResetBtnX(), RESET_BTN_Y, getResetBtnW(), RESET_BTN_H)) {
+            resetAllPositions();
             return true;
         }
 
@@ -1286,8 +1346,15 @@ public class HudEditorScreen extends Screen {
             float s = KeyStrokesModule.scale;
             int newX = (int)((mouseX - dragOffsetX - KeyStrokesModule.hudX) / s);
             int newY = (int)((mouseY - dragOffsetY - KeyStrokesModule.hudY) / s);
-            draggingKey.relX = Math.round(newX / 2f) * 2;
-            draggingKey.relY = Math.round(newY / 2f) * 2;
+            // Keep the dragged key inside the screen
+            int minRelX = (int)Math.ceil(-KeyStrokesModule.hudX / s);
+            int maxRelX = (int)Math.floor((width - KeyStrokesModule.hudX) / s) - draggingKey.width;
+            int minRelY = (int)Math.ceil(-KeyStrokesModule.hudY / s);
+            int maxRelY = (int)Math.floor((height - KeyStrokesModule.hudY) / s) - draggingKey.height;
+            int relX = Math.round(newX / 2f) * 2;
+            int relY = Math.round(newY / 2f) * 2;
+            draggingKey.relX = Math.max(minRelX, Math.min(relX, maxRelX));
+            draggingKey.relY = Math.max(minRelY, Math.min(relY, maxRelY));
             return true;
         }
 
@@ -1350,16 +1417,16 @@ public class HudEditorScreen extends Screen {
             int gw = 60; int gh = 18; float s = 1.0f;
             switch (draggingTarget) {
                 case "keystrokes" -> { gw = (int)((getKeyMaxX() - getKeyMinX()) * KeyStrokesModule.scale); gh = (int)((getKeyMaxY() - getKeyMinY()) * KeyStrokesModule.scale); s = KeyStrokesModule.scale; }
-                case "fps" -> { gw = (int)(StatusHudRenderer.getFpsWidth(client) * FpsModule.scale); gh = (int)(18 * FpsModule.scale); s = FpsModule.scale; }
-                case "ping" -> { gw = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale); gh = (int)(18 * PingModule.scale); s = PingModule.scale; }
-                case "cps" -> { gw = (int)(StatusHudRenderer.getCpsWidth(client) * CpsModule.scale); gh = (int)(18 * CpsModule.scale); s = CpsModule.scale; }
-                case "serverInfo" -> { gw = (int)(StatusHudRenderer.getServerInfoWidth(client) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
+                case "fps" -> { gw = (int)(StatusHudRenderer.getFpsWidth(client) * FpsModule.scale); gh = (int)(StatusHudRenderer.getFpsHeight() * FpsModule.scale); s = FpsModule.scale; }
+                case "ping" -> { gw = (int)(StatusHudRenderer.getPingWidth(client) * PingModule.scale); gh = (int)(StatusHudRenderer.getPingHeight() * PingModule.scale); s = PingModule.scale; }
+                case "cps" -> { gw = (int)(StatusHudRenderer.getCpsWidth(client) * CpsModule.scale); gh = (int)(StatusHudRenderer.getCpsHeight() * CpsModule.scale); s = CpsModule.scale; }
+                case "serverInfo" -> { gw = (int)(StatusHudRenderer.getServerInfoWidth(client) * ServerInfoModule.scale); gh = (int)(StatusHudRenderer.getServerInfoHeight() * ServerInfoModule.scale); s = ServerInfoModule.scale; }
                 case "serverInfo_name" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "name") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
                 case "serverInfo_server" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "server") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
                 case "serverInfo_time" -> { gw = (int)((StatusHudRenderer.getElementWidth(client, "time") + 16) * ServerInfoModule.scale); gh = (int)(18 * ServerInfoModule.scale); s = ServerInfoModule.scale; }
                 case "fakeScoreboard" -> { gw = (int)(FakeScoreboardRenderer.getWidth(client) * FakeScoreboardModule.scale); gh = (int)(FakeScoreboardRenderer.getHeight() * FakeScoreboardModule.scale); s = FakeScoreboardModule.scale; }
                 case "scoreboard" -> { gw = (int)(ScoreboardRenderer.getWidth(client) * ScoreboardModule.scale); gh = (int)(ScoreboardRenderer.getHeight(client) * ScoreboardModule.scale); s = ScoreboardModule.scale; }
-                case "clock" -> { gw = (int)(StatusHudRenderer.getClockWidth(client) * ClockModule.scale); gh = (int)(18 * ClockModule.scale); s = ClockModule.scale; }
+                case "clock" -> { gw = (int)(StatusHudRenderer.getClockWidth(client) * ClockModule.scale); gh = (int)(StatusHudRenderer.getClockHeight() * ClockModule.scale); s = ClockModule.scale; }
                 case "coordinates" -> { gw = (int)(StatusHudRenderer.getCoordinatesWidth(client) * CoordinatesModule.scale); gh = (int)(StatusHudRenderer.getCoordinatesHeight(client) * CoordinatesModule.scale); s = CoordinatesModule.scale; }
                 case "potions" -> { gw = (int)(StatusHudRenderer.getPotionsWidth(client, true) * PotionsModule.scale); gh = (int)(StatusHudRenderer.getPotionsHeight(client, true) * PotionsModule.scale); s = PotionsModule.scale; }
                 case "targetHud" -> { gw = (int)(StatusHudRenderer.getTargetHudWidth() * TargetHudModule.scale); gh = (int)(StatusHudRenderer.getTargetHudHeight() * TargetHudModule.scale); s = TargetHudModule.scale; }
@@ -1374,8 +1441,17 @@ public class HudEditorScreen extends Screen {
             int snapY = snap(newY + gh / 2, centerY);
             if (snapY == centerY) { newY = centerY - gh / 2; snapLineY = centerY; }
 
-            newX = Math.max(0, Math.min(newX, width - gw));
-            newY = Math.max(0, Math.min(newY, height - gh));
+            if (draggingTarget.equals("keystrokes")) {
+                // KeyStrokes: hudX/hudY is the layout origin, the visible keys span [min, max] * scale
+                float ks = KeyStrokesModule.scale;
+                int loX = (int)Math.ceil(-getKeyMinX() * ks), hiX = (int)Math.floor(width - getKeyMaxX() * ks);
+                int loY = (int)Math.ceil(-getKeyMinY() * ks), hiY = (int)Math.floor(height - getKeyMaxY() * ks);
+                newX = Math.max(loX, Math.min(newX, hiX));
+                newY = Math.max(loY, Math.min(newY, hiY));
+            } else {
+                newX = Math.max(0, Math.min(newX, width - gw));
+                newY = Math.max(0, Math.min(newY, height - gh));
+            }
 
             // Snap docking check
             snapDockTarget = null;

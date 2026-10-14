@@ -22,9 +22,31 @@ public class KeyStrokesRenderer implements HudRenderCallback {
         if (client.options.hudHidden) return;
 
         float s = KeyStrokesModule.scale;
-        
+
+        // Clamp the drawn position (render-time only) so the whole key layout stays on screen.
+        int drawX = KeyStrokesModule.hudX;
+        int drawY = KeyStrokesModule.hudY;
+        if (!KeyStrokesModule.keys.isEmpty()) {
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            for (KeyStrokesModule.KeyStroke key : KeyStrokesModule.keys) {
+                minX = Math.min(minX, key.relX);
+                minY = Math.min(minY, key.relY);
+                maxX = Math.max(maxX, key.relX + key.width);
+                maxY = Math.max(maxY, key.relY + key.height);
+            }
+            int screenW = client.getWindow().getScaledWidth();
+            int screenH = client.getWindow().getScaledHeight();
+            int loX = (int) Math.ceil(-minX * s);
+            int hiX = (int) Math.floor(screenW - maxX * s);
+            int loY = (int) Math.ceil(-minY * s);
+            int hiY = (int) Math.floor(screenH - maxY * s);
+            drawX = Math.max(loX, Math.min(drawX, hiX));
+            drawY = Math.max(loY, Math.min(drawY, hiY));
+        }
+
         drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float)KeyStrokesModule.hudX, (float)KeyStrokesModule.hudY);
+        drawContext.getMatrices().translate((float)drawX, (float)drawY);
         drawContext.getMatrices().scale(s, s);
 
         int chromaColor = 0;

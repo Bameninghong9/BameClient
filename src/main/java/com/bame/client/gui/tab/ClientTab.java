@@ -34,4 +34,18 @@ public interface ClientTab {
     default boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         return false;
     }
+
+    /** Wartet der Tab gerade auf eine Taste für eine Modul-Belegung? Dann bekommt er die nächste Taste zuerst. */
+    default boolean isListeningForKey() {
+        return false;
+    }
+
+    /** Setzt alle "wartet auf Taste"-Zustände zurück. */
+    default void cancelKeyListening() {
+    }
+
+    /** Hat der Tab ein fokussiertes Textfeld (dann keine Tastenkombinationen auswerten)? */
+    default boolean hasFocusedTextField() {
+        return false;
+    }
 }

@@ -51,6 +51,27 @@ public class KeyStrokesModule {
         resetKeys();
     }
 
+    /**
+     * Resets only the position of the KeyStrokes HUD (anchor + per-key layout) to the defaults
+     * used by {@link #resetKeys()}. Scale, background and the set of keys stay unchanged.
+     */
+    public static void resetPosition() {
+        hudX = 100;
+        hudY = 100;
+        int boxSize = 22;
+        int gap = 2;
+        int step = boxSize + gap;
+        for (KeyStroke key : keys) {
+            switch (key.name) {
+                case "W" -> { key.relX = step; key.relY = 0; }
+                case "A" -> { key.relX = 0; key.relY = step; }
+                case "S" -> { key.relX = step; key.relY = step; }
+                case "D" -> { key.relX = step * 2; key.relY = step; }
+                default -> { }
+            }
+        }
+    }
+
     public static void resetKeys() {
         keys.clear();
         hudX = 100;

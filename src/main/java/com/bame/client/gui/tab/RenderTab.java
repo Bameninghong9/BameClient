@@ -73,6 +73,17 @@ public class RenderTab implements ClientTab {
         return "Visuals";
     }
 
+    @Override
+    public boolean isListeningForKey() {
+        return listeningFullbright || listeningShowHud || listeningZoom || listeningSpotify || listeningScoreboard
+                || listeningCrosshair || listeningBlockOutline || listeningHandPosition || listeningItemSize;
+    }
+
+    @Override
+    public void cancelKeyListening() {
+        clearKeyListeners();
+    }
+
     public boolean fullbrightVisible(String search) {
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "fullbright".contains(q) || "brightness".contains(q) || "helligkeit".contains(q) || "gamma".contains(q) || "visuals".contains(q);
@@ -178,7 +189,7 @@ public class RenderTab implements ClientTab {
     }
 
     public int getSpotifyHudHeight() {
-        return SpotifyHudModule.expanded ? 130 : 50;
+        return SpotifyHudModule.expanded ? 178 : 50;
     }
 
     public int getCustomCrosshairHeight() {
@@ -292,14 +303,13 @@ public class RenderTab implements ClientTab {
     private void renderFullbright(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getFullbrightHeight();
         screen.moduleCard(c, x, y, w, h, FullbrightModule.enabled, fullbrightExpanded,
-                "Fullbright", "Brightens the world like night vision", "NEW", "visuals", mx, my);
+                "Fullbright", "Brightens the world like night vision", null, "visuals", mx, my);
 
         if (!fullbrightExpanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningFullbright ? "..." : screen.formatKey(FullbrightModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "FullbrightModule", FullbrightModule.keyBind, listeningFullbright, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Intensity", x + 14, curY + 4, 0xFFD4D8E0);
@@ -318,14 +328,13 @@ public class RenderTab implements ClientTab {
     private void renderShowHud(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getShowHudHeight();
         screen.moduleCard(c, x, y, w, h, ShowHudModule.enabled, ShowHudModule.expanded,
-                "Show HUD", "On-screen widgets: FPS, CPS, Armor, etc.", "NEW", "visuals", mx, my);
+                "Show HUD", "On-screen widgets: FPS, CPS, Armor, etc.", null, "visuals", mx, my);
 
         if (!ShowHudModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningShowHud ? "..." : screen.formatKey(ShowHudModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "ShowHudModule", ShowHudModule.keyBind, listeningShowHud, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         // 1. Clock
@@ -409,7 +418,7 @@ public class RenderTab implements ClientTab {
         curY += 26;
 
         // 6. KeyStrokes
-        screen.text(c, "KeyStrokes", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.text(c, "Key Strokes", x + 14, curY + 5, 0xFFD4D8E0);
         screen.toggle(c, x + w - 38, curY + 3, KeyStrokesModule.enabled, mx, my, delta);
         curY += 26;
 
@@ -448,14 +457,13 @@ public class RenderTab implements ClientTab {
     private void renderScoreboard(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getScoreboardHeight();
         screen.moduleCard(c, x, y, w, h, ScoreboardModule.enabled, ScoreboardModule.expanded,
-                "Scoreboard", "Toggles vanilla sidebar scoreboard", "NEW", "visuals", mx, my);
+                "Scoreboard", "Toggles vanilla sidebar scoreboard", null, "visuals", mx, my);
 
         if (!ScoreboardModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningScoreboard ? "..." : screen.formatKey(ScoreboardModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "ScoreboardModule", ScoreboardModule.keyBind, listeningScoreboard, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
@@ -465,14 +473,13 @@ public class RenderTab implements ClientTab {
     private void renderZoom(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getZoomHeight();
         screen.moduleCard(c, x, y, w, h, ZoomModule.enabled, ZoomModule.expanded,
-                "Zoom", "OptiFine-style smooth FOV zoom", "NEW", "visuals", mx, my);
+                "Zoom", "OptiFine-style smooth FOV zoom", null, "visuals", mx, my);
 
         if (!ZoomModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningZoom ? "..." : screen.formatKey(ZoomModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "ZoomModule", ZoomModule.keyBind, listeningZoom, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Mode", x + 14, curY + 4, 0xFFD4D8E0);
@@ -497,17 +504,24 @@ public class RenderTab implements ClientTab {
     private void renderSpotifyHud(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getSpotifyHudHeight();
         screen.moduleCard(c, x, y, w, h, SpotifyHudModule.enabled, SpotifyHudModule.expanded,
-                "Spotify HUD", "Displays currently playing Spotify track", "NEW", "music", mx, my);
+                "Spotify HUD", "Displays currently playing Spotify track", null, "music", mx, my);
 
         if (!SpotifyHudModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningSpotify ? "..." : screen.formatKey(SpotifyHudModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "SpotifyHudModule", SpotifyHudModule.keyBind, listeningSpotify, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
-        screen.text(c, "Auto-Hide (wenn pausiert)", x + 14, curY + 4, 0xFFD4D8E0);
+        screen.text(c, "Style", x + 14, curY + 4, 0xFFD4D8E0);
+        screen.button(c, SpotifyHudModule.styleName(), x + w - 72, curY, 60, 16, mx, my);
+        curY += 24;
+
+        screen.text(c, "Accent Color", x + 14, curY + 4, 0xFFD4D8E0);
+        screen.button(c, SpotifyHudModule.accentName(), x + w - 72, curY, 60, 16, mx, my);
+        curY += 24;
+
+        screen.text(c, "Auto-Hide (when paused)", x + 14, curY + 4, 0xFFD4D8E0);
         screen.toggle(c, x + w - 38, curY + 2, SpotifyHudModule.autoHide, mx, my, delta);
         curY += 24;
 
@@ -518,14 +532,13 @@ public class RenderTab implements ClientTab {
     private void renderCustomCrosshair(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getCustomCrosshairHeight();
         screen.moduleCard(c, x, y, w, h, CustomCrosshairModule.enabled, CustomCrosshairModule.expanded,
-                "Crosshair", "Custom shape & color crosshair editor", "NEW", "visuals", mx, my);
+                "Crosshair", "Custom shape & color crosshair editor", null, "visuals", mx, my);
 
         if (!CustomCrosshairModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningCrosshair ? "..." : screen.formatKey(CustomCrosshairModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "CustomCrosshairModule", CustomCrosshairModule.keyBind, listeningCrosshair, x + 64, curY, 48, 16, mx, my);
 
         int gridY = y + 78;
         int gridX = x + 12;
@@ -602,14 +615,13 @@ public class RenderTab implements ClientTab {
     private void renderBlockOutline(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getBlockOutlineHeight();
         screen.moduleCard(c, x, y, w, h, BlockOutlineModule.enabled, BlockOutlineModule.expanded,
-                "Block Outline", "Custom outline and glow on targeted block", "NEW", "visuals", mx, my);
+                "Block Outline", "Custom outline and glow on targeted block", null, "visuals", mx, my);
 
         if (!BlockOutlineModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningBlockOutline ? "..." : screen.formatKey(BlockOutlineModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "BlockOutlineModule", BlockOutlineModule.keyBind, listeningBlockOutline, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Color:", x + 14, curY + 4, 0xFFD4D8E0);
@@ -652,14 +664,13 @@ public class RenderTab implements ClientTab {
     private void renderHandPosition(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getHandPositionHeight();
         screen.moduleCard(c, x, y, w, h, HandPositionModule.enabled, HandPositionModule.expanded,
-                "Hand Position", "Customize main hand and offhand viewmodels", "NEW", "visuals", mx, my);
+                "Hand Position", "Customize main hand and offhand viewmodels", null, "visuals", mx, my);
 
         if (!HandPositionModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningHandPosition ? "..." : screen.formatKey(HandPositionModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "HandPositionModule", HandPositionModule.keyBind, listeningHandPosition, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         String[] swingStyles = {"Slash", "Thrust", "Swipe", "Punch"};
@@ -781,14 +792,13 @@ public class RenderTab implements ClientTab {
     private void renderItemSize(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getItemSizeHeight();
         screen.moduleCard(c, x, y, w, h, ItemSizeModule.enabled, ItemSizeModule.expanded,
-                "Item Size", "Scale and offset in-hand item models", "NEW", "visuals", mx, my);
+                "Item Size", "Scale and offset in-hand item models", null, "visuals", mx, my);
 
         if (!ItemSizeModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningItemSize ? "..." : screen.formatKey(ItemSizeModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "ItemSizeModule", ItemSizeModule.keyBind, listeningItemSize, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         int scalePct = Math.round(ItemSizeModule.scale * 100);
@@ -870,7 +880,7 @@ public class RenderTab implements ClientTab {
     private void renderTabBadge(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getTabBadgeHeight();
         screen.moduleCard(c, x, y, w, h, TabBadgeModule.enabled, false,
-                "Tablist Badge", "Caeser Bold 'C' in front of name", "NEW", "visuals", mx, my);
+                "Tablist Badge", "Caeser Bold 'C' in front of name", null, "visuals", mx, my);
     }
 
     private void clearKeyListeners() {
@@ -1043,7 +1053,7 @@ public class RenderTab implements ClientTab {
 
                 if (screen.inside(mx, my, leftX + columnWidth - 38, curY + 3, 26, 14)) {
                     KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
-                    com.bame.client.notification.NotificationManager.showModuleToggle("KeyStrokes", KeyStrokesModule.enabled);
+                    com.bame.client.notification.NotificationManager.showModuleToggle("Key Strokes", KeyStrokesModule.enabled);
                     BameClientConfig.save();
                     return true;
                 }
@@ -1486,6 +1496,20 @@ public class RenderTab implements ClientTab {
                     return true;
                 }
                 curY += 26;
+
+                if (screen.inside(mx, my, rightX + columnWidth - 72, curY, 60, 16)) {
+                    SpotifyHudModule.cycleStyle();
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 24;
+
+                if (screen.inside(mx, my, rightX + columnWidth - 72, curY, 60, 16)) {
+                    SpotifyHudModule.accentMode = SpotifyHudModule.accentMode == 1 ? 0 : 1;
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 24;
 
                 if (screen.inside(mx, my, rightX + columnWidth - 38, curY + 2, 26, 14)) {
                     SpotifyHudModule.autoHide = !SpotifyHudModule.autoHide;
@@ -1941,6 +1965,8 @@ public class RenderTab implements ClientTab {
         SpotifyHudModule.customWidth = -1;
         SpotifyHudModule.customHeight = -1;
         SpotifyHudModule.autoHide = false;
+        SpotifyHudModule.style = SpotifyHudModule.STYLE_CLASSIC;
+        SpotifyHudModule.accentMode = 0;
         SpotifyHudModule.bgMode = 0;
         SpotifyHudModule.outlineColor = 0xFFFFFFFF;
         BameClientConfig.save();

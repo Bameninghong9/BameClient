@@ -136,8 +136,6 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
     }
 
-    private static String cachedCustomName = null;
-    private static Supplier<SkinTextures> cachedCustomSupplier = null;
 
     public CaeserCosmeticsRenderer(FeatureRendererContext<PlayerEntityRenderState, PlayerEntityModel> context) {
         super(context);
@@ -297,7 +295,12 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
 
         if (wings != null || head != null || face != null || pet != null || (accessories != null && !accessories.isEmpty())) {
-            boolean inFirstPerson = isLocal && (mc.options != null && mc.options.getPerspective().isFirstPerson());
+            // Ego-Perspektive: Cosmetics ausblenden. Ausnahme: eigenes Emote. Dann wird der eigene Körper trotz
+            // FIRST_PERSON gezeichnet (CameraMixin.isThirdPerson bzw. Emote-Kamera von hinten), und die Cosmetics
+            // sollen mit der Emote-Pose sichtbar sein. Kopf-Cosmetics folgen weiter head.visible: EmoteAnimator
+            // blendet den Kopf aus, solange die Kamera noch darin steckt.
+            boolean inFirstPerson = isLocal && (mc.options != null && mc.options.getPerspective().isFirstPerson())
+                    && !com.bame.client.module.EmoteModule.isEmoting();
             boolean renderHead = this.getContextModel().head.visible && !inFirstPerson;
             boolean renderBody = this.getContextModel().body.visible && !inFirstPerson;
 
@@ -347,8 +350,13 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 if (hasHead && renderHead) renderHeadPet(matrices, queue, light, state);
                 if (hasHand) renderHandPet(matrices, queue, light, state, limbAngle, limbDistance);
                 if (hasChain) renderChainPet(matrices, queue, light, state);
-                if (hasDragon) renderBabyDragon(matrices, queue, light, state);
-                if (hasSlime) renderJellySlime(matrices, queue, light, state);
+                // Pets auf dem Kopf nur bei sichtbarem Kopf (sonst säßen sie beim Emote in der Ego-Kamera)
+                if (hasDragon && (renderHead || !"head".equalsIgnoreCase(CosmeticsConfig.getPetPlacement("baby_dragon")))) {
+                    renderBabyDragon(matrices, queue, light, state);
+                }
+                if (hasSlime && (renderHead || !"head".equalsIgnoreCase(CosmeticsConfig.getPetPlacement("jelly_slime")))) {
+                    renderJellySlime(matrices, queue, light, state);
+                }
             }
         }
 

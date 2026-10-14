@@ -33,6 +33,24 @@ public class MiscTab implements ClientTab {
         return "Misc";
     }
 
+    @Override
+    public boolean isListeningForKey() {
+        return listeningAutoTool || listeningDurabilityGuard;
+    }
+
+    @Override
+    public void cancelKeyListening() {
+        clearKeyListeners();
+    }
+
+    @Override
+    public boolean hasFocusedTextField() {
+        for (CustomTextFieldWidget field : toolThresholdFields.values()) {
+            if (field.isFocused()) return true;
+        }
+        return false;
+    }
+
     public boolean autoToolVisible(String search) {
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "autotool".contains(q) || "auto tool".contains(q) || "tool".contains(q) || "werkzeug".contains(q);
@@ -86,14 +104,13 @@ public class MiscTab implements ClientTab {
     private void renderAutoTool(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getAutoToolHeight();
         screen.moduleCard(c, x, y, w, h, AutoToolModule.enabled, AutoToolModule.expanded,
-                "Auto-Tool", "Automatically switches to best tool", "NEW", "misc", mx, my);
+                "Auto Tool", "Automatically switches to best tool", null, "misc", mx, my);
 
         if (!AutoToolModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningAutoTool ? "..." : screen.formatKey(AutoToolModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "AutoToolModule", AutoToolModule.keyBind, listeningAutoTool, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Switch Back", x + 14, curY + 4, 0xFFD4D8E0);
@@ -106,14 +123,13 @@ public class MiscTab implements ClientTab {
     private void renderDurabilityGuard(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
         int h = getDurabilityGuardHeight();
         screen.moduleCard(c, x, y, w, h, DurabilityGuardModule.enabled, DurabilityGuardModule.expanded,
-                "Durability Guard", "Alerts before item durability breaks", "NEW", "misc", mx, my);
+                "Durability Guard", "Alerts before item durability breaks", null, "misc", mx, my);
 
         if (!DurabilityGuardModule.expanded) return;
 
         int curY = y + 54;
         screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
-        String kb = listeningDurabilityGuard ? "..." : screen.formatKey(DurabilityGuardModule.keyBind);
-        screen.button(c, kb, x + 64, curY, 48, 16, mx, my);
+        screen.keybindButton(c, "DurabilityGuardModule", DurabilityGuardModule.keyBind, listeningDurabilityGuard, x + 64, curY, 48, 16, mx, my);
         curY += 26;
 
         screen.text(c, "Alert Type", x + 14, curY + 4, 0xFFD4D8E0);

@@ -21,12 +21,16 @@ public class TabBadgeModule {
 
     /** Eigene Schrift mit genau einem Zeichen (U+E000): das Caeser-Logo als Bild (textures/font/caeser_badge.png). */
     private static final Identifier BADGE_FONT = Identifier.of("bameclient", "badge");
-    private static final Style BADGE_STYLE = Style.EMPTY.withFont(new StyleSpriteSource.Font(BADGE_FONT)).withColor(0xFFFFFF);
+    private static final Style BADGE_STYLE = Style.EMPTY.withFont(new StyleSpriteSource.Font(BADGE_FONT));
 
-    /** Logo-Icon plus Leerzeichen, wird vor den Namen in der Tab-Liste gesetzt. */
+    /**
+     * Logo-Icon plus Leerzeichen, wird vor den Namen in der Tab-Liste gesetzt. Die Textur ist weiß/graustufig;
+     * Bitmap-Glyphen werden mit der Textfarbe multipliziert, daher erscheint das C in der aktuellen
+     * Theme-Akzentfarbe des Betrachters. Wird bei jedem Aufruf neu gelesen (kein Caching), Theme-Wechsel wirken sofort.
+     */
     public static MutableText badgeText() {
         // Leerer Wurzel-Text: Angehängte Teile (Leerzeichen, Name) erben so nicht die Logo-Schrift.
-        return Text.empty().append(Text.literal("").setStyle(BADGE_STYLE)).append(Text.literal(" "));
+        return Text.empty().append(Text.literal("").setStyle(BADGE_STYLE.withColor(com.bame.client.gui.GuiTheme.accent() & 0xFFFFFF))).append(Text.literal(" "));
     }
 
     /** Eigenes Badge in der Tab-Liste, {@code null} wenn ausgeschaltet. */
