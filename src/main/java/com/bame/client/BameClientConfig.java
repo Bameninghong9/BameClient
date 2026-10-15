@@ -55,6 +55,13 @@ public class BameClientConfig {
     public static float hoverVolume = 1.00f;
     public static boolean notifications = true;
     public static boolean threeDGui = true;
+    /**
+     * Diagnose: Hitch-Sampler (Frames > 25 ms mit Stack-Samples nach config/bameclient/hitches.log). Standardmäßig
+     * aus; einschalten mit {@code hitchLoggerDebug=true} in Settings/settings.properties oder
+     * {@code -Dcaeser.hitchLogger=true}. Der alte Schlüssel {@code hitchLogger} aus dem Debug-Build wird ignoriert.
+     * Wirkt beim nächsten Start.
+     */
+    public static boolean hitchLogger = false;
 
     public static void load() {
         Path visualsDir = BASE_CONFIG_DIR.resolve("Visuals");
@@ -795,6 +802,7 @@ public class BameClientConfig {
                 hoverVolume = getFloat(props, "hoverVolume", hoverVolume);
                 notifications = getBool(props, "notifications", notifications);
                 threeDGui = getBool(props, "threeDGui", threeDGui);
+                hitchLogger = getBool(props, "hitchLoggerDebug", false);
                 secretRequireShift = getBool(props, "secretRequireShift", secretRequireShift);
                 secretRequireCtrl = getBool(props, "secretRequireCtrl", secretRequireCtrl);
                 secretRequireAlt = getBool(props, "secretRequireAlt", secretRequireAlt);
@@ -1642,6 +1650,7 @@ public class BameClientConfig {
             settingsProps.setProperty("hoverVolume", String.valueOf(hoverVolume));
             settingsProps.setProperty("notifications", String.valueOf(notifications));
             settingsProps.setProperty("threeDGui", String.valueOf(threeDGui));
+            settingsProps.setProperty("hitchLoggerDebug", String.valueOf(hitchLogger));
             settingsProps.setProperty("secretRequireShift", String.valueOf(secretRequireShift));
             settingsProps.setProperty("secretRequireCtrl", String.valueOf(secretRequireCtrl));
             settingsProps.setProperty("secretRequireAlt", String.valueOf(secretRequireAlt));

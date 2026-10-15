@@ -41,7 +41,8 @@ import java.util.Random;
  * Welt-Render-Hook. Kein Paket an den Minecraft-Server, keine Entities, keine Wirkung auf das Spiel.
  * <p>
  * Alle Effekte dauern höchstens 3 s (Ausnahmen laut Auftrag: der Grabstein steht 5 s und sinkt dann 0,8 s ein, der
- * Sarg dauert 3,2 s). Sarg und Amboss (mit Opfer-Figur) werden vor den Entities in die Befehlsliste der Welt gegeben
+ * Sarg dauert 3,2 s, Hell Gate 3,9 s, Thanos Snap 4,2 s inklusive verwehender Asche). Thanos Snap und Hell Gate stehen in
+ * eigenen Dateien ({@link KillSnapFx}, {@link KillHellGateFx}). Sarg und Amboss (mit Opfer-Figur) werden vor den Entities in die Befehlsliste der Welt gegeben
  * ({@link #submit}), Grabstein und Blitz am Ende des Haupt-Durchgangs gezeichnet ({@link #render}).
  * Partikelmengen sind moderat (das Totem entspricht genau einem Vanilla-Totem-Pop), gleichzeitig laufen höchstens
  * {@link #MAX_ACTIVE}.
@@ -74,6 +75,10 @@ final class KillWorldEffects {
             case GRAVE -> new GraveFx(groundAt(mc.world, pos), victimName, viewerPos(mc));
             case COFFIN -> new CoffinFx(groundAt(mc.world, pos), viewerPos(mc));
             case ANVIL -> new AnvilFx(groundAt(mc.world, pos), viewerPos(mc),
+                    figure != null ? figure : KillVictims.figure(null, victimName, true));
+            case SNAP -> new KillSnapFx(groundAt(mc.world, pos), viewerPos(mc),
+                    figure != null ? figure : KillVictims.figure(null, victimName, true));
+            case HELLGATE -> new KillHellGateFx(groundAt(mc.world, pos), viewerPos(mc),
                     figure != null ? figure : KillVictims.figure(null, victimName, true));
         };
         if (ACTIVE.size() >= MAX_ACTIVE) ACTIVE.remove(0);
@@ -151,13 +156,13 @@ final class KillWorldEffects {
     // Hilfen
     // ==========================================
 
-    private static Vec3d viewerPos(MinecraftClient mc) {
+    static Vec3d viewerPos(MinecraftClient mc) {
         if (mc.gameRenderer != null && mc.gameRenderer.getCamera() != null) return mc.gameRenderer.getCamera().getCameraPos();
         return mc.player != null ? mc.player.getEyePos() : Vec3d.ZERO;
     }
 
     /** Boden unter der Position (bis 4 Blöcke tief), damit der Grabstein nicht in der Luft steht. */
-    private static Vec3d groundAt(ClientWorld world, Vec3d pos) {
+    static Vec3d groundAt(ClientWorld world, Vec3d pos) {
         BlockPos.Mutable m = new BlockPos.Mutable();
         int startY = (int) Math.floor(pos.y + 0.01);
         for (int dy = 0; dy <= 4; dy++) {
@@ -171,7 +176,7 @@ final class KillWorldEffects {
         return pos;
     }
 
-    private static void sound(ClientWorld world, Vec3d pos, SoundEvent event, float volume, float pitch) {
+    static void sound(ClientWorld world, Vec3d pos, SoundEvent event, float volume, float pitch) {
         if (!CosmeticsConfig.killFxSounds || event == null) return;
         world.playSoundClient(pos.x, pos.y, pos.z, event, SoundCategory.PLAYERS, volume, pitch, false);
     }
@@ -719,13 +724,13 @@ final class KillWorldEffects {
     // Hilfen für Sarg und Amboss
     // ==========================================
 
-    private static int lightAt(MinecraftClient mc, Vec3d p) {
+    static int lightAt(MinecraftClient mc, Vec3d p) {
         ClientWorld world = mc.world;
         return world != null ? WorldRenderer.getLightmapCoordinates(world, BlockPos.ofFloored(p.x, p.y + 0.5, p.z)) : 0x00F000F0;
     }
 
     /** Block unter dem Todesort (für Partikel); Luft bzw. unbekannt → Erde. */
-    private static BlockState groundState(ClientWorld world, Vec3d pos) {
+    static BlockState groundState(ClientWorld world, Vec3d pos) {
         if (world == null) return Blocks.DIRT.getDefaultState();
         BlockState s = world.getBlockState(BlockPos.ofFloored(pos.x, pos.y - 0.05, pos.z));
         if (s == null || s.isAir() || s.getRenderType() != BlockRenderType.MODEL) return Blocks.DIRT.getDefaultState();

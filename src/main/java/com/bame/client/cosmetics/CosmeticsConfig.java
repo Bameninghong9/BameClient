@@ -11,6 +11,8 @@ public class CosmeticsConfig {
     public static String head = "none";
     // Gesichts-Cosmetic (Brille, Maske): eigener Slot, unabhängig vom Hut
     public static String face = "none";
+    // Rücken-Cosmetic (Jetpack, Gitarre, Köcher, Katana, Rucksack): eigener Slot, unabhängig von Flügeln und Cape
+    public static String back = "none";
     public static String pet = "none";
     public static String petCustomPlayer = "";
     public static final java.util.Set<String> accessories = new java.util.LinkedHashSet<>();
@@ -171,6 +173,11 @@ public class CosmeticsConfig {
         save();
     }
 
+    public static void setBack(String type) {
+        back = BackCosmetics.sanitizeBack(type);
+        save();
+    }
+
     public static boolean isAccessoryEquipped(String id) {
         if (id == null || id.isBlank()) return false;
         String key = id.toLowerCase(java.util.Locale.ROOT);
@@ -300,6 +307,11 @@ public class CosmeticsConfig {
             fc.addProperty("id", face);
             root.add("face", fc);
 
+            JsonObject bk = new JsonObject();
+            bk.addProperty("type", back);
+            bk.addProperty("id", back);
+            root.add("back", bk);
+
             JsonObject p = new JsonObject();
             p.addProperty("type", pet);
             p.addProperty("customPlayer", petCustomPlayer != null ? petCustomPlayer : "");
@@ -408,6 +420,27 @@ public class CosmeticsConfig {
         }
     }
 
+    /**
+     * Ergebnis der letzten Datei-Prüfung im Hintergrund: Konto, Änderungszeit der Cosmetics-Datei (-1 = fehlt) und, falls
+     * sie fehlt, der Launcher-{@code settings.json} (-1 = fehlt).
+     */
+    private record FileStat(String account, long cosmeticsMtime, long launcherMtime) {}
+    private static volatile FileStat lastStat = null;
+    private static long lastLauncherMtime = Long.MIN_VALUE;
+    private static final java.util.concurrent.atomic.AtomicBoolean statPending = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.ExecutorService STAT_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "CaeserClient-CosmeticsWatch");
+                t.setDaemon(true);
+                t.setPriority(Thread.MIN_PRIORITY);
+                return t;
+            });
+
+    /**
+     * Höchstens einmal pro Sekunde auf Änderungen (auch durch den Launcher) prüfen. Läuft pro Frame im Renderer: die
+     * Dateiabfragen selbst passieren im Hintergrund, hier wird nur das letzte Ergebnis verglichen; gelesen und geparst
+     * wird nur, wenn sich wirklich etwas geändert hat. Erzwungenes Laden ({@link #load()}) und Kontowechsel laden sofort.
+     */
     public static synchronized void checkReload() {
         long now = System.currentTimeMillis();
         String currentAcc = getAccountName();
@@ -415,11 +448,54 @@ public class CosmeticsConfig {
             cachedAccount = currentAcc;
             lastCheck = 0;
             lastModified = -1;
+            lastStat = null;
+            lastLauncherMtime = Long.MIN_VALUE;
         }
 
         if (lastCheck != 0 && now - lastCheck < 1000) return;
+        boolean forced = lastCheck == 0;
         lastCheck = now;
 
+        if (!forced) {
+            FileStat s = lastStat;
+            requestStat(currentAcc);
+            if (s == null || !s.account().equals(currentAcc)) return; // noch kein Ergebnis: nächste Prüfung
+            if (s.cosmeticsMtime() >= 0) {
+                if (s.cosmeticsMtime() == lastModified) return; // unverändert
+            } else {
+                if (s.launcherMtime() == lastLauncherMtime) return; // Rückfall-Datei unverändert
+                lastLauncherMtime = s.launcherMtime();
+            }
+        }
+        reloadNow();
+    }
+
+    private static void requestStat(String account) {
+        if (!statPending.compareAndSet(false, true)) return;
+        try {
+            STAT_EXECUTOR.execute(() -> {
+                try {
+                    Path file = getAccountConfigFile();
+                    long cosmetics = Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() : -1L;
+                    long launcher = -1L;
+                    if (cosmetics < 0) {
+                        Path dir = CaeserSkinManager.getLauncherDir();
+                        Path settings = dir != null ? dir.resolve("settings.json") : null;
+                        if (settings != null && Files.exists(settings)) launcher = Files.getLastModifiedTime(settings).toMillis();
+                    }
+                    lastStat = new FileStat(account, cosmetics, launcher);
+                } catch (Throwable ignored) {
+                } finally {
+                    statPending.set(false);
+                }
+            });
+        } catch (Throwable t) {
+            statPending.set(false);
+        }
+    }
+
+    /** Liest die Cosmetics-Datei (bzw. den Launcher-Rückfall) jetzt synchron, wenn sie sich geändert hat. */
+    private static synchronized void reloadNow() {
         try {
             Path file = getAccountConfigFile();
             JsonObject root = null;
@@ -455,6 +531,17 @@ public class CosmeticsConfig {
                 face = fc.has("type") && fc.get("type").isJsonPrimitive() ? fc.get("type").getAsString() : "none";
             } else {
                 face = "none";
+            }
+            // Ebenso "back" (neu): fehlt es oder ist es unbekannt, ist nichts auf dem Rücken. Der Launcher übernimmt das Feld
+            // unverändert (mergeModCosmetics), daher als eigenes Objekt wie "face".
+            back = "none";
+            if (root.has("back")) {
+                com.google.gson.JsonElement bk = root.get("back");
+                if (bk.isJsonObject() && bk.getAsJsonObject().has("type") && bk.getAsJsonObject().get("type").isJsonPrimitive()) {
+                    back = BackCosmetics.sanitizeBack(bk.getAsJsonObject().get("type").getAsString());
+                } else if (bk.isJsonPrimitive()) {
+                    back = BackCosmetics.sanitizeBack(bk.getAsString());
+                }
             }
             if (root.has("pet")) {
                 JsonObject p = root.getAsJsonObject("pet");

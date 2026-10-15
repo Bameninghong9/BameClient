@@ -12,7 +12,9 @@ public enum KillEffectType {
     LIGHTNING("KILL_LIGHTNING", "Lightning", "A lightning bolt strikes your victim", true),
     GRAVE("KILL_GRAVE", "Grave", "A gravestone with your victim's name appears", false),
     COFFIN("KILL_COFFIN", "Coffin", "A wooden coffin rises from the earth and closes", false),
-    ANVIL("KILL_ANVIL", "Anvil", "An anvil drops on your victim's head", false);
+    ANVIL("KILL_ANVIL", "Anvil", "An anvil drops on your victim's head", false),
+    SNAP("KILL_SNAP", "Thanos Snap", "Your victim crumbles to dust and blows away", false),
+    HELLGATE("KILL_HELLGATE", "Hell Gate", "Demonic hands drag your victim into a burning gate", false);
     // Entfernt: KILL_FIREWORK, KILL_SOUL, KILL_CONFETTI (fromId liefert dafür null -> werden ignoriert bzw. als "none" geladen)
 
     /** Shop-Kategorie im Backend und interne Unterkategorie der Cosmetics-Ansicht. */
@@ -39,5 +41,10 @@ public enum KillEffectType {
             if (t.id.equals(key)) return t;
         }
         return null;
+    }
+
+    /** Effekte mit Opfer-Figur (Skin und Rüstung des Opfers). */
+    public boolean usesFigure() {
+        return this == ANVIL || this == SNAP || this == HELLGATE;
     }
 }

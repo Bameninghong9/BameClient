@@ -519,6 +519,13 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
             return;
         }
 
+        if (emote == EmoteType.WITCH_BROOM) {
+            if (model != null) {
+                renderWitchBroom(matrices, commandQueue, actualLight, state, active);
+            }
+            return;
+        }
+
         if (emote == EmoteType.BASKETBALL) {
             KeyframeAnimation anim = EmoteAnimationLoader.getBasketballAnimation();
             if (anim == null) return;
@@ -1365,6 +1372,60 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
                 matrices.pop();
             }
         }
+        matrices.pop();
+    }
+
+    // ------------------------------------------------------------------
+    // Hexenbesen
+    // ------------------------------------------------------------------
+
+    public static final Identifier WITCH_BROOM_TEXTURE = Identifier.of("bameclient", "textures/entity/witch_broom.png");
+    private static final String WITCH_BROOM_MODEL = "assets/bameclient/emotes/witch_broom/witch_broom.geo.json";
+    private static BedrockCosmeticModel witchBroomModel;
+    private static boolean witchBroomLoaded;
+    private static final WitchBroomMotion.Pose WB_POSE = new WitchBroomMotion.Pose();
+
+    /**
+     * Hexenbesen: krummer Holzstiel mit Knauf, Schnur-Bindung und gefächertem Reisig (Bedrock-Modell aus
+     * {@code emotes/witch_broom/witch_broom.geo.json}), Entity-Cutout ohne Culling mit dem Licht des Spielers. Der
+     * Spieler ist in {@code setupTransforms} auf den Besen gesetzt ({@link EmoteAnimator#pushBroomRider}); hier wird das
+     * herausgerechnet und der Besen mit {@code W} aus {@link WitchBroomMotion} gezeichnet (beim Erscheinen gleitet er
+     * von hinten herein und wächst). Der Besen wächst mit der Spieler-Skalierung mit.
+     */
+    private static void renderWitchBroom(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                         PlayerEntityRenderState state, EmoteAnimator.ActiveEmote active) {
+        if (active == null || !EmoteAnimator.hammockTransformApplies(state)) return;
+        WitchBroomCoordinator.Frame frame = WitchBroomCoordinator.frame(state, active);
+        if (frame == null) return;
+        if (!witchBroomLoaded) {
+            witchBroomLoaded = true;
+            witchBroomModel = loadProp(WITCH_BROOM_MODEL);
+        }
+        BedrockCosmeticModel broom = witchBroomModel;
+        if (broom == null) return;
+        float scale = state.baseScale > 0.0F ? state.baseScale : 1.0F;
+        WitchBroomMotion.Pose p = WB_POSE;
+        WitchBroomMotion.sample(frame.t, 0.0F, 0.0F, false, frame.preview, false, scale, p);
+        if (p.broomScale <= 0.001F) return;
+        final int lt = light;
+
+        matrices.push();
+        // 1. Modell-Skalierung herausrechnen (Umkehrung von scale(-1,-1,1) · scale(0.9375) · translate(0,-1.501,0))
+        matrices.translate(0.0F, 1.501F, 0.0F);
+        matrices.scale(1.0F / MODEL_SCALE, 1.0F / MODEL_SCALE, 1.0F / MODEL_SCALE);
+        matrices.scale(-1.0F, -1.0F, 1.0F);
+        // 2. Reiter-Transformation herausrechnen -> Rahmen
+        EmoteAnimator.popBroomRider(matrices, p);
+        // 3. Besen: W = Tr(b) · Ry · Rz · Rx(Nase) · Rx(Hereingleiten) · Tr(0, 0, Versatz) · S
+        matrices.translate((float) p.bx, (float) p.by, (float) p.bz);
+        if (p.broomHeading != 0.0F) matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(p.broomHeading));
+        if (p.broomBank != 0.0F) matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(p.broomBank));
+        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(p.broomNose + p.broomSlideTilt));
+        if (p.broomSlide != 0.0) matrices.translate(0.0F, 0.0F, (float) p.broomSlide);
+        if (p.broomScale < 0.999F) matrices.scale(p.broomScale, p.broomScale, p.broomScale);
+        bedrockSpace(matrices);
+        queue.getBatchingQueue(0).submitCustom(matrices, RenderLayers.entityCutoutNoCull(WITCH_BROOM_TEXTURE),
+                (entry, consumer) -> broom.render(entry, consumer, lt, 0, 1, false, 0xFFFFFFFF, null));
         matrices.pop();
     }
 

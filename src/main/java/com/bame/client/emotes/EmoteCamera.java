@@ -22,7 +22,8 @@ import net.minecraft.util.math.Vec3d;
  * </ul>
  * Die Hängematte nutzt dieselbe Kamera: aus der Ego-Perspektive eine 3rd-Person-Kamera, Drehpunkt über dem liegenden
  * Körper (fest in der Welt, schaukelt nicht mit), Übergang 0,8 s, mindestens 15° bzw. 8° Neigung. Schaukel und
- * Picknick ebenso: Drehpunkt über dem Sitz bzw. über dem sitzenden Spieler (folgt nicht dem Schaukeln).
+ * Picknick ebenso: Drehpunkt über dem Sitz bzw. über dem sitzenden Spieler (folgt nicht dem Schaukeln). Beim Hexenbesen
+ * liegt der Drehpunkt fest über der Mitte der Kreisbahn (die Kamera kreist nicht mit, die echte Position bleibt).
  */
 public final class EmoteCamera {
 
@@ -43,7 +44,7 @@ public final class EmoteCamera {
 
     /** Emotes mit weltfesten Props und Kamera wie bei der Hängematte. */
     private static boolean isPropEmote(EmoteType e) {
-        return e == EmoteType.HAMMOCK || e == EmoteType.SWING || e == EmoteType.PICNIC;
+        return e == EmoteType.HAMMOCK || e == EmoteType.SWING || e == EmoteType.PICNIC || e == EmoteType.WITCH_BROOM;
     }
 
     /** Liegestütze oder Hängematte mit eigener Kameraführung? */
@@ -89,6 +90,7 @@ public final class EmoteCamera {
             EmoteType e = EmoteModule.getCurrentEmote();
             double[] h = e == EmoteType.SWING ? SwingCoordinator.localCameraPivot(self)
                     : e == EmoteType.PICNIC ? PicnicCoordinator.localCameraPivot(self)
+                    : e == EmoteType.WITCH_BROOM ? WitchBroomCoordinator.localCameraPivot(self)
                     : HammockCoordinator.localCameraPivot(self);
             if (h == null) return null;
             float hb = blend();

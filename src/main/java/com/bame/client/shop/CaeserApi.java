@@ -402,8 +402,8 @@ public final class CaeserApi {
 
     /** UUID als 32 Hex-Zeichen ohne Bindestriche in Kleinbuchstaben, {@code null} bei ungültigem Wert. */
     public static String uuid32(UUID uuid) {
-        if (uuid == null) return null;
-        return uuid.toString().replace("-", "").toLowerCase(Locale.ROOT);
+        // Läuft pro Frame und Spieler (Tab-Liste, Cosmetics-Renderer): direkt aus den Bits, eine Allokation statt drei
+        return com.bame.client.util.FastIds.uuid32(uuid);
     }
 
     /** Normalisiert eine UUID-Zeichenkette (mit oder ohne Bindestriche) auf 32 Hex-Zeichen, sonst {@code null}. */

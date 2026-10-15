@@ -216,7 +216,7 @@ public final class CaeserSyncClient {
             }
         }
         if (wasConnected) {
-            MinecraftClient.getInstance().execute(CaeserPlayerSyncManager::onSyncDisconnected);
+            MinecraftClient.getInstance().execute(com.bame.client.util.Prof.task("caeser_task_sync_disconnected", CaeserPlayerSyncManager::onSyncDisconnected));
         }
     }
 
@@ -251,7 +251,7 @@ public final class CaeserSyncClient {
         LOGGER.debug("Sync connection closed (code {}, {})", code, error != null ? error.getClass().getSimpleName() : "-");
         if (authProblem) CaeserAuth.invalidate();
         if (wasConnected) {
-            MinecraftClient.getInstance().execute(CaeserPlayerSyncManager::onSyncDisconnected);
+            MinecraftClient.getInstance().execute(com.bame.client.util.Prof.task("caeser_task_sync_disconnected", CaeserPlayerSyncManager::onSyncDisconnected));
         }
         scheduleReconnect(-1);
     }
@@ -283,16 +283,16 @@ public final class CaeserSyncClient {
                     connected = true;
                 }
                 LOGGER.info("Caeser sync connected");
-                mc.execute(CaeserPlayerSyncManager::onSyncWelcome);
+                mc.execute(com.bame.client.util.Prof.task("caeser_task_sync_welcome", CaeserPlayerSyncManager::onSyncWelcome));
             }
             case "state" -> {
                 String uuid = CaeserApi.uuid32(str(msg, "uuid"));
                 String name = str(msg, "name");
                 JsonObject state = msg.has("state") && msg.get("state").isJsonObject() ? msg.getAsJsonObject("state") : null;
                 if (uuid == null || state == null) return;
-                mc.execute(() -> {
+                mc.execute(com.bame.client.util.Prof.task("caeser_task_sync_state", () -> {
                     if (isCurrent(gen)) CaeserPlayerSyncManager.applyServerState(uuid, name, state);
-                });
+                }));
             }
             case "emote" -> {
                 String uuid = CaeserApi.uuid32(str(msg, "uuid"));
@@ -302,14 +302,14 @@ public final class CaeserSyncClient {
                 long time = msg.has("time") && msg.get("time").isJsonPrimitive() ? safeLong(msg.get("time")) : 0L;
                 long receivedAt = System.currentTimeMillis();
                 if (uuid == null) return;
-                mc.execute(() -> {
+                mc.execute(com.bame.client.util.Prof.task("caeser_task_sync_emote", () -> {
                     if (isCurrent(gen)) CaeserPlayerSyncManager.applyServerEmote(uuid, name, emote, action, time, receivedAt);
-                });
+                }));
             }
             case "leave" -> {
                 String uuid = CaeserApi.uuid32(str(msg, "uuid"));
                 if (uuid == null) return;
-                mc.execute(() -> CaeserPlayerSyncManager.applyServerLeave(uuid));
+                mc.execute(com.bame.client.util.Prof.task("caeser_task_sync_leave", () -> CaeserPlayerSyncManager.applyServerLeave(uuid)));
             }
             case "killfx" -> {
                 // Kill-Effekt eines beobachteten Spielers (nur Welt-Teil); unbekannte Felder werden ignoriert
@@ -319,9 +319,9 @@ public final class CaeserSyncClient {
                 String victim = str(msg, "victimName");
                 double x = num(msg, "x"), y = num(msg, "y"), z = num(msg, "z");
                 if (effect == null || Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z)) return;
-                mc.execute(() -> {
+                mc.execute(com.bame.client.util.Prof.task("caeser_task_sync_killfx", () -> {
                     if (isCurrent(gen)) com.bame.client.killfx.KillEffects.onRemote(uuid, name, effect, x, y, z, victim);
-                });
+                }));
             }
             case "error" -> {
                 String code = str(msg, "code");

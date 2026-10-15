@@ -352,7 +352,7 @@ public final class CaeserCapeManager {
         }
         String key = CapeFiles.storageKey(entry.id);
         Identifier texId = Identifier.of("bameclient", "capes/" + key);
-        mc.execute(() -> {
+        mc.execute(com.bame.client.util.Prof.task("caeser_task_cape_register", () -> {
             try {
                 if (ENTRIES.get(entry.id) != entry) {
                     image.close(); // inzwischen verworfen
@@ -369,7 +369,7 @@ public final class CaeserCapeManager {
                 LOGGER.warn("Could not register Caeser cape texture {} ({})", entry.id, t.getClass().getSimpleName());
                 fail(entry, Long.MAX_VALUE);
             }
-        });
+        }));
     }
 
     // ==========================================

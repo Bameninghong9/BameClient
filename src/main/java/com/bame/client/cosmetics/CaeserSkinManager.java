@@ -43,6 +43,10 @@ public class CaeserSkinManager {
         private volatile SkinTextures skinTextures;
         private volatile PlayerSkinType skinType = PlayerSkinType.WIDE;
         private volatile boolean textureLoaded = false;
+        /** Registrierung ist auf dem Haupt-Thread eingeplant (nicht erneut dekodieren). */
+        private volatile boolean loadPending = false;
+        /** Dekodieren/Registrieren ist fehlgeschlagen: nicht pro Frame erneut versuchen (und loggen). */
+        private volatile boolean loadFailed = false;
 
         public LauncherSkinEntry(String id, String name, String base64Data, long createdAt, String variant) {
             this.id = id;
@@ -77,9 +81,17 @@ public class CaeserSkinManager {
     private static final List<LauncherSkinEntry> CUSTOM_SKINS_LIST = new CopyOnWriteArrayList<>();
     private static volatile String activeSkinId = "account";
     private static volatile SkinTextures activeSkinTextures = null;
-    private static long lastSettingsModified = -1L;
-    private static long lastSkinsModified = -1L;
+    private static volatile long lastSettingsModified = -1L;
+    private static volatile long lastSkinsModified = -1L;
     private static long lastCheckTime = 0L;
+    /** Sekündliche Änderungsprüfung der Launcher-Dateien (nur Datei-Zeitstempel) außerhalb des Haupt-Threads. */
+    private static final java.util.concurrent.atomic.AtomicBoolean syncCheckInFlight = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.ExecutorService SYNC_CHECK_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "Caeser-SkinSyncCheck");
+                t.setDaemon(true);
+                return t;
+            });
     private static volatile String lastUploadedSkinId = null;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -171,6 +183,10 @@ public class CaeserSkinManager {
     public static void ensureTextureLoaded(LauncherSkinEntry entry) {
         if (entry == null || (entry.textureLoaded && entry.textureId != null)) return;
         if (entry.base64Data == null || entry.base64Data.isBlank()) return;
+        // Wird pro Frame aufgerufen (Skin-Karten, Vorschau, getActiveSkinTextures): eine laufende Registrierung bzw. ein
+        // fehlgeschlagener Versuch löst kein erneutes Base64-/PNG-Dekodieren samt Fehler-Log aus. Ein neuer Versuch
+        // erfolgt erst nach einer Änderung (Variante in skins.json, siehe reloadFromLauncher).
+        if (entry.loadPending || entry.loadFailed) return;
 
         try {
             String raw = entry.base64Data.trim();
@@ -179,7 +195,10 @@ public class CaeserSkinManager {
             byte[] bytes = Base64.getDecoder().decode(b64.trim());
 
             NativeImage image = NativeImage.read(bytes);
-            if (image == null) return;
+            if (image == null) {
+                entry.loadFailed = true;
+                return;
+            }
 
             boolean slim = "slim".equalsIgnoreCase(entry.variant)
                     || (entry.variant == null && isSlimSkin(image));
@@ -195,6 +214,7 @@ public class CaeserSkinManager {
             NativeImage finalImage = image;
 
             Runnable registerAction = () -> {
+                entry.loadPending = false;
                 try {
                     NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "caeser_skin_" + safeId, finalImage);
                     mc.getTextureManager().registerTexture(regId, tex);
@@ -223,6 +243,7 @@ public class CaeserSkinManager {
                         activeSkinTextures = entry.skinTextures;
                     }
                 } catch (Throwable t) {
+                    entry.loadFailed = true;
                     LOGGER.error("Failed to register skin texture for {}", entry.id, t);
                     try {
                         finalImage.close();
@@ -234,10 +255,12 @@ public class CaeserSkinManager {
                 if (mc.isOnThread()) {
                     registerAction.run();
                 } else {
-                    mc.execute(registerAction);
+                    entry.loadPending = true;
+                    mc.execute(com.bame.client.util.Prof.task("caeser_task_skin_register", registerAction));
                 }
             }
         } catch (Throwable t) {
+            entry.loadFailed = true;
             LOGGER.error("Failed to decode custom skin {}", entry.id, t);
         }
     }
@@ -271,6 +294,7 @@ public class CaeserSkinManager {
                             if (!Objects.equals(entry.variant, variant)) {
                                 entry.variant = variant;
                                 entry.textureLoaded = false;
+                                entry.loadFailed = false;
                             }
                             newEntries.add(entry);
                             ensureTextureLoaded(entry);
@@ -389,11 +413,48 @@ public class CaeserSkinManager {
         return true;
     }
 
+    /**
+     * Haupt-Thread (Client-Tick): einmal pro Sekunde prüfen, ob der Launcher skins.json bzw. settings.json geändert hat.
+     * Die Prüfung (Dateisystem-Zugriffe) läuft im Hintergrund; nur bei einer Änderung wird {@link #reloadFromLauncher()}
+     * wie bisher auf dem Haupt-Thread ausgeführt (gleiches Ergebnis, aber keine Datei-Abfragen pro Sekunde im Spiel-Thread).
+     */
     public static void checkPeriodicSync() {
         long now = System.currentTimeMillis();
         if (now - lastCheckTime < 1000) return;
         lastCheckTime = now;
-        reloadFromLauncher();
+        if (!syncCheckInFlight.compareAndSet(false, true)) return;
+        try {
+            SYNC_CHECK_EXECUTOR.execute(() -> {
+                try {
+                    if (launcherFilesChanged()) {
+                        MinecraftClient mc = MinecraftClient.getInstance();
+                        if (mc != null) {
+                            mc.execute(com.bame.client.util.Prof.task("caeser_task_skin_reload", CaeserSkinManager::reloadFromLauncher));
+                        }
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    syncCheckInFlight.set(false);
+                }
+            });
+        } catch (Throwable t) {
+            syncCheckInFlight.set(false);
+        }
+    }
+
+    /** Gleiche Änderungsbedingung wie in {@link #reloadFromLauncher()} (Datei vorhanden und Zeitstempel neu). */
+    private static boolean launcherFilesChanged() {
+        try {
+            Path dir = getLauncherDir();
+            if (!Files.exists(dir)) return false;
+            Path skinsFile = dir.resolve("skins.json");
+            if (Files.exists(skinsFile) && Files.getLastModifiedTime(skinsFile).toMillis() != lastSkinsModified) return true;
+            Path settingsFile = dir.resolve("settings.json");
+            return Files.exists(settingsFile) && Files.getLastModifiedTime(settingsFile).toMillis() != lastSettingsModified;
+        } catch (Throwable t) {
+            // Wie bisher: reloadFromLauncher fängt Fehler selbst ab und meldet sie
+            return true;
+        }
     }
 
     public static void setActiveSkin(String skinId) {

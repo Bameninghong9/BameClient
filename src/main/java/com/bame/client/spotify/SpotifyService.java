@@ -56,9 +56,32 @@ public class SpotifyService {
 
     private static Process trackerProcess = null;
     private static Thread readerThread = null;
-    private static boolean running = false;
-    private static Path coverPath = null;
+    private static volatile boolean running = false;
+    private static volatile Path coverPath = null;
     private static Path scriptPath = null;
+
+    /** Pro-Frame-Start ({@link #ensureRunning()}): höchstens ein Versuch in diesem Abstand, im Hintergrund. */
+    private static final long RESTART_INTERVAL_MS = 2_000L;
+    private static volatile long lastStartAttemptMs = 0L;
+
+    /*
+     * Cover: Lesen und Dekodieren im Hintergrund (SpotifyCoverThread), Registrieren der Textur auf dem Render-Thread.
+     * lastCoverAttemptSig = Datei-Signatur (Änderungszeit, Größe) beim letzten Ladeversuch: Ohne Textur (z. B. weil das
+     * Cover kein PNG ist und NativeImage.read scheitert) wird nicht mehr mit jeder Statuszeile (~alle 500 ms) erneut
+     * gelesen und dekodiert, sondern erst wieder, wenn sich die Datei ändert.
+     */
+    private static final long NO_FILE = Long.MIN_VALUE;
+    private static volatile long lastCoverAttemptSig = Long.MAX_VALUE;
+    private static final java.util.concurrent.atomic.AtomicBoolean coverLoadInFlight = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicReference<DecodedCover> pendingCover = new java.util.concurrent.atomic.AtomicReference<>();
+    private static final java.util.concurrent.ExecutorService COVER_EXECUTOR =
+        java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "SpotifyCoverThread");
+            t.setDaemon(true);
+            return t;
+        });
+
+    private record DecodedCover(NativeImage image, int width, int height, int color) {}
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(SpotifyService::stop));
@@ -70,6 +93,22 @@ public class SpotifyService {
             return Math.min(duration, position + elapsed);
         }
         return position;
+    }
+
+    /**
+     * Für den HUD-Renderer (pro Frame): startet den Tracker, falls er nicht läuft, aber nie auf dem Render-Thread
+     * (Prozessstart und Skript schreiben dauern) und höchstens alle {@link #RESTART_INTERVAL_MS}. Früher lief
+     * {@link #start()} synchronisiert in jedem Frame und versuchte bei einem fehlgeschlagenen Start jeden Frame erneut.
+     */
+    public static void ensureRunning() {
+        if (running) return;
+        long now = System.currentTimeMillis();
+        if (now - lastStartAttemptMs < RESTART_INTERVAL_MS) return;
+        lastStartAttemptMs = now;
+        try {
+            CONTROL_EXECUTOR.execute(SpotifyService::start);
+        } catch (Exception ignored) {
+        }
     }
 
     public static synchronized void start() {
@@ -160,7 +199,7 @@ public class SpotifyService {
     private static void showToast(String message) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null) {
-            client.execute(() -> com.bame.client.notification.NotificationManager.showInfo("Spotify", message));
+            client.execute(com.bame.client.util.Prof.task("caeser_task_spotify_toast", () -> com.bame.client.notification.NotificationManager.showInfo("Spotify", message)));
         }
     }
 
@@ -231,34 +270,85 @@ public class SpotifyService {
 
             if (!active) {
                 hasCoverTexture = false;
-            } else if (titleChanged || coverChanged || (!hasCoverTexture && coverPath != null && Files.exists(coverPath))) {
+            } else if (titleChanged || coverChanged) {
                 coverDirty = true;
+            } else if (!hasCoverTexture) {
+                // Noch kein Cover: nur erneut laden, wenn die Datei existiert und sich seit dem letzten Versuch geändert hat
+                Path cp = coverPath;
+                long sig = cp != null ? coverSignature(cp) : NO_FILE;
+                if (sig != NO_FILE && sig != lastCoverAttemptSig) {
+                    coverDirty = true;
+                }
             }
         }
     }
 
-    public static void checkTextureUpdate() {
-        if (!coverDirty) return;
-        coverDirty = false;
-
-        if (coverPath == null || !Files.exists(coverPath)) return;
-
+    /** Änderungszeit und Größe der Cover-Datei als ein Wert, {@link #NO_FILE} wenn sie fehlt. */
+    private static long coverSignature(Path path) {
         try {
-            byte[] bytes = Files.readAllBytes(coverPath);
+            java.nio.file.attribute.BasicFileAttributes a =
+                    Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
+            long sig = a.lastModifiedTime().toMillis() * 31L + a.size();
+            return sig == NO_FILE ? NO_FILE + 1 : sig;
+        } catch (Exception e) {
+            return NO_FILE;
+        }
+    }
+
+    /**
+     * Render-Thread (pro Frame aus dem HUD): fertig dekodiertes Cover als Textur registrieren und bei Bedarf das Laden
+     * im Hintergrund anstoßen. Kein Dateizugriff und kein Dekodieren mehr auf dem Render-Thread.
+     */
+    public static void checkTextureUpdate() {
+        DecodedCover decoded = pendingCover.getAndSet(null);
+        if (decoded != null) {
+            try {
+                coverWidth = decoded.width();
+                coverHeight = decoded.height();
+                coverColor = decoded.color();
+                NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "spotify_cover", decoded.image());
+                MinecraftClient.getInstance().getTextureManager().registerTexture(COVER_ID, tex);
+                hasCoverTexture = true;
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (!coverDirty) return;
+        if (coverPath == null) {
+            coverDirty = false;
+            return;
+        }
+        // Läuft schon ein Ladevorgang, bleibt coverDirty gesetzt und wird danach erneut geprüft
+        if (!coverLoadInFlight.compareAndSet(false, true)) return;
+        coverDirty = false;
+        try {
+            COVER_EXECUTOR.execute(SpotifyService::loadCoverInBackground);
+        } catch (Exception e) {
+            coverLoadInFlight.set(false);
+        }
+    }
+
+    /** SpotifyCoverThread: Datei lesen, dekodieren, Durchschnittsfarbe; Ergebnis für den Render-Thread ablegen. */
+    private static void loadCoverInBackground() {
+        try {
+            Path path = coverPath;
+            long sig = path != null ? coverSignature(path) : NO_FILE;
+            lastCoverAttemptSig = sig;
+            if (sig == NO_FILE) return;
+            byte[] bytes = Files.readAllBytes(path);
             if (bytes.length > 50) {
                 try (InputStream in = new ByteArrayInputStream(bytes)) {
                     NativeImage image = NativeImage.read(in);
                     if (image != null) {
-                        coverWidth = image.getWidth();
-                        coverHeight = image.getHeight();
-                        coverColor = averageColor(image);
-                        NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "spotify_cover", image);
-                        MinecraftClient.getInstance().getTextureManager().registerTexture(COVER_ID, tex);
-                        hasCoverTexture = true;
+                        DecodedCover old = pendingCover.getAndSet(
+                                new DecodedCover(image, image.getWidth(), image.getHeight(), averageColor(image)));
+                        if (old != null) old.image().close(); // nie registriert: freigeben
                     }
                 }
             }
         } catch (Exception ignored) {
+        } finally {
+            coverLoadInFlight.set(false);
         }
     }
 

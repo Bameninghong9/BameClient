@@ -374,6 +374,7 @@ public class EmoteAnimator {
             case HAMMOCK -> applyHammock(model, t, isPreview, state);
             case SWING -> applySwing(model, t, isPreview, state);
             case PICNIC -> applyPicnic(model, t, isPreview, state);
+            case WITCH_BROOM -> applyWitchBroom(model, t, isPreview, state);
             case SIT -> {
                 // Lower body & legs forward
                 float yOffset = 8.5f;
@@ -424,6 +425,10 @@ public class EmoteAnimator {
         }
         if (active != null && active.emote() == EmoteType.PICNIC) {
             applyPicnicTransform(state, matrices, active);
+            return;
+        }
+        if (active != null && active.emote() == EmoteType.WITCH_BROOM) {
+            applyWitchBroomTransform(state, matrices, active);
             return;
         }
         if (active == null || active.emote() != EmoteType.PUSH_UPS) return;
@@ -880,6 +885,105 @@ public class EmoteAnimator {
         model.rightLeg.yaw = p.rLegYaw;
         model.leftLeg.pitch = p.lLegPitch;
         model.leftLeg.yaw = p.lLegYaw;
+    }
+
+    // ------------------------------------------------------------------
+    // Hexenbesen
+    // ------------------------------------------------------------------
+
+    /** Vorschau: Besen schwebt auf der Stelle (schräg von vorne, siehe WitchBroomMotion), leicht von oben, verkleinert. */
+    private static final float BROOM_PREVIEW_TILT = -10.0F;
+    private static final float BROOM_PREVIEW_SCALE = 0.78F;
+    private static final float BROOM_PREVIEW_LIFT = 0.12F;
+
+    private static final WitchBroomMotion.Pose WB_POSE = new WitchBroomMotion.Pose();
+
+    /**
+     * Hexenbesen (am Ende von {@code setupTransforms}): Gegendrehung auf die Start-Ausrichtung und Versatz zum
+     * Startpunkt wie bei der Hängematte, dann den ganzen Spieler auf den Besen setzen und mit ihm auf der Kreisbahn
+     * bewegen ({@link WitchBroomMotion}). <b>Nur Darstellung:</b> Position und Hitbox des Spielers bleiben, der Nametag
+     * bleibt am echten Spieler.
+     */
+    private static void applyWitchBroomTransform(PlayerEntityRenderState state, MatrixStack matrices, ActiveEmote active) {
+        if (!hammockTransformApplies(state)) return;
+        WitchBroomCoordinator.Frame frame = WitchBroomCoordinator.frame(state, active);
+        if (frame == null) return;
+        float scale = state.baseScale > 0.0F ? state.baseScale : 1.0F;
+        if (frame.preview) {
+            matrices.translate(0.0F, BROOM_PREVIEW_LIFT, 0.0F);
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(BROOM_PREVIEW_TILT));
+            matrices.scale(BROOM_PREVIEW_SCALE, BROOM_PREVIEW_SCALE, BROOM_PREVIEW_SCALE);
+        } else {
+            if (Math.abs(frame.counterYaw) > 1.0E-3F) {
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(frame.counterYaw));
+            }
+            matrices.translate(frame.off[0] / scale, frame.off[1] / scale, frame.off[2] / scale);
+        }
+        WitchBroomMotion.sample(frame.t, 0.0F, 0.0F, false, frame.preview, false, scale, WB_POSE);
+        pushBroomRider(matrices, WB_POSE);
+    }
+
+    /** {@code T = Tr(q) · Ry(riderHeading) · Rz(riderBank) · Rx(riderPitch) · Tr(-E)} (siehe {@link WitchBroomMotion}). */
+    public static void pushBroomRider(MatrixStack m, WitchBroomMotion.Pose p) {
+        m.translate((float) p.qx, (float) p.qy, (float) p.qz);
+        if (p.riderHeading != 0.0F) m.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(p.riderHeading));
+        if (p.riderBank != 0.0F) m.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(p.riderBank));
+        if (p.riderPitch != 0.0F) m.multiply(RotationAxis.POSITIVE_X.rotationDegrees(p.riderPitch));
+        m.translate(0.0F, (float) -WitchBroomMotion.EDGE_Y, (float) -WitchBroomMotion.EDGE_Z);
+    }
+
+    /** Umkehrung von {@link #pushBroomRider} (für den Besen, der fest auf der Bahn liegt). */
+    public static void popBroomRider(MatrixStack m, WitchBroomMotion.Pose p) {
+        m.translate(0.0F, (float) WitchBroomMotion.EDGE_Y, (float) WitchBroomMotion.EDGE_Z);
+        if (p.riderPitch != 0.0F) m.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-p.riderPitch));
+        if (p.riderBank != 0.0F) m.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-p.riderBank));
+        if (p.riderHeading != 0.0F) m.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-p.riderHeading));
+        m.translate((float) -p.qx, (float) -p.qy, (float) -p.qz);
+    }
+
+    /**
+     * Hexenbesen: Sitz-Pose aus {@link WitchBroomMotion} (Beine gespreizt nach vorne, Hüftgelenke etwas nach außen,
+     * Hände per Rückwärtskinematik am Stiel, Schultern beim Greifen leicht vor), Kopf schaut voraus bzw. folgt dem Blick.
+     */
+    private static void applyWitchBroom(PlayerEntityModel model, float t, boolean isPreview, PlayerEntityRenderState state) {
+        float lookYaw = 0.0F, lookPitch = 0.0F;
+        boolean look = false;
+        float scale = 1.0F;
+        if (state != null) {
+            if (!isPreview) {
+                ActiveEmote active = resolveActiveEmote(state);
+                WitchBroomCoordinator.Frame frame = active != null ? WitchBroomCoordinator.frame(state, active) : null;
+                float counterYaw = frame != null ? frame.counterYaw : 0.0F;
+                lookYaw = (float) HammockLogic.wrapDegrees(state.relativeHeadYaw + counterYaw);
+                lookPitch = state.pitch;
+                look = true;
+            }
+            if (state.baseScale > 0.0F) scale = state.baseScale;
+        }
+        boolean slim = model.rightArm.getDefaultTransform().y() > 2.25F;
+        WitchBroomMotion.Pose p = WB_POSE;
+        WitchBroomMotion.sample(t, lookYaw, lookPitch, look, isPreview, slim, scale, p);
+        model.rightArm.originY += p.shoulderDY;
+        model.rightArm.originZ += p.shoulderDZ;
+        model.leftArm.originY += p.shoulderDY;
+        model.leftArm.originZ += p.shoulderDZ;
+        model.rightLeg.originX -= p.legShift;
+        model.leftLeg.originX += p.legShift;
+        model.head.pitch = p.headPitch;
+        model.head.yaw = p.headYaw;
+        model.head.roll = p.headRoll;
+        model.rightArm.pitch = p.rArmPitch;
+        model.rightArm.yaw = p.rArmYaw;
+        model.rightArm.roll = p.rArmRoll;
+        model.leftArm.pitch = p.lArmPitch;
+        model.leftArm.yaw = p.lArmYaw;
+        model.leftArm.roll = p.lArmRoll;
+        model.rightLeg.pitch = p.rLegPitch;
+        model.rightLeg.yaw = p.rLegYaw;
+        model.rightLeg.roll = p.rLegRoll;
+        model.leftLeg.pitch = p.lLegPitch;
+        model.leftLeg.yaw = p.lLegYaw;
+        model.leftLeg.roll = p.lLegRoll;
     }
 
     // ------------------------------------------------------------------

@@ -37,6 +37,10 @@ public class BameClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Initializing BameClient!");
         BameClientConfig.load();
+        // Diagnose: Frames > 25 ms mit Stack-Samples nach config/bameclient/hitches.log (Schalter hitchLogger)
+        com.bame.client.util.HitchSampler.start(BameClientConfig.hitchLogger);
+        // Klassen des Mod-Menüs/Emote-Rads im Hintergrund vorladen (kein Klassenladen beim ersten Öffnen im Spiel)
+        com.bame.client.gui.GuiWarmup.preloadInBackground();
         com.bame.client.cosmetics.CosmeticsConfig.load();
         com.bame.client.emotes.EmoteUnlockManager.init();
         com.bame.client.cosmetics.CaeserPlayerSyncManager.init();
@@ -54,17 +58,28 @@ public class BameClient implements ClientModInitializer {
             } catch (Throwable ignored) {}
         });
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
-            com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
-            com.bame.client.cosmetics.CaeserPlayerSyncManager.onServerJoin();
+            com.bame.client.util.Prof.push("caeser_server_join");
+            try {
+                com.bame.client.cosmetics.CaeserSkinManager.syncOnServerJoin();
+                com.bame.client.emotes.EmoteUnlockManager.forceRefresh();
+                com.bame.client.cosmetics.CaeserPlayerSyncManager.onServerJoin();
+                // Ladebildschirm: statische Initialisierung der Menü-Klassen jetzt statt beim ersten Öffnen im Spiel
+                com.bame.client.gui.GuiWarmup.initializeOnce();
+                com.bame.client.wallpaper.WallpaperManager.prefetch();
+                // Sprachausgabe an? Einmal pro Spielsitzung ein Hinweis-Toast, sobald man im Spiel ist (siehe tick)
+                com.bame.client.util.NarratorGuard.onJoin();
+            } finally {
+                com.bame.client.util.Prof.pop();
+            }
         });
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
-                client.execute(com.bame.client.cosmetics.CaeserPlayerSyncManager::onServerLeave));
+                client.execute(com.bame.client.util.Prof.task("caeser_task_sync_server_leave",
+                        com.bame.client.cosmetics.CaeserPlayerSyncManager::onServerLeave)));
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
-                client.execute(() -> {
+                client.execute(com.bame.client.util.Prof.task("caeser_task_killfx_reset", () -> {
                     com.bame.client.killfx.KillDetector.reset();
                     com.bame.client.killfx.KillEffects.clear();
-                }));
+                })));
         // Jeton-Shop: nach dem Client-Start (Session und API-Services sind dann sicher da) Cache laden und anmelden
         // Config: ausstehende Änderungen beim Beenden synchron sichern (nichts geht verloren)
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
@@ -83,13 +98,22 @@ public class BameClient implements ClientModInitializer {
             }
         });
         // Account-Switcher: Knopf oben links im Multiplayer-Menü (ohne Mixin in MultiplayerScreen)
+        // Läuft nach dem init() jedes Screens (Inventar, Esc-Menü, ...): eigener Abschnitt, damit Messungen ihn benennen
         net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            if (screen instanceof net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen) {
-                try {
-                    com.bame.client.account.AccountButtonWidget.attach(screen);
-                } catch (Throwable t) {
-                    LOGGER.warn("Failed to add account button to multiplayer screen", t);
+            com.bame.client.util.Prof.push("caeser_screen_after_init");
+            try {
+                if (screen instanceof net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen) {
+                    com.bame.client.util.Prof.push("caeser_screen_account_button");
+                    try {
+                        com.bame.client.account.AccountButtonWidget.attach(screen);
+                    } catch (Throwable t) {
+                        LOGGER.warn("Failed to add account button to multiplayer screen", t);
+                    } finally {
+                        com.bame.client.util.Prof.pop();
+                    }
                 }
+            } finally {
+                com.bame.client.util.Prof.pop();
             }
         });
         try {
@@ -146,7 +170,22 @@ public class BameClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, livingEntityRenderer, registrationHelper, context) -> {
             if (livingEntityRenderer instanceof net.minecraft.client.render.entity.PlayerEntityRenderer playerRenderer) {
                 registrationHelper.register(new com.bame.client.cosmetics.CaeserCosmeticsRenderer(playerRenderer));
-                registrationHelper.register(new com.bame.client.emotes.EmotePropFeatureRenderer(playerRenderer));
+                // Emote-Props mit eigenem Profiler-Abschnitt (Unterklasse nur für push/pop, Verhalten unverändert)
+                registrationHelper.register(new com.bame.client.emotes.EmotePropFeatureRenderer(playerRenderer) {
+                    @Override
+                    public void render(net.minecraft.client.util.math.MatrixStack matrices,
+                                       net.minecraft.client.render.command.OrderedRenderCommandQueue queue, int light,
+                                       net.minecraft.client.render.entity.state.PlayerEntityRenderState state,
+                                       float limbAngle, float limbDistance) {
+                        net.minecraft.util.profiler.Profiler p = net.minecraft.util.profiler.Profilers.get();
+                        p.push("caeser_emote_props");
+                        try {
+                            super.render(matrices, queue, light, state, limbAngle, limbDistance);
+                        } finally {
+                            p.pop();
+                        }
+                    }
+                });
             }
         });
         
@@ -162,51 +201,104 @@ public class BameClient implements ClientModInitializer {
 
         // Client Tick Events
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Profiler-Abschnitte (F3+L): jeder Teil einzeln unter tick > caeser_tick > caeser_<name>.
+            // swap() hält die Tiefe konstant; die beiden finally-Blöcke schließen beide Ebenen auch bei Ausnahmen.
+            net.minecraft.util.profiler.Profiler prof = net.minecraft.util.profiler.Profilers.get();
+            prof.push("caeser_tick");
+            try {
+            prof.push("caeser_config");
+            try {
             // Gebündeltes Speichern ~1 s nach der letzten Änderung (Schreiben im Hintergrund)
             BameClientConfig.tick();
+            com.bame.client.cosmetics.GuiPreviewContext.reset();
+            prof.swap("caeser_skin_sync");
             com.bame.client.cosmetics.CaeserSkinManager.checkPeriodicSync();
+            prof.swap("caeser_player_sync");
             com.bame.client.cosmetics.CaeserPlayerSyncManager.tick(client);
+            prof.swap("caeser_auto_area_miner");
             AutoAreaMinerModule.onTick(client);
+            prof.swap("caeser_fullbright");
             FullbrightModule.onTick(client);
 
+            prof.swap("caeser_target_hud");
             TargetHudModule.onClientTick(client);
+            prof.swap("caeser_auto_clicker");
             AutoClickerModule.onTick(client);
+            prof.swap("caeser_hit_color");
             HitColorModule.onTick(client);
+            prof.swap("caeser_reach_display");
             ReachDisplayModule.onTick(client);
+            prof.swap("caeser_low_shield");
             LowShieldModule.onTick(client);
+            prof.swap("caeser_custom_hitboxes");
             CustomHitboxesModule.onTick(client);
+            prof.swap("caeser_auto_tool");
             AutoToolModule.onTick(client);
+            prof.swap("caeser_no_fog");
             NoFogModule.onTick(client);
+            prof.swap("caeser_block_outline");
             BlockOutlineModule.onTick(client);
+            prof.swap("caeser_freelook");
             FreelookModule.onTick(client);
+            prof.swap("caeser_item_size");
             ItemSizeModule.onTick(client);
+            prof.swap("caeser_hand_position");
             com.bame.client.module.HandPositionModule.onTick(client);
+            prof.swap("caeser_durability_guard");
             DurabilityGuardModule.onTick(client);
+            prof.swap("caeser_zoom");
             ZoomModule.onTick(client);
+            prof.swap("caeser_pearl_prediction");
             com.bame.client.module.PearlPredictionModule.onTick(client);
+            prof.swap("caeser_auto_cart");
             com.bame.client.module.AutoCartModule.onTick(client);
+            prof.swap("caeser_auto_mace");
             com.bame.client.module.AutoMaceModule.onTick(client);
+            prof.swap("caeser_dtap");
             com.bame.client.module.DTapModule.onTick(client);
+            prof.swap("caeser_pearl_catch");
             com.bame.client.module.PearlCatchModule.onTick(client);
+            prof.swap("caeser_aggro_pearl");
             com.bame.client.module.AggroPearlModule.onTick(client);
+            prof.swap("caeser_triggerbot");
             com.bame.client.module.TriggerbotModule.onTick(client);
+            prof.swap("caeser_shield_breaker");
             com.bame.client.module.ShieldBreakerModule.onTick(client);
+            prof.swap("caeser_emote_module");
             com.bame.client.module.EmoteModule.onTick(client);
+            prof.swap("caeser_emote_highfive");
             com.bame.client.emotes.HighFiveCoordinator.tick(client);
+            prof.swap("caeser_emote_campfire");
             com.bame.client.emotes.CampfireCoordinator.tick(client);
+            prof.swap("caeser_emote_hammock");
             com.bame.client.emotes.HammockCoordinator.tick(client);
+            prof.swap("caeser_emote_swing");
             com.bame.client.emotes.SwingCoordinator.tick(client);
+            prof.swap("caeser_emote_picnic");
             com.bame.client.emotes.PicnicCoordinator.tick(client);
+            prof.swap("caeser_emote_witch_broom");
+            com.bame.client.emotes.WitchBroomCoordinator.tick(client);
+            prof.swap("caeser_emote_world_effects");
             com.bame.client.emotes.EmoteWorldEffects.tick(client);
+            prof.swap("caeser_kill_detector");
             com.bame.client.killfx.KillDetector.tick(client);
+            prof.swap("caeser_kill_effects");
             com.bame.client.killfx.KillEffects.tick(client);
+            prof.swap("caeser_narrator_hint");
+            com.bame.client.util.NarratorGuard.tick(client);
+            prof.swap("caeser_keybinds");
 
             if (client.getWindow() != null && client.currentScreen == null) {
                 // Emote Wheel bind
                 if (com.bame.client.module.EmoteModule.enabled && com.bame.client.module.EmoteModule.keyBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.EmoteModule.keyBind);
                     if (down && !emoteWasPressed) {
-                        client.setScreen(new com.bame.client.gui.EmoteWheelScreen());
+                        prof.push("caeser_open_emote_wheel");
+                        try {
+                            client.setScreen(new com.bame.client.gui.EmoteWheelScreen());
+                        } finally {
+                            prof.pop();
+                        }
                     }
                     emoteWasPressed = down;
                 }
@@ -361,7 +453,12 @@ public class BameClient implements ClientModInitializer {
                 if (BameClientConfig.menuBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), BameClientConfig.menuBind);
                     if (down && !menuWasPressed) {
-                        client.setScreen(new BameClientScreen());
+                        prof.push("caeser_open_menu");
+                        try {
+                            client.setScreen(new BameClientScreen());
+                        } finally {
+                            prof.pop();
+                        }
                     }
                     menuWasPressed = down;
                 }
@@ -390,22 +487,51 @@ public class BameClient implements ClientModInitializer {
                 // InvMove tick (keybind & arrow navigation)
                 InvMoveModule.onTick(client);
             }
+            } finally {
+                prof.pop();
+            }
+            } finally {
+                prof.pop();
+            }
         });
-        
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.KeyStrokesRenderer());
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.StatusHudRenderer());
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.FakeScoreboardRenderer());
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.notification.NotificationManager());
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.render.HighFivePromptRenderer());
-        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new com.bame.client.killfx.KillEffectHud());
+
+        // HUD: jeder Renderer in einem eigenen Profiler-Abschnitt (Hülle einmal bei der Registrierung)
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_keystrokes", new com.bame.client.render.KeyStrokesRenderer()));
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_status", new com.bame.client.render.StatusHudRenderer()));
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_fake_scoreboard", new com.bame.client.render.FakeScoreboardRenderer()));
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_notifications", new com.bame.client.notification.NotificationManager()));
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_highfive_prompt", new com.bame.client.render.HighFivePromptRenderer()));
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
+                com.bame.client.util.Prof.hud("caeser_hud_kill_effects", new com.bame.client.killfx.KillEffectHud()));
 
         // Kill-Effekte Sarg und Amboss (mit Opfer-Figur): zusammen mit den Entities zeichnen
-        WorldRenderEvents.BEFORE_ENTITIES.register(com.bame.client.killfx.KillEffects::submitWorld);
+        WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
+            net.minecraft.util.profiler.Profiler p = net.minecraft.util.profiler.Profilers.get();
+            p.push("caeser_world_kill_effects");
+            try {
+                com.bame.client.killfx.KillEffects.submitWorld(context);
+            } finally {
+                p.pop();
+            }
+        });
 
         WorldRenderEvents.END_MAIN.register(context -> {
-            AreaRenderer.render(context);
-            com.bame.client.render.PearlPredictionRenderer.render(context);
-            com.bame.client.killfx.KillEffects.renderWorld(context);
+            net.minecraft.util.profiler.Profiler p = net.minecraft.util.profiler.Profilers.get();
+            p.push("caeser_world_area");
+            try {
+                AreaRenderer.render(context);
+                p.swap("caeser_world_pearl_prediction");
+                com.bame.client.render.PearlPredictionRenderer.render(context);
+                p.swap("caeser_world_kill_effects");
+                com.bame.client.killfx.KillEffects.renderWorld(context);
+            } finally {
+                p.pop();
+            }
         });
 
         // Kill-Effekte: eigene Projektile (Fernkampf-Treffer) und Kill-Nachrichten im Chat

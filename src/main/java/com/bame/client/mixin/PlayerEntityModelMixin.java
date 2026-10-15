@@ -12,8 +12,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class PlayerEntityModelMixin {
     @Inject(method = "setAngles(Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;)V", at = @At("TAIL"))
     private void onSetAngles(PlayerEntityRenderState state, CallbackInfo ci) {
-        EmoteAnimator.apply((PlayerEntityModel) (Object) this, state);
-        // Kill-Effekt Amboss: Pose der Opfer-Figur (nur für deren eigenen Render-Zustand)
-        com.bame.client.killfx.KillFigureState.applyPose((PlayerEntityModel) (Object) this, state);
+        com.bame.client.util.Prof.push("caeser_emote_pose");
+        try {
+            EmoteAnimator.apply((PlayerEntityModel) (Object) this, state);
+            // Kill-Effekt Amboss: Pose der Opfer-Figur (nur für deren eigenen Render-Zustand)
+            com.bame.client.killfx.KillFigureState.applyPose((PlayerEntityModel) (Object) this, state);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
     }
 }

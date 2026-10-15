@@ -49,6 +49,16 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static final Identifier VIKING_HELMET_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/viking_helmet.png");
     public static final Identifier PROPELLER_CAP_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/propeller_cap.png");
     public static final Identifier CAT_EARS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/cat_ears.png");
+    public static final Identifier GAS_MASK_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/gas_mask.png");
+    public static final Identifier AVIATOR_GOGGLES_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/aviator_goggles.png");
+    public static final Identifier BUTTERFLY_WINGS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/wings/butterfly_wings.png");
+    /** Texturen der Rücken-Cosmetics (Slot BACK), Schlüssel = Mod-ID. */
+    private static final java.util.Map<String, Identifier> BACK_TEXTURES = new java.util.HashMap<>();
+    static {
+        for (String id : BackCosmetics.BACK_IDS) {
+            BACK_TEXTURES.put(id, Identifier.of("bameclient", "textures/cosmetics/back/" + id + ".png"));
+        }
+    }
 
     // Models
     public static BedrockCosmeticModel goldWingsModel;
@@ -65,6 +75,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static BedrockCosmeticModel vikingHelmetModel;
     public static BedrockCosmeticModel propellerCapModel;
     public static BedrockCosmeticModel catEarsModel;
+    public static BedrockCosmeticModel gasMaskModel;
+    public static BedrockCosmeticModel aviatorGogglesModel;
+    public static BedrockCosmeticModel butterflyWingsModel;
+    private static final java.util.Map<String, BedrockCosmeticModel> BACK_MODELS = new java.util.HashMap<>();
 
     // Independent Chibi models for each accessory so they NEVER overwrite each other's pose!
     public static ModelPart sitChibiRoot;
@@ -231,6 +245,22 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (vikingHelmetModel == null) vikingHelmetModel = loadHatModel("viking_helmet");
         if (propellerCapModel == null) propellerCapModel = loadHatModel("propeller_cap");
         if (catEarsModel == null) catEarsModel = loadHatModel("cat_ears");
+        // Neue Gesichts-, Flügel- und Rücken-Cosmetics: Blockbench-Achsen (Generator-Ausgabe)
+        if (gasMaskModel == null) gasMaskModel = loadFixedModel("face/gas_mask");
+        if (aviatorGogglesModel == null) aviatorGogglesModel = loadFixedModel("face/aviator_goggles");
+        if (butterflyWingsModel == null) butterflyWingsModel = loadFixedModel("wings/butterfly_wings");
+        for (String id : BackCosmetics.BACK_IDS) {
+            if (!BACK_MODELS.containsKey(id)) {
+                BedrockCosmeticModel m = loadFixedModel("back/" + id);
+                if (m != null) BACK_MODELS.put(id, m);
+            }
+        }
+    }
+
+    private static BedrockCosmeticModel loadFixedModel(String path) {
+        BedrockCosmeticModel model = BedrockCosmeticModel.load("assets/bameclient/models/cosmetics/" + path + ".geo.json");
+        if (model != null) model.blockbenchAxisFix = true;
+        return model;
     }
 
     public static String getPlayerUsername(PlayerEntityRenderState state) {
@@ -260,6 +290,21 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     @Override
     public void render(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
                        PlayerEntityRenderState state, float limbAngle, float limbDistance) {
+        // Profiler: render > ... > caeser_cosmetics > caeser_cosmetics_<teil> (Vorbereitung, Einreihen)
+        net.minecraft.util.profiler.Profiler prof = net.minecraft.util.profiler.Profilers.get();
+        prof.push("caeser_cosmetics");
+        prof.push("caeser_cosmetics_lookup");
+        try {
+            renderImpl(matrices, queue, light, state, limbAngle, limbDistance, prof);
+        } finally {
+            prof.pop();
+            prof.pop();
+        }
+    }
+
+    private void renderImpl(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                            PlayerEntityRenderState state, float limbAngle, float limbDistance,
+                            net.minecraft.util.profiler.Profiler prof) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player == null) return;
 
@@ -270,6 +315,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         String wings = null;
         String head = null;
         String face = null;
+        String back = null;
         String pet = null;
         Set<String> accessories = null;
 
@@ -280,6 +326,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             wings = ownedOrNone("WINGS", CosmeticsConfig.wings);
             head = ownedOrNone("HEAD", CosmeticsConfig.head);
             face = ownedOrNone("FACE", CosmeticsConfig.face);
+            back = ownedOrNone("BACK", CosmeticsConfig.back);
             pet = ownedOrNone("ACCESSORIES", CosmeticsConfig.pet);
             accessories = CosmeticsConfig.accessories;
         } else {
@@ -289,12 +336,13 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 wings = remote.wings;
                 head = remote.head;
                 face = remote.face;
+                back = remote.back;
                 pet = remote.pet;
                 accessories = remote.accessories;
             }
         }
 
-        if (wings != null || head != null || face != null || pet != null || (accessories != null && !accessories.isEmpty())) {
+        if (wings != null || head != null || face != null || back != null || pet != null || (accessories != null && !accessories.isEmpty())) {
             // Ego-Perspektive: Cosmetics ausblenden. Ausnahme: eigenes Emote. Dann wird der eigene Körper trotz
             // FIRST_PERSON gezeichnet (CameraMixin.isThirdPerson bzw. Emote-Kamera von hinten), und die Cosmetics
             // sollen mit der Emote-Pose sichtbar sein. Kopf-Cosmetics folgen weiter head.visible: EmoteAnimator
@@ -304,15 +352,25 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             boolean renderHead = this.getContextModel().head.visible && !inFirstPerson;
             boolean renderBody = this.getContextModel().body.visible && !inFirstPerson;
 
+            prof.swap("caeser_cosmetics_wings");
             // 1. Wings (nur wenn Körper sichtbar und nicht in Ego-Perspektive)
             if (renderBody) {
                 if ("angel".equalsIgnoreCase(wings)) {
                     renderAngelWings(matrices, queue, light);
                 } else if ("dragon".equalsIgnoreCase(wings)) {
                     renderDragonWings(matrices, queue, light);
+                } else if (BackCosmetics.BUTTERFLY_WINGS.equalsIgnoreCase(wings) && !hasElytra(state)) {
+                    // Mit Elytra keine Schmetterlingsflügel (Flügel über Flügel)
+                    renderButterflyWings(matrices, queue, light, state, isLocal);
+                }
+                prof.swap("caeser_cosmetics_back");
+                // 1b. Rücken (BACK): eigener Slot, auch zusammen mit Flügeln und Cape
+                if (BackCosmetics.isBackItem(back)) {
+                    renderBackItem(back.toLowerCase(java.util.Locale.ROOT), matrices, queue, light, state, isLocal);
                 }
             }
 
+            prof.swap("caeser_cosmetics_head");
             // 2. Head Accessories (Halo, Horns, Witch Hat, Straw Hat) - nicht in Ego-Perspektive!
             if (renderHead) {
                 if ("halo".equalsIgnoreCase(head)) {
@@ -328,15 +386,23 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                 }
             }
 
+            prof.swap("caeser_cosmetics_face");
             // 2b. Gesichts-Cosmetics (Sunglasses, Skull Mask) - nicht in Ego-Perspektive!
             if (renderHead) {
                 if ("sunglasses".equalsIgnoreCase(face)) {
                     renderHeadModel(matrices, queue, light, sunglassesModel, SUNGLASSES_TEXTURE);
                 } else if ("skull_mask".equalsIgnoreCase(face)) {
                     renderHeadModel(matrices, queue, light, skullMaskModel, SKULL_MASK_TEXTURE);
+                } else if (isGlintFace(face)) {
+                    matrices.push();
+                    this.getContextModel().head.applyTransform(matrices);
+                    HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_face", body);
+                    drawGlintFace(face, sink, light, seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id));
+                    matrices.pop();
                 }
             }
 
+            prof.swap("caeser_cosmetics_pets");
             // 3. Accessories & Pets - Multi-equip enabled (nicht in Ego-Perspektive)!
             if (!inFirstPerson) {
                 boolean hasSit = isLocal ? localAccessory("minime_sit") : ((accessories != null && accessories.contains("minime_sit")) || "minime_sit".equalsIgnoreCase(pet));
@@ -360,6 +426,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             }
         }
 
+        prof.swap("caeser_cosmetics_emote_props");
         // 4. Active Emote Props (for local AND remote players!)
         com.bame.client.emotes.EmotePropFeatureRenderer.renderDirectProp(matrices, queue, light, state);
     }
@@ -391,7 +458,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         int frame = (int) ((System.currentTimeMillis() / 100L) % 15L);
         RenderLayer layer = RenderLayers.entityCutoutNoCull(GOLD_WINGS_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_wings", (entry, consumer) -> {
             goldWingsModel.render(entry, consumer, light, frame, 15);
         });
 
@@ -420,7 +487,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         int frame = (int) ((System.currentTimeMillis() / 120L) % 10L);
         RenderLayer layer = RenderLayers.entityCutoutNoCull(DRAGON_WINGS_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_wings", (entry, consumer) -> {
             dragonWingsModel.render(entry, consumer, light, frame, 10);
         });
 
@@ -442,7 +509,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         int frame = (int) ((System.currentTimeMillis() / 102L) % 16L);
         RenderLayer layer = RenderLayers.entityCutoutNoCull(ANGEL_HALO_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_head", (entry, consumer) -> {
             angelHaloModel.render(entry, consumer, light, frame, 16);
         });
 
@@ -460,7 +527,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
         demonHornsModel.resetAllAnimations();
         RenderLayer layer = RenderLayers.entityCutoutNoCull(DEMON_HORNS_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_head", (entry, consumer) -> {
             demonHornsModel.render(entry, consumer, light, 0, 1);
         });
 
@@ -480,7 +547,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
         model.resetAllAnimations();
         RenderLayer layer = RenderLayers.entityCutoutNoCull(texture);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_head", (entry, consumer) -> {
             model.render(entry, consumer, light, 0, 1);
         });
         matrices.pop();
@@ -547,6 +614,23 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         return (layer, body) -> body.render(matrices.peek(), vertexConsumers.getBuffer(layer));
     }
 
+    /**
+     * Wie {@code queue.getBatchingQueue(0).submitCustom(matrices, layer, body)}; das verzögerte Zeichnen (läuft später
+     * unter {@code renderFeatures}) bekommt einen eigenen Profiler-Abschnitt {@code section} (konstanter Name).
+     */
+    private static void submit(OrderedRenderCommandQueue queue, MatrixStack matrices, RenderLayer layer, String section,
+                               OrderedRenderCommandQueue.Custom body) {
+        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+            net.minecraft.util.profiler.Profiler p = net.minecraft.util.profiler.Profilers.get();
+            p.push(section);
+            try {
+                body.render(entry, consumer);
+            } finally {
+                p.pop();
+            }
+        });
+    }
+
     private static long seedOf(java.util.UUID uuid, int fallback) {
         return uuid != null ? uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits() : fallback * 0x9E3779B97F4A7C15L;
     }
@@ -567,7 +651,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         long seed = seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id);
         // Logo-Farbe: eigene Akzentfarbe; fremde Spieler in festem Caeser-Lila (deren Theme wird nicht synchronisiert)
         int glow = isLocal ? (GuiTheme.accent() & 0xFFFFFF) : HatAnimations.CAESER_PURPLE;
-        HatSink sink = (layer, body) -> queue.getBatchingQueue(0).submitCustom(matrices, layer, body);
+        HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_head", body);
         drawAnimatedHat(id, sink, light, state.id, Math.min(state.limbSwingAmplitude, 1.0f), state.isInSneakingPose, seed, glow);
         if ("crown".equalsIgnoreCase(id)) maybeSpawnCrownSparkle(matrices.peek(), state, seed);
         matrices.pop();
@@ -663,7 +747,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     /** Selten ein winziger Funke an einem Edelstein/einer Spitze der Krone (nur Welt, nie in der Ego-Perspektive). */
     private static void maybeSpawnCrownSparkle(MatrixStack.Entry entry, PlayerEntityRenderState state, long seed) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.world == null || crownModel == null || mc.isPaused()) return;
+        // Inventar-/Menü-Vorschau: keine Welt-Partikel (die Vorschau läuft zusätzlich zum Welt-Modell jeden Frame)
+        if (mc.world == null || crownModel == null || mc.isPaused() || GuiPreviewContext.active()) return;
         long nowMs = System.currentTimeMillis();
         float timeSec = (float) (nowMs % 10000000L) / 1000.0f;
         long slot = (long) Math.floor(timeSec / HatAnimations.SPARKLE_SLOT);
@@ -683,6 +768,270 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         double dx = sx - state.x, dy = sy - (state.y + 1.9), dz = sz - state.z;
         if (dx * dx + dy * dy + dz * dz > 9.0) return; // Matrix nicht weltbezogen (z. B. Vorschau): lieber kein Funke
         mc.world.addParticleClient(ParticleTypes.ELECTRIC_SPARK, sx, sy, sz, 0.0, 0.004, 0.0);
+    }
+
+    // ==========================================
+    // GESICHT MIT GLANZLICHT (Gasmaske, Fliegerbrille)
+    // ==========================================
+    public static boolean isGlintFace(String id) {
+        return BackCosmetics.GAS_MASK.equalsIgnoreCase(id) || BackCosmetics.AVIATOR_GOGGLES.equalsIgnoreCase(id);
+    }
+
+    /** Im Kopfraum: Grundmodell, darüber das Glanzlicht der Gläser (selbstleuchtend, Deckkraft gepulst). */
+    private static void drawGlintFace(String id, HatSink sink, int light, long seed) {
+        initModels();
+        boolean mask = BackCosmetics.GAS_MASK.equalsIgnoreCase(id);
+        BedrockCosmeticModel m = mask ? gasMaskModel : aviatorGogglesModel;
+        Identifier tex = mask ? GAS_MASK_TEXTURE : AVIATOR_GOGGLES_TEXTURE;
+        if (m == null) return;
+        float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        sink.draw(RenderLayers.entityCutoutNoCull(tex), (e, c) -> {
+            m.resetAllAnimations();
+            m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, "base");
+        });
+        int alpha = Math.round(255.0f * BackCosmetics.lensGlint(timeSec, seed) * (mask ? 0.8f : 0.9f));
+        int argb = (alpha << 24) | 0xFFFFFF;
+        sink.draw(RenderLayers.eyes(tex), (e, c) -> m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, "glint"));
+    }
+
+    private static void renderCardGlintFace(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, String id,
+                                            float tx, float ty, float pitch, float yaw, float scale) {
+        matrices.push();
+        matrices.translate(tx, ty, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        drawGlintFace(id, directSink(matrices, vertexConsumers), light, 7L);
+        matrices.pop();
+    }
+
+    // ==========================================
+    // CAPE / ELYTRA
+    // ==========================================
+    /** Trägt der Spieler eine Elytra (Gleiter in der Brust-Ausrüstung)? */
+    public static boolean hasElytra(PlayerEntityRenderState state) {
+        return state != null && state.equippedChestStack != null && !state.equippedChestStack.isEmpty()
+                && state.equippedChestStack.contains(net.minecraft.component.DataComponentTypes.GLIDER);
+    }
+
+    /** Wird ein Cape (bzw. eine Elytra) gezeichnet? Dann steht das Rücken-Item etwas ab und das Cape hängt ruhig. */
+    public static boolean capeOrElytra(PlayerEntityRenderState state) {
+        if (state == null) return false;
+        if (hasElytra(state)) return true;
+        return !state.invisible && state.capeVisible && state.skinTextures != null && state.skinTextures.cape() != null;
+    }
+
+    /** Ausgerüstetes Rücken-Item dieses Spielers (lokal: besessen, fremd: Sync-Daten) oder {@code null}. */
+    public static String backFor(PlayerEntityRenderState state) {
+        String v;
+        if (CaeserPlayerSyncManager.isLocalPlayer(state)) {
+            v = ownedOrNone("BACK", CosmeticsConfig.back);
+        } else {
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state);
+            v = remote != null ? remote.back : null;
+        }
+        return BackCosmetics.isBackItem(v) ? v.toLowerCase(java.util.Locale.ROOT) : null;
+    }
+
+    /** Trägt der Spieler Schmetterlingsflügel (sichtbar, also ohne Elytra)? */
+    public static boolean wearsButterfly(PlayerEntityRenderState state) {
+        String v;
+        if (CaeserPlayerSyncManager.isLocalPlayer(state)) {
+            v = ownedOrNone("WINGS", CosmeticsConfig.wings);
+        } else {
+            CaeserPlayerSyncManager.PlayerCosmeticsData remote = CaeserPlayerSyncManager.getCosmetics(state);
+            v = remote != null ? remote.wings : null;
+        }
+        return BackCosmetics.BUTTERFLY_WINGS.equalsIgnoreCase(v) && !hasElytra(state);
+    }
+
+    /**
+     * Soll das Cape ruhig hängen (ohne Schwung beim Laufen)? Ja bei Rücken-Item oder Schmetterlingsflügeln: so bleibt es
+     * zwischen Rücken und Item und schneidet nicht hindurch. Aufgerufen vom Cape-Modell (PlayerCapeModelMixin).
+     */
+    public static boolean calmsCape(PlayerEntityRenderState state) {
+        try {
+            return backFor(state) != null || wearsButterfly(state);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    // ==========================================
+    // BEWEGUNG PRO SPIELER (Laufen, Sprinten, Schleichen, Luft) für Flügel und Rücken-Items
+    // ==========================================
+    private static BackCosmetics.State updateMotion(PlayerEntityRenderState state) {
+        long nowMs = System.currentTimeMillis();
+        BackCosmetics.State st = BackCosmetics.state(state.id, nowMs);
+        long nanos = System.nanoTime();
+        // Flügel und Rücken-Item im selben Bild: Zustand nur einmal fortschreiben
+        if (st.lastNanos > 0 && nanos - st.lastNanos < 1_000_000L) return st;
+        float dt = st.tick(nanos);
+        boolean sprinting = false, onGround = true;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.world != null) {
+            net.minecraft.entity.Entity e = mc.world.getEntityById(state.id);
+            if (e instanceof net.minecraft.entity.player.PlayerEntity pe) {
+                sprinting = pe.isSprinting();
+                onGround = pe.isOnGround() || pe.hasVehicle() || pe.getAbilities().flying;
+            }
+        }
+        float amp = Math.min(state.limbSwingAmplitude, 1.0f);
+        if (!sprinting && amp > 0.97f) sprinting = true;
+        st.update(dt, amp, sprinting, state.isInSneakingPose);
+        st.updateAir(dt, state.y, onGround || state.isSwimming);
+        return st;
+    }
+
+    // ==========================================
+    // SCHMETTERLINGSFLÜGEL (Monarch): langsames Auf-/Zuklappen, Flattern beim Laufen, angelegt beim Sprinten
+    // ==========================================
+    private void renderButterflyWings(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                      PlayerEntityRenderState state, boolean isLocal) {
+        BackCosmetics.State st = updateMotion(state);
+        float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        long seed = seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id);
+        float[] pose = BackCosmetics.butterflyPose(timeSec, seed, st.walk, st.sprint, st.sneak);
+        matrices.push();
+        this.getContextModel().body.applyTransform(matrices);
+        HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_wings", body);
+        drawButterfly(sink, light, pose, capeOrElytra(state) ? BackCosmetics.WINGS_CAPE_OFFSET_PX : 0.0f);
+        matrices.pop();
+    }
+
+    private static void drawButterfly(HatSink sink, int light, float[] pose, float capeOffset) {
+        initModels();
+        BedrockCosmeticModel m = butterflyWingsModel;
+        if (m == null) return;
+        float fold = pose[0], hind = pose[1], roll = pose[2];
+        sink.draw(RenderLayers.entityCutoutNoCull(BUTTERFLY_WINGS_TEXTURE), (e, c) -> {
+            m.resetAllAnimations();
+            // links (+x) nach hinten = negativer Yaw, rechts gespiegelt
+            m.setBoneRotation("wing_l", 0.0f, -fold, roll);
+            m.setBoneRotation("hind_l", 0.0f, -hind, roll);
+            m.setBoneRotation("wing_r", 0.0f, fold, -roll);
+            m.setBoneRotation("hind_r", 0.0f, hind, -roll);
+            if (capeOffset != 0.0f) m.setBoneTranslation("butterfly", 0.0f, 0.0f, capeOffset);
+            m.render(e, c, light, 0, 1);
+        });
+    }
+
+    // ==========================================
+    // RÜCKEN-ITEMS (Jetpack, Gitarre, Köcher, Katana, Rucksack)
+    // ==========================================
+    private static final java.util.Set<String> EMISSIVE_BONES = java.util.Set.of("flame_l", "flame_r", "glow");
+
+    /** Pose eines Rücken-Items: Pack (Abstand/Neigung/Schwingen), Pfeile, Laterne, Flamme. */
+    private record BackPose(float packPitch, float packRoll, float offset, float[][] arrows, float[] lantern,
+                            float jet, float flicker, float flameYaw) {}
+
+    private static BackPose backPose(float limbPhase, float limbAmp, float timeSec, long seed, boolean cape, float jet) {
+        float[] sway = BackCosmetics.packSway(limbPhase, limbAmp, timeSec);
+        float[][] arrows = new float[6][];
+        for (int i = 0; i < 6; i++) arrows[i] = BackCosmetics.arrowWobble(i, limbPhase, limbAmp, timeSec);
+        float[] lantern = BackCosmetics.lanternSwing(limbPhase, limbAmp, timeSec);
+        float tilt = cape ? BackCosmetics.CAPE_TILT_DEG : 0.0f;
+        return new BackPose(tilt + sway[0], sway[1], cape ? BackCosmetics.CAPE_OFFSET_PX : 0.0f, arrows, lantern, jet,
+                BackCosmetics.flicker(timeSec, seed), 25.0f * (float) Math.sin(timeSec * 17.0f));
+    }
+
+    private static void applyBackPose(BedrockCosmeticModel m, BackPose p) {
+        m.resetAllAnimations();
+        m.setBoneTranslation("pack", 0.0f, 0.0f, p.offset());
+        m.setBoneRotation("pack", p.packPitch(), 0.0f, p.packRoll());
+        for (int i = 0; i < 6; i++) m.setBoneRotation("arrow" + i, p.arrows()[i][0], 0.0f, p.arrows()[i][1]);
+        m.setBoneRotation("lantern", p.lantern()[0], 0.0f, p.lantern()[1]);
+        m.setBoneRotation("flame_l", 0.0f, p.flameYaw(), 0.0f);
+        m.setBoneRotation("flame_r", 0.0f, -p.flameYaw(), 0.0f);
+    }
+
+    /** Zeichnet ein Rücken-Item im Körperraum; pack/straps folgen dem Body-Bone (Schleichen, Emotes). */
+    private static void drawBackItem(String id, HatSink sink, int light, BackPose p, boolean withStraps) {
+        initModels();
+        BedrockCosmeticModel m = BACK_MODELS.get(id);
+        Identifier tex = BACK_TEXTURES.get(id);
+        if (m == null || tex == null) return;
+        String only = withStraps ? null : "pack";
+        sink.draw(RenderLayers.entityCutoutNoCull(tex), (e, c) -> {
+            applyBackPose(m, p);
+            m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, only, EMISSIVE_BONES);
+        });
+        if ("jetpack".equals(id) && p.jet() > 0.02f) {
+            int alpha = Math.round(255.0f * Math.min(1.0f, p.jet() * p.flicker()));
+            int argb = (alpha << 24) | 0xFFFFFF;
+            sink.draw(RenderLayers.eyes(tex), (e, c) -> {
+                applyBackPose(m, p);
+                m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, "flame_l");
+                m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, "flame_r");
+            });
+        } else if ("backpack".equals(id)) {
+            int alpha = Math.round(235.0f * p.flicker());
+            int argb = (alpha << 24) | 0xFFFFFF;
+            sink.draw(RenderLayers.eyes(tex), (e, c) -> {
+                applyBackPose(m, p);
+                m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, "glow");
+            });
+        }
+    }
+
+    private void renderBackItem(String id, MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                PlayerEntityRenderState state, boolean isLocal) {
+        BackCosmetics.State st = updateMotion(state);
+        float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        long seed = seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id);
+        float amp = Math.min(state.limbSwingAmplitude, 1.0f);
+        BackPose p = backPose(state.limbSwingAnimationProgress, amp, timeSec, seed, capeOrElytra(state), st.jet);
+        matrices.push();
+        this.getContextModel().body.applyTransform(matrices);
+        HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_back", body);
+        drawBackItem(id, sink, light, p, true);
+        if ("jetpack".equals(id) && st.jet > 0.25f) maybeSpawnJetSmoke(matrices.peek(), state, st, p);
+        matrices.pop();
+    }
+
+    /** Dezente Rauch- und kleine Flammenpartikel an den Düsen (nur Welt, gedrosselt). */
+    private static void maybeSpawnJetSmoke(MatrixStack.Entry entry, PlayerEntityRenderState state, BackCosmetics.State st, BackPose p) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        BedrockCosmeticModel m = BACK_MODELS.get("jetpack");
+        // Inventar-/Menü-Vorschau: keine Welt-Partikel (sonst zusätzliche Partikel bzw. Partikel an falscher Stelle)
+        if (mc.world == null || m == null || mc.isPaused() || GuiPreviewContext.active()) return;
+        long now = System.currentTimeMillis();
+        if (now - st.lastParticleMs < 70L) return;
+        st.lastParticleMs = now;
+        net.minecraft.util.math.Vec3d cam = mc.gameRenderer != null && mc.gameRenderer.getCamera() != null
+                ? mc.gameRenderer.getCamera().getCameraPos() : null;
+        if (cam == null) return;
+        applyBackPose(m, p);
+        java.util.concurrent.ThreadLocalRandom rnd = java.util.concurrent.ThreadLocalRandom.current();
+        for (int side = -1; side <= 1; side += 2) {
+            org.joml.Vector3f local = m.boneToModel(side > 0 ? "flame_l" : "flame_r",
+                    side * BackCosmetics.JET_NOZZLE_X, BackCosmetics.JET_NOZZLE_Y - 0.6f, BackCosmetics.JET_NOZZLE_Z);
+            if (local == null) return;
+            org.joml.Vector3f v = entry.getPositionMatrix().transformPosition(local, new org.joml.Vector3f());
+            double sx = cam.x + v.x, sy = cam.y + v.y, sz = cam.z + v.z;
+            double dx = sx - state.x, dy = sy - (state.y + 0.8), dz = sz - state.z;
+            if (dx * dx + dy * dy + dz * dz > 9.0) return; // Matrix nicht weltbezogen (Vorschau): keine Partikel
+            mc.world.addParticleClient(ParticleTypes.SMOKE, sx, sy, sz,
+                    (rnd.nextFloat() - 0.5f) * 0.01, -0.04 - rnd.nextFloat() * 0.03, (rnd.nextFloat() - 0.5f) * 0.01);
+            if (st.jet > 0.7f && rnd.nextFloat() < 0.35f) {
+                mc.world.addParticleClient(ParticleTypes.SMALL_FLAME, sx, sy - 0.05, sz, 0.0, -0.03, 0.0);
+            }
+        }
+    }
+
+    private static void renderCardBackItem(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, String id,
+                                           float tx, float ty, float yaw, float pitch, float scale) {
+        matrices.push();
+        matrices.translate(tx, ty, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(180.0f + yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        // Karte: ohne Gurte, leichtes Wippen; Jetpack-Flamme flackert ab und zu
+        float jet = "jetpack".equals(id) ? Math.max(0.0f, (float) Math.sin(timeSec * 1.3f)) : 0.0f;
+        BackPose p = backPose(timeSec * 2.2f, 0.25f, timeSec, 7L, false, jet);
+        drawBackItem(id, directSink(matrices, vertexConsumers), light, p, false);
+        matrices.pop();
     }
 
     // ==========================================
@@ -761,7 +1110,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             applyMiniMeHandTransform(matrices, this.getContextModel().leftArm, false, timeSec, walkSwing);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, walkSwing);
-            queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+            submit(queue, matrices, layer, "caeser_cosmetics_draw_pets", (entry, consumer) -> {
                 miniMeHandModel.render(entry, consumer, light, 0, 1, false);
             });
             matrices.pop();
@@ -773,7 +1122,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             applyMiniMeHandTransform(matrices, this.getContextModel().rightArm, true, timeSec, -walkSwing);
             miniMeHandModel.resetAllAnimations();
             applyMiniMeHandAnimation(miniMeHandModel, timeSec, -walkSwing);
-            queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+            submit(queue, matrices, layer, "caeser_cosmetics_draw_pets", (entry, consumer) -> {
                 miniMeHandModel.render(entry, consumer, light, 0, 1, true);
             });
             matrices.pop();
@@ -820,7 +1169,9 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         applyBabyDragonTransform(matrices, this.getContextModel(), placement, timeSec);
 
         // Niesen: Rauchwoelkchen direkt aus den Nuestern (Weltposition aus der Modellmatrix)
-        if (!afk && mc.world != null && BabyDragonPose.isSmokeMoment(timeSec)) {
+        // Nicht für die Inventar-/Menü-Vorschau (dort fiel die Position auf die Spielerposition zurück: zusätzlicher
+        // Rauch in der Welt) und nicht im Pausenmenü (Partikel ticken dann nicht und würden sich nur anhäufen)
+        if (!afk && mc.world != null && !mc.isPaused() && !GuiPreviewContext.active() && BabyDragonPose.isSmokeMoment(timeSec)) {
             long now = System.currentTimeMillis();
             if (now - lastSmokeTime > 90L) {
                 lastSmokeTime = now;
@@ -829,7 +1180,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         }
 
         RenderLayer layer = RenderLayers.entityCutoutNoCull(BABY_DRAGON_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_pets", (entry, consumer) -> {
             babyDragonModel.render(entry, consumer, light, 0, 1);
         });
 
@@ -930,7 +1281,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
 
     private void renderFloatingZzz(MatrixStack matrices, OrderedRenderCommandQueue queue, int light, float timeSec) {
         RenderLayer layer = RenderLayers.entityTranslucent(JELLY_SLIME_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, layer, (entry, consumer) -> {
+        submit(queue, matrices, layer, "caeser_cosmetics_draw_pets", (entry, consumer) -> {
             for (int i = 0; i < 3; i++) {
                 float phase = ((timeSec * 0.7f) + i * 0.8f) % 2.5f;
                 float progress = phase / 2.5f;
@@ -970,7 +1321,7 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         this.getContextModel().body.applyTransform(matrices);
 
         RenderLayer chainLayer = RenderLayers.entityCutoutNoCull(GOLD_CHAIN_TEXTURE);
-        queue.getBatchingQueue(0).submitCustom(matrices, chainLayer, (entry, consumer) -> {
+        submit(queue, matrices, chainLayer, "caeser_cosmetics_draw_pets", (entry, consumer) -> {
             drawNecklaceChain(entry, consumer, light);
         });
 
@@ -1523,7 +1874,40 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static void renderCosmeticsDirect(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
                                              PlayerEntityModel playerModel, int light,
                                              String activeWings, String activeHead, String activeFace, String activePet) {
+        renderCosmeticsDirect(matrices, vertexConsumers, playerModel, light, activeWings, activeHead, activeFace, activePet, null, false);
+    }
+
+    /**
+     * Menü-Vorschau (Spieler im Cosmetics-Menü, MiniMe-Fenster): wie die Welt, aber direkt in den VertexConsumerProvider.
+     * @param activeBack  Rücken-Item oder {@code null}/"none"
+     * @param capeShown   wird am Vorschau-Spieler ein Cape gezeichnet (dann steht das Rücken-Item ab)
+     */
+    public static void renderCosmeticsDirect(MatrixStack matrices, VertexConsumerProvider vertexConsumers,
+                                             PlayerEntityModel playerModel, int light,
+                                             String activeWings, String activeHead, String activeFace, String activePet,
+                                             String activeBack, boolean capeShown) {
         initModels();
+        float previewTime = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        if (BackCosmetics.BUTTERFLY_WINGS.equalsIgnoreCase(activeWings)) {
+            matrices.push();
+            if (playerModel != null) playerModel.body.applyTransform(matrices);
+            drawButterfly(directSink(matrices, vertexConsumers), light,
+                    BackCosmetics.butterflyPose(previewTime, localSeed(), 0, 0, 0), capeShown ? BackCosmetics.WINGS_CAPE_OFFSET_PX : 0.0f);
+            matrices.pop();
+        }
+        if (BackCosmetics.isBackItem(activeBack)) {
+            matrices.push();
+            if (playerModel != null) playerModel.body.applyTransform(matrices);
+            drawBackItem(activeBack.toLowerCase(java.util.Locale.ROOT), directSink(matrices, vertexConsumers), light,
+                    backPose(0.0f, 0.0f, previewTime, localSeed(), capeShown, 0.0f), true);
+            matrices.pop();
+        }
+        if (isGlintFace(activeFace)) {
+            matrices.push();
+            if (playerModel != null) playerModel.head.applyTransform(matrices);
+            drawGlintFace(activeFace, directSink(matrices, vertexConsumers), light, localSeed());
+            matrices.pop();
+        }
 
         // 1. Wings (anchored to torso)
         if ("angel".equalsIgnoreCase(activeWings) && goldWingsModel != null) {
@@ -1826,6 +2210,24 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             case "viking_helmet" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "viking_helmet", 1.01f, 12.0f, -25.0f, 1.55f);
             case "propeller_cap" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "propeller_cap", 1.024f, 25.0f, -25.0f, 1.9f);
             case "cat_ears" -> renderCardAnimatedHat(matrices, vertexConsumers, light, "cat_ears", 2.196f, 18.0f, -20.0f, 3.3f);
+            // Neue Cosmetics: Werte aus der Karten-Anpassung (Mitte/Groesse wie die Nachbarkarten der Kategorie)
+            case "gas_mask" -> renderCardGlintFace(matrices, vertexConsumers, light, "gas_mask", -0.043f, 0.215f, 8.0f, -28.0f, 1.82f);
+            case "aviator_goggles" -> renderCardGlintFace(matrices, vertexConsumers, light, "aviator_goggles", -0.032f, 0.442f, 8.0f, -28.0f, 1.94f);
+            case "butterfly_wings" -> {
+                matrices.push();
+                matrices.translate(0.0f, -0.011f, 0.0f);
+                matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(180.0f));
+                matrices.scale(1.465f, 1.465f, 1.465f);
+                // Karte: weit offen, sanftes Klappen
+                float f = 14.0f + 10.0f * (0.5f - 0.5f * (float) Math.cos(timeSec * 1.8f));
+                drawButterfly(directSink(matrices, vertexConsumers), light, new float[]{f, f * 0.93f + 1.0f, 0.0f}, 0.0f);
+                matrices.pop();
+            }
+            case "jetpack" -> renderCardBackItem(matrices, vertexConsumers, light, "jetpack", -0.356f, -0.602f, -30.0f, 8.0f, 2.489f);
+            case "guitar" -> renderCardBackItem(matrices, vertexConsumers, light, "guitar", -0.308f, 0.02f, -25.0f, 6.0f, 1.617f);
+            case "quiver" -> renderCardBackItem(matrices, vertexConsumers, light, "quiver", -0.394f, -0.196f, -25.0f, 6.0f, 1.95f);
+            case "katana" -> renderCardBackItem(matrices, vertexConsumers, light, "katana", -0.387f, -0.218f, -25.0f, 6.0f, 1.897f);
+            case "backpack" -> renderCardBackItem(matrices, vertexConsumers, light, "backpack", -0.382f, -0.576f, -30.0f, 8.0f, 2.526f);
             case "self", "minime_sit", "custom" -> {
                 if (sitChibiModel == null) return;
                 matrices.push();

@@ -120,6 +120,13 @@ tasks.register('swingPicnicTest', JavaExec) {
 }
 tasks.named('check') { dependsOn 'swingPicnicTest' }
 
+tasks.register('witchBroomTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.WitchBroomTest'
+}
+tasks.named('check') { dependsOn 'witchBroomTest' }
+
 tasks.register('killEffectsTest', JavaExec) {
     dependsOn plannerTestClasses
     classpath = sourceSets.plannerTest.runtimeClasspath
@@ -141,9 +148,37 @@ tasks.register('hatsGeometryTest', JavaExec) {
 }
 tasks.named('check') { dependsOn 'hatsGeometryTest' }
 
+tasks.register('backGeometryTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.BackGeometryTest'
+}
+tasks.named('check') { dependsOn 'backGeometryTest' }
+
 tasks.register('capeFilesTest', JavaExec) {
     dependsOn plannerTestClasses
     classpath = sourceSets.plannerTest.runtimeClasspath
     mainClass = 'com.bame.client.cosmetics.CapeFilesTest'
 }
 tasks.named('check') { dependsOn 'capeFilesTest' }
+
+tasks.register('tabListPerfTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.TabListPerfTest'
+}
+tasks.named('check') { dependsOn 'tabListPerfTest' }
+
+tasks.register('cosmeticRenderEqualityTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.bame.client.cosmetics.BedrockModelRenderEqualityTest'
+}
+tasks.named('check') { dependsOn 'cosmeticRenderEqualityTest' }
+
+tasks.register('hitchAggregatorTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.util.HitchAggregatorTest'
+}
+tasks.named('check') { dependsOn 'hitchAggregatorTest' }

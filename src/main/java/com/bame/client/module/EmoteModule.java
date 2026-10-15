@@ -104,6 +104,20 @@ public class EmoteModule {
             }
         }
 
+        // Hexenbesen: fester Boden und Luft rund um den Startpunkt (die Kreisbahn ist nur gezeichnet). Ohne Text: nur
+        // ein leises Zisch-Geräusch, wenn es hier nicht geht
+        if (type == EmoteType.WITCH_BROOM) {
+            net.minecraft.client.network.ClientPlayerEntity p = client.player;
+            if (!canStartPushUps(client) || p.isTouchingWater() || p.isInLava()
+                    || !com.bame.client.emotes.WitchBroomCoordinator.hasSpace(p)) {
+                try {
+                    client.getSoundManager().play(net.minecraft.client.sound.PositionedSoundInstance.master(
+                            net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH, 1.6f, 0.25f));
+                } catch (Throwable ignored) {}
+                return;
+            }
+        }
+
         currentEmote = type;
         startTime = System.currentTimeMillis();
         if (type == EmoteType.CAMPFIRE) {
@@ -120,6 +134,10 @@ public class EmoteModule {
         }
         if (type == EmoteType.PICNIC) {
             com.bame.client.emotes.PicnicCoordinator.onLocalStart(client.player, startTime);
+        }
+        if (type == EmoteType.WITCH_BROOM) {
+            // Startpunkt und Ausrichtung sofort merken (Mitte der gezeichneten Kreisbahn)
+            com.bame.client.emotes.WitchBroomCoordinator.onLocalStart(client.player, startTime);
         }
 
         com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(type, false);

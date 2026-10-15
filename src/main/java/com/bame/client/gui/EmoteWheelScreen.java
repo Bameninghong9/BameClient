@@ -64,9 +64,14 @@ public class EmoteWheelScreen extends Screen {
     public EmoteWheelScreen() {
         super(Text.literal("Caeser Client Emote Wheel"));
         this.openTime = System.currentTimeMillis();
-        CosmeticsConfig.checkReload();
-        EmoteUnlockManager.checkRefresh();
-        rebuildPages();
+        com.bame.client.util.Prof.push("caeser_emote_wheel_ctor");
+        try {
+            CosmeticsConfig.checkReload();
+            EmoteUnlockManager.checkRefresh();
+            rebuildPages();
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
         if (currentPage < 0 || currentPage >= PAGE_COUNT) {
             currentPage = 0;
         }
@@ -79,6 +84,15 @@ public class EmoteWheelScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        com.bame.client.util.Prof.push("caeser_emote_wheel_render");
+        try {
+            renderWheel(context, mouseX, mouseY, delta);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
+    }
+
+    private void renderWheel(DrawContext context, int mouseX, int mouseY, float delta) {
         // Semi-transparent ambient background
         context.fill(0, 0, width, height, 0x6606080E);
 

@@ -116,8 +116,23 @@ public class SpotifyHudRenderer {
         return SpotifyHudModule.customHeight > 0 ? Math.max(minHeight(), SpotifyHudModule.customHeight) : naturalHeight();
     }
 
+    /** Zeit-Texte bis 100 Minuten: einmal erzeugt statt String.format zweimal pro Frame. Nur Render-Thread. */
+    private static final String[] TIME_CACHE = new String[6000];
+
     public static String formatTime(int totalSeconds) {
         if (totalSeconds < 0) totalSeconds = 0;
+        if (totalSeconds < TIME_CACHE.length) {
+            String cached = TIME_CACHE[totalSeconds];
+            if (cached == null) {
+                cached = formatTimeUncached(totalSeconds);
+                TIME_CACHE[totalSeconds] = cached;
+            }
+            return cached;
+        }
+        return formatTimeUncached(totalSeconds);
+    }
+
+    private static String formatTimeUncached(int totalSeconds) {
         int m = totalSeconds / 60;
         int s = totalSeconds % 60;
         return String.format(java.util.Locale.ROOT, "%02d:%02d", m, s);
@@ -167,9 +182,9 @@ public class SpotifyHudRenderer {
     public static void render(DrawContext c, int x, int y, float scale, boolean isPreview) {
         MinecraftClient client = MinecraftClient.getInstance();
 
-        // Make sure background service is running when enabled
+        // Make sure background service is running when enabled (Start im Hintergrund, gedrosselt)
         if (SpotifyHudModule.enabled) {
-            SpotifyService.start();
+            SpotifyService.ensureRunning();
         }
 
         SpotifyService.checkTextureUpdate();
@@ -219,14 +234,23 @@ public class SpotifyHudRenderer {
     }
 
     /** Akzent für Balken/Hover: Theme-Hauptfarbe oder (Option) aufgehellte Durchschnittsfarbe des Covers. */
+    // Letzte Umrechnung der Cover-Farbe (ändert sich nur mit dem Cover); nur Render-Thread
+    private static int accentFor = 0;
+    private static int accentCached = 0;
+    private static boolean accentValid = false;
+
     private static int accentColor() {
         if (SpotifyHudModule.accentMode == 1 && SpotifyService.hasCoverTexture) {
             int rgb = SpotifyService.coverColor;
+            if (accentValid && accentFor == rgb) return accentCached;
             float[] hsb = java.awt.Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
             // Durchschnittsfarben sind oft matt: Sättigung und Helligkeit anheben, damit der Balken leuchtet
             float sat = hsb[1] < 0.08f ? hsb[1] : Math.max(hsb[1], 0.55f);
             float bri = Math.max(hsb[2], 0.85f);
-            return 0xFF000000 | (java.awt.Color.HSBtoRGB(hsb[0], sat, bri) & 0xFFFFFF);
+            accentCached = 0xFF000000 | (java.awt.Color.HSBtoRGB(hsb[0], sat, bri) & 0xFFFFFF);
+            accentFor = rgb;
+            accentValid = true;
+            return accentCached;
         }
         return 0xFF000000 | GuiTheme.accent();
     }

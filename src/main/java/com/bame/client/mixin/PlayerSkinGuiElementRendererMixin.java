@@ -25,13 +25,24 @@ public abstract class PlayerSkinGuiElementRendererMixin extends SpecialGuiElemen
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;draw()V")
     )
     private void renderCosmeticsOnSkinWidget(PlayerSkinGuiElementRenderState state, MatrixStack matrices, CallbackInfo ci) {
+        com.bame.client.util.Prof.push("caeser_gui_skin_preview");
+        try {
+            caeser$renderCosmetics(state, matrices);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private void caeser$renderCosmetics(PlayerSkinGuiElementRenderState state, MatrixStack matrices) {
         String cardCosmetic = CosmeticsTab.CARD_MODEL_MAP.get(state.playerModel());
         if (cardCosmetic != null) {
             CaeserCosmeticsRenderer.renderCardCosmeticStandalone(matrices, this.vertexConsumers, cardCosmetic, 15728880);
         } else if (CosmeticsTab.isSkinCardModel(state.playerModel())) {
             // It's a skin preview card: do not render cosmetics on it, just show the clean skin!
         } else {
-            if (CosmeticsTab.isPanelModel(state.playerModel())) {
+            boolean panel = CosmeticsTab.isPanelModel(state.playerModel());
+            if (panel) {
                 // Vorschau-Spieler im Cosmetics-Menü: eigenes Caeser-Cape
                 com.bame.client.cosmetics.CaeserCapeManager.renderPreviewCape(matrices, this.vertexConsumers, 15728880);
             }
@@ -39,7 +50,10 @@ public abstract class PlayerSkinGuiElementRendererMixin extends SpecialGuiElemen
             String h = CosmeticsTab.previewHead != null ? CosmeticsTab.previewHead : CosmeticsConfig.head;
             String f = CosmeticsTab.previewFace != null ? CosmeticsTab.previewFace : CosmeticsConfig.face;
             String p = CosmeticsTab.previewPet != null ? CosmeticsTab.previewPet : CosmeticsConfig.pet;
-            CaeserCosmeticsRenderer.renderCosmeticsDirect(matrices, this.vertexConsumers, state.playerModel(), 15728880, w, h, f, p);
+            String bk = CosmeticsTab.previewBack != null ? CosmeticsTab.previewBack : CosmeticsConfig.back;
+            // Rücken-Item steht ab, wenn am Vorschau-Spieler das eigene Cape gezeichnet wird
+            boolean capeShown = panel && com.bame.client.cosmetics.CaeserCapeManager.ownTexture() != null;
+            CaeserCosmeticsRenderer.renderCosmeticsDirect(matrices, this.vertexConsumers, state.playerModel(), 15728880, w, h, f, p, bk, capeShown);
         }
     }
 }

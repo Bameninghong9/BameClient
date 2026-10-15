@@ -19,17 +19,45 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Hintergrundbild der Menüs. Datei lesen, dekodieren, hochskalieren und weichzeichnen passiert in einem
+ * Hintergrund-Thread; der Render-Thread registriert nur noch die fertige Textur (GPU-Upload). Bis dahin bleibt das
+ * bisherige Bild (bzw. keins) sichtbar – das Öffnen des Menüs wartet nicht mehr auf die Festplatte.
+ */
 public class WallpaperManager {
     public static final Identifier WALLPAPER_ID = Identifier.of("caeserclient", "custom_wallpaper");
     private static final List<String> wallpapers = new ArrayList<>();
     private static NativeImageBackedTexture texture = null;
-    private static NativeImage rawImage = null;
     private static String currentLoadedFile = "";
     private static float currentLoadedBlur = -1f;
     private static int imageW = 0;
     private static int imageH = 0;
     private static boolean hasTexture = false;
+
+    /** Zuletzt dekodierte Datei (unveränderlich, darf zwischen Threads geteilt werden). */
+    private record Decoded(String file, int w, int h, int[] argb) {}
+    /** Ergebnis eines Hintergrund-Auftrags; {@code listing != null}, wenn die Ordnerliste neu gelesen wurde. */
+    private record Prepared(long gen, String file, float blur, NativeImage image, List<String> listing, String chosen) {}
+
+    private static volatile Decoded decoded = null;
+    private static final AtomicReference<Prepared> ready = new AtomicReference<>();
+    private static volatile long requestGen = 0L;      // schreibt nur der Render-Thread
+    private static boolean loading = false;            // nur Render-Thread
+    private static String requestedFile = null;        // nur Render-Thread
+    private static float requestedBlur = -1f;          // nur Render-Thread
+    private static long missingCheckedAt = 0L;         // nur Render-Thread: kein Bild gefunden, nicht jeden Frame neu suchen
+    private static final long MISSING_RETRY_MS = 2000L;
+
+    private static final ExecutorService LOADER = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "CaeserClient-Wallpaper");
+        t.setDaemon(true);
+        t.setPriority(Thread.NORM_PRIORITY - 1);
+        return t;
+    });
 
     public static Path getWallpaperDir() {
         Path dir = BameClientConfig.BASE_CONFIG_DIR.resolve("wallpapers");
@@ -61,23 +89,37 @@ public class WallpaperManager {
     }
 
     public static void refreshWallpapers() {
-        wallpapers.clear();
+        applyListing(listWallpaperFiles());
+    }
+
+    /** Dateinamen der Bilder im Ordner, sortiert (darf im Hintergrund laufen). */
+    private static List<String> listWallpaperFiles() {
+        List<String> out = new ArrayList<>();
         Path dir = getWallpaperDir();
         if (Files.exists(dir)) {
             try (var stream = Files.list(dir)) {
                 stream.filter(p -> {
                     String name = p.getFileName().toString().toLowerCase();
                     return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".bmp");
-                }).forEach(p -> wallpapers.add(p.getFileName().toString()));
+                }).forEach(p -> out.add(p.getFileName().toString()));
             } catch (Exception ignored) {}
         }
-        Collections.sort(wallpapers, String.CASE_INSENSITIVE_ORDER);
+        Collections.sort(out, String.CASE_INSENSITIVE_ORDER);
+        return out;
+    }
 
-        if (wallpapers.isEmpty()) {
-            BameClientConfig.selectedWallpaper = "";
-        } else if (BameClientConfig.selectedWallpaper == null || !wallpapers.contains(BameClientConfig.selectedWallpaper)) {
-            BameClientConfig.selectedWallpaper = wallpapers.get(0);
-        }
+    /** Gleiche Auswahlregel wie bisher: unbekannte Auswahl = erstes Bild, leerer Ordner = keine Auswahl. */
+    private static String chooseFrom(List<String> listing, String selected) {
+        if (listing.isEmpty()) return "";
+        if (selected == null || !listing.contains(selected)) return listing.get(0);
+        return selected;
+    }
+
+    /** Render-Thread: Ordnerliste und Auswahl übernehmen. */
+    private static void applyListing(List<String> listing) {
+        wallpapers.clear();
+        wallpapers.addAll(listing);
+        BameClientConfig.selectedWallpaper = chooseFrom(listing, BameClientConfig.selectedWallpaper);
     }
 
     public static void nextWallpaper() {
@@ -106,127 +148,183 @@ public class WallpaperManager {
         return hasTexture;
     }
 
+    /** Render-Thread: Bild schon vorbereiten (z. B. beim Öffnen des Hubs), damit es beim Wechsel ins Panel bereitsteht. */
+    public static void prefetch() {
+        if (BameClientConfig.customWallpaper) updateTexture(false);
+    }
+
+    /**
+     * Render-Thread. Prüft, ob das gewählte Bild (bzw. die Weichzeichnung) geladen ist, und stößt sonst das Laden im
+     * Hintergrund an; ein fertiges Ergebnis wird hier als Textur registriert. {@code force} lädt auch bei
+     * unveränderter Auswahl neu.
+     */
     public static void updateTexture(boolean force) {
-        String targetName = BameClientConfig.selectedWallpaper;
+        applyReady();
+
+        String targetName = BameClientConfig.selectedWallpaper == null ? "" : BameClientConfig.selectedWallpaper;
         float targetBlur = BameClientConfig.wallpaperBlur;
 
-        boolean fileChanged = targetName == null || !targetName.equals(currentLoadedFile);
+        boolean fileChanged = !targetName.equals(currentLoadedFile);
         boolean blurChanged = Math.abs(targetBlur - currentLoadedBlur) > 0.02f;
 
         if (!force && !fileChanged && !blurChanged && hasTexture) {
             return;
         }
-
-        Path file = (targetName != null && !targetName.isEmpty()) ? getWallpaperDir().resolve(targetName) : null;
-        if (file == null || !Files.exists(file)) {
-            refreshWallpapers();
-            targetName = BameClientConfig.selectedWallpaper;
-            file = (targetName != null && !targetName.isEmpty()) ? getWallpaperDir().resolve(targetName) : null;
+        boolean sameRequest = targetName.equals(requestedFile)
+                && Math.abs(targetBlur - requestedBlur) <= 0.02f;
+        if (!force && loading && sameRequest) return; // läuft schon
+        if (!force && !hasTexture && !loading && sameRequest
+                && System.currentTimeMillis() - missingCheckedAt < MISSING_RETRY_MS) {
+            return; // eben erst nichts gefunden
         }
 
-        if (file == null || !Files.exists(file)) {
-            clearTexture();
+        final long gen = ++requestGen;
+        final String name = targetName;
+        final float blur = targetBlur;
+        requestedFile = targetName;
+        requestedBlur = targetBlur;
+        loading = true;
+        try {
+            LOADER.execute(() -> prepare(gen, name, blur));
+        } catch (Exception e) {
+            loading = false;
+        }
+    }
+
+    /** Render-Thread: fertiges Ergebnis übernehmen (Textur registrieren bzw. leeren). */
+    private static void applyReady() {
+        Prepared p = ready.getAndSet(null);
+        if (p == null) return;
+        if (p.gen() != requestGen) { // überholt
+            if (p.image() != null) p.image().close();
             return;
         }
-
+        loading = false;
+        if (p.listing() != null) {
+            wallpapers.clear();
+            wallpapers.addAll(p.listing());
+            BameClientConfig.selectedWallpaper = p.chosen();
+            requestedFile = p.chosen();
+        }
+        if (p.image() == null) {
+            clearTextureOnly();
+            missingCheckedAt = System.currentTimeMillis();
+            return;
+        }
         try {
-            if (fileChanged || rawImage == null) {
-                if (rawImage != null) {
-                    try { rawImage.close(); } catch (Exception ignored) {}
-                    rawImage = null;
-                }
-
-                // 1. Try Java standard ImageIO (supports JPG, JPEG, PNG, BMP natively)
-                BufferedImage bImg = null;
-                try {
-                    bImg = ImageIO.read(file.toFile());
-                } catch (Throwable ignored) {}
-
-                if (bImg != null) {
-                    int w = bImg.getWidth();
-                    int h = bImg.getHeight();
-
-                    // If image is a low-res thumbnail, upscale with bicubic filtering for smooth quality
-                    if (w < 1280 || h < 720) {
-                        float scale = Math.min(8.0f, Math.max(1280.0f / w, 720.0f / h));
-                        if (scale > 1.0f) {
-                            int newW = Math.round(w * scale);
-                            int newH = Math.round(h * scale);
-                            BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_ARGB);
-                            java.awt.Graphics2D g2d = scaled.createGraphics();
-                            g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                            g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
-                            g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-                            g2d.drawImage(bImg, 0, 0, newW, newH, null);
-                            g2d.dispose();
-                            bImg = scaled;
-                            w = newW;
-                            h = newH;
-                        }
-                    }
-
-                    rawImage = new NativeImage(w, h, false);
-                    int[] pixels = new int[w * h];
-                    bImg.getRGB(0, 0, w, h, pixels, 0, w);
-                    for (int y = 0; y < h; y++) {
-                        int rowOffset = y * w;
-                        for (int x = 0; x < w; x++) {
-                            rawImage.setColorArgb(x, y, pixels[rowOffset + x]);
-                        }
-                    }
-                } else {
-                    // 2. Fallback to Minecraft NativeImage.read
-                    try (InputStream in = new FileInputStream(file.toFile())) {
-                        rawImage = NativeImage.read(in);
-                    }
-                }
+            imageW = p.image().getWidth();
+            imageH = p.image().getHeight();
+            if (texture != null) {
+                try { texture.close(); } catch (Exception ignored) {}
             }
-
-            if (rawImage == null) {
-                clearTexture();
-                return;
-            }
-
-            NativeImage imageToUpload;
-            if (targetBlur > 0.01f) {
-                imageToUpload = createBlurredImage(rawImage, targetBlur);
-            } else {
-                imageToUpload = copyImage(rawImage);
-            }
-
-            if (imageToUpload != null) {
-                imageW = imageToUpload.getWidth();
-                imageH = imageToUpload.getHeight();
-                if (texture != null) {
-                    try { texture.close(); } catch (Exception ignored) {}
-                }
-                texture = new NativeImageBackedTexture(() -> "custom_wallpaper", imageToUpload);
-                MinecraftClient.getInstance().getTextureManager().registerTexture(WALLPAPER_ID, texture);
-                hasTexture = true;
-                currentLoadedFile = targetName;
-                currentLoadedBlur = targetBlur;
-            }
+            texture = new NativeImageBackedTexture(() -> "custom_wallpaper", p.image());
+            MinecraftClient.getInstance().getTextureManager().registerTexture(WALLPAPER_ID, texture);
+            hasTexture = true;
+            currentLoadedFile = p.file();
+            currentLoadedBlur = p.blur();
         } catch (Exception e) {
             e.printStackTrace();
             clearTexture();
         }
     }
 
-    private static NativeImage copyImage(NativeImage src) {
-        int w = src.getWidth();
-        int h = src.getHeight();
-        NativeImage copy = new NativeImage(w, h, false);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                copy.setColorArgb(x, y, src.getColorArgb(x, y));
+    // ------------------------------------------------------------------------------------------------
+    // Hintergrund-Thread
+    // ------------------------------------------------------------------------------------------------
+
+    private static void prepare(long gen, String targetName, float targetBlur) {
+        if (gen != requestGen) return; // schon überholt, neuerer Auftrag folgt
+        NativeImage result = null;
+        List<String> listing = null;
+        String chosen = targetName;
+        try {
+            Path file = (targetName != null && !targetName.isEmpty()) ? getWallpaperDir().resolve(targetName) : null;
+            if (file == null || !Files.exists(file)) {
+                listing = listWallpaperFiles();
+                chosen = chooseFrom(listing, targetName);
+                file = (chosen != null && !chosen.isEmpty()) ? getWallpaperDir().resolve(chosen) : null;
+            }
+            if (file != null && Files.exists(file)) {
+                Decoded d = decoded;
+                if (d == null || !d.file().equals(chosen)) {
+                    d = decode(file, chosen);
+                    if (d != null) decoded = d;
+                }
+                if (d != null && gen == requestGen) {
+                    result = targetBlur > 0.01f ? createBlurredImage(d, targetBlur) : toImage(d);
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+        Prepared old = ready.getAndSet(new Prepared(gen, chosen, targetBlur, result, listing, chosen));
+        if (old != null && old.image() != null) old.image().close();
+    }
+
+    private static Decoded decode(Path file, String name) throws Exception {
+        // 1. Try Java standard ImageIO (supports JPG, JPEG, PNG, BMP natively)
+        BufferedImage bImg = null;
+        try {
+            bImg = ImageIO.read(file.toFile());
+        } catch (Throwable ignored) {}
+
+        if (bImg != null) {
+            int w = bImg.getWidth();
+            int h = bImg.getHeight();
+
+            // If image is a low-res thumbnail, upscale with bicubic filtering for smooth quality
+            if (w < 1280 || h < 720) {
+                float scale = Math.min(8.0f, Math.max(1280.0f / w, 720.0f / h));
+                if (scale > 1.0f) {
+                    int newW = Math.round(w * scale);
+                    int newH = Math.round(h * scale);
+                    BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D g2d = scaled.createGraphics();
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2d.drawImage(bImg, 0, 0, newW, newH, null);
+                    g2d.dispose();
+                    bImg = scaled;
+                    w = newW;
+                    h = newH;
+                }
+            }
+
+            int[] pixels = new int[w * h];
+            bImg.getRGB(0, 0, w, h, pixels, 0, w);
+            return new Decoded(name, w, h, pixels);
+        }
+        // 2. Fallback to Minecraft NativeImage.read
+        try (InputStream in = new FileInputStream(file.toFile()); NativeImage img = NativeImage.read(in)) {
+            int w = img.getWidth();
+            int h = img.getHeight();
+            int[] pixels = new int[w * h];
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    pixels[y * w + x] = img.getColorArgb(x, y);
+                }
+            }
+            return new Decoded(name, w, h, pixels);
+        }
+    }
+
+    private static NativeImage toImage(Decoded d) {
+        NativeImage copy = new NativeImage(d.w(), d.h(), false);
+        int[] px = d.argb();
+        for (int y = 0; y < d.h(); y++) {
+            int row = y * d.w();
+            for (int x = 0; x < d.w(); x++) {
+                copy.setColorArgb(x, y, px[row + x]);
             }
         }
         return copy;
     }
 
-    private static NativeImage createBlurredImage(NativeImage src, float blur) {
-        int origW = src.getWidth();
-        int origH = src.getHeight();
+    private static NativeImage createBlurredImage(Decoded src, float blur) {
+        int origW = src.w();
+        int origH = src.h();
+        int[] px = src.argb();
         int downscale = 1 + Math.round(blur * 10.0f);
         int targetW = Math.max(8, origW / downscale);
         int targetH = Math.max(8, origH / downscale);
@@ -236,7 +334,7 @@ public class WallpaperManager {
             int srcY = Math.min(origH - 1, (y * origH) / targetH);
             for (int x = 0; x < targetW; x++) {
                 int srcX = Math.min(origW - 1, (x * origW) / targetW);
-                small.setColorArgb(x, y, src.getColorArgb(srcX, srcY));
+                small.setColorArgb(x, y, px[srcY * origW + srcX]);
             }
         }
 
@@ -281,14 +379,20 @@ public class WallpaperManager {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
+    /** Render-Thread: Textur und Bild-Cache verwerfen; laufende Aufträge werden ignoriert. */
     public static void clearTexture() {
+        requestGen++;
+        loading = false;
+        requestedFile = null;
+        requestedBlur = -1f;
+        decoded = null;
+        clearTextureOnly();
+    }
+
+    private static void clearTextureOnly() {
         if (texture != null) {
             try { texture.close(); } catch (Exception ignored) {}
             texture = null;
-        }
-        if (rawImage != null) {
-            try { rawImage.close(); } catch (Exception ignored) {}
-            rawImage = null;
         }
         hasTexture = false;
         currentLoadedFile = "";

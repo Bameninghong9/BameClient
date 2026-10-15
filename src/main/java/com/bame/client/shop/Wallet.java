@@ -61,11 +61,21 @@ public final class Wallet {
     // Lesen (alle Threads)
     // ==========================================
 
+    /** Letzter leerer Stand (unveränderlich); pro Frame mehrfach gebraucht, wenn kein Stand zum Account passt. */
+    private static volatile Snapshot emptySnapshot = Snapshot.empty(null);
+
     /** Aktueller Stand, nur wenn er zum aktuellen Account gehört; sonst leer. */
     public static Snapshot get() {
         Snapshot s = snapshot;
         String cur = CaeserAuth.currentSessionUuid32();
-        if (cur == null || !cur.equals(s.uuid())) return Snapshot.empty(cur);
+        if (cur == null || !cur.equals(s.uuid())) {
+            Snapshot empty = emptySnapshot;
+            if (!java.util.Objects.equals(empty.uuid(), cur)) {
+                empty = Snapshot.empty(cur);
+                emptySnapshot = empty;
+            }
+            return empty;
+        }
         return s;
     }
 
@@ -143,7 +153,7 @@ public final class Wallet {
                 .thenCombine(me.handle((m, e) -> new Object[]{m, e}), (shopJson, meRes) -> new Object[]{shopJson, meRes[0], meRes[1]})
                 .whenComplete((res, err) -> {
                     REFRESHING.set(false);
-                    MinecraftClient.getInstance().execute(() -> {
+                    MinecraftClient.getInstance().execute(com.bame.client.util.Prof.task("caeser_task_wallet_refresh", () -> {
                         if (gen != generation || uuid == null || !uuid.equals(CaeserAuth.currentSessionUuid32())) return;
                         if (err != null || res == null) {
                             markOffline(CaeserApi.MSG_UNREACHABLE);
@@ -160,7 +170,7 @@ public final class Wallet {
                             if (catalog != null) applyCatalog(uuid, catalog);
                             markOffline(meErr != null ? CaeserApi.unwrap(meErr).userMessage() : CaeserApi.MSG_UNREACHABLE);
                         }
-                    });
+                    }));
                 });
     }
 
@@ -170,10 +180,10 @@ public final class Wallet {
         CaeserApi.get("/v1/shop", null).whenComplete((json, err) -> {
             if (err != null || json == null) return;
             Map<String, ShopItem> catalog = parseCatalog(json);
-            MinecraftClient.getInstance().execute(() -> {
+            MinecraftClient.getInstance().execute(com.bame.client.util.Prof.task("caeser_task_wallet_catalog", () -> {
                 if (gen != generation) return;
                 applyCatalog(uuid, catalog);
-            });
+            }));
         });
     }
 

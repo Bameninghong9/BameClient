@@ -85,15 +85,20 @@ public class BameClientScreen extends Screen {
 
     public BameClientScreen() {
         super(Text.literal("Caeser Client"));
-        tabs.put("Combat", new CombatTab(false));
-        tabs.put("Movement", new MovementTab(false));
-        tabs.put("Visuals", new RenderTab());
-        tabs.put("VisualsCombat", new CombatTab(true));   // Reach Display, Hit Color, Low Shield, Hitboxes
-        tabs.put("Misc", new MiscTab());
-        tabs.put("MiscEmotes", new MovementTab(true));    // Animations & Emotes
-        tabs.put("World", new WorldTab());
-        tabs.put(COSMETICS_TAB, new CosmeticsTab());
-        BameClientConfig.selectedCategory = BameClientConfig.sanitizeCategory(BameClientConfig.selectedCategory);
+        com.bame.client.util.Prof.push("caeser_menu_ctor");
+        try {
+            tabs.put("Combat", new CombatTab(false));
+            tabs.put("Movement", new MovementTab(false));
+            tabs.put("Visuals", new RenderTab());
+            tabs.put("VisualsCombat", new CombatTab(true));   // Reach Display, Hit Color, Low Shield, Hitboxes
+            tabs.put("Misc", new MiscTab());
+            tabs.put("MiscEmotes", new MovementTab(true));    // Animations & Emotes
+            tabs.put("World", new WorldTab());
+            tabs.put(COSMETICS_TAB, new CosmeticsTab());
+            BameClientConfig.selectedCategory = BameClientConfig.sanitizeCategory(BameClientConfig.selectedCategory);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
     }
 
     /** Aktiver Tab des Mod-Menüs (einzige Quelle). */
@@ -487,6 +492,17 @@ public class BameClientScreen extends Screen {
 
     @Override
     protected void init() {
+        com.bame.client.util.Prof.push("caeser_menu_init");
+        try {
+            initMenu();
+            // Hintergrundbild schon jetzt im Hintergrund vorbereiten (der Hub zeigt es nicht, das Panel danach schon)
+            com.bame.client.wallpaper.WallpaperManager.prefetch();
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
+    }
+
+    private void initMenu() {
         if (openTime == 0) openTime = System.currentTimeMillis();
         truncatedDescriptions.clear();
         geometry();
@@ -732,7 +748,12 @@ public class BameClientScreen extends Screen {
     @Override
     public void render(DrawContext c, int mx, int my, float delta) {
         if (!GuiProfiler.ENABLED) {
-            renderScreen(c, mx, my, delta);
+            com.bame.client.util.Prof.push("caeser_menu_render");
+            try {
+                renderScreen(c, mx, my, delta);
+            } finally {
+                com.bame.client.util.Prof.pop();
+            }
             return;
         }
         long start = GuiProfiler.beginFrame();
@@ -1914,6 +1935,7 @@ public class BameClientScreen extends Screen {
                     com.bame.client.cosmetics.CosmeticsConfig.setWings("none");
                     com.bame.client.cosmetics.CosmeticsConfig.setHead("none");
                     com.bame.client.cosmetics.CosmeticsConfig.setFace("none");
+                    com.bame.client.cosmetics.CosmeticsConfig.setBack("none");
                     com.bame.client.cosmetics.CosmeticsConfig.accessories.clear();
                     com.bame.client.cosmetics.CosmeticsConfig.setPet("none", "");
                     CosmeticsTab.resetPreview();

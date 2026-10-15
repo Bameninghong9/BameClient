@@ -74,6 +74,8 @@ public class CaeserPlayerSyncManager {
         public String wings = "none";
         public String head = "none";
         public String face = "none";
+        /** Rücken-Slot (BACK): Mod-ID klein ("jetpack" ...) oder "none". */
+        public String back = "none";
         public String pet = "none";
         public String petCustomPlayer = "";
         public String tabBadge = "c";
@@ -92,6 +94,7 @@ public class CaeserPlayerSyncManager {
             return !"none".equalsIgnoreCase(wings) ||
                    !"none".equalsIgnoreCase(head) ||
                    !"none".equalsIgnoreCase(face) ||
+                   !"none".equalsIgnoreCase(back) ||
                    !"none".equalsIgnoreCase(pet) ||
                    !accessories.isEmpty();
         }
@@ -159,20 +162,15 @@ public class CaeserPlayerSyncManager {
         // LAN/Same-PC-Fallback. Empfang auf dem Listener-Thread, Verarbeitung auf dem Haupt-Thread.
         CaeserLocalPeerSync.start(payload -> {
             if (CaeserSyncClient.isConnected()) return;
-            MinecraftClient.getInstance().execute(() -> handleLanMessage(payload));
+            MinecraftClient.getInstance().execute(com.bame.client.util.Prof.task("caeser_task_lan_message", () -> handleLanMessage(payload)));
         });
 
         LOGGER.info("Caeser Player Sync Manager initialized with instance ID {}", LOCAL_INSTANCE_ID);
     }
 
     public static String cleanUsername(String raw) {
-        if (raw == null) return null;
-        String clean = raw.replaceAll("§[0-9a-fk-orA-FK-OR]", "").trim();
-        int spaceIdx = clean.lastIndexOf(' ');
-        if (spaceIdx >= 0) {
-            clean = clean.substring(spaceIdx + 1);
-        }
-        return clean.toLowerCase(Locale.ROOT);
+        // Pro Frame aufgerufen: ohne Regex-Kompilierung pro Aufruf (Ergebnis unverändert, siehe FastIds)
+        return com.bame.client.util.FastIds.cleanUsername(raw);
     }
 
     // ==========================================
@@ -193,11 +191,21 @@ public class CaeserPlayerSyncManager {
         return null;
     }
 
+    /** Letzte Umwandlung der lokalen UUID ({@code {UUID, String}}); pro Frame und Spieler gebraucht (Tab-Liste, Renderer). */
+    private static volatile Object[] localUuidCache = new Object[2];
+
     private static String localUuid32() {
         MinecraftClient mc = MinecraftClient.getInstance();
         try {
-            if (mc.player != null) return CaeserApi.uuid32(mc.player.getUuid());
-            if (mc.getSession() != null) return CaeserApi.uuid32(mc.getSession().getUuidOrNull());
+            UUID u = null;
+            if (mc.player != null) u = mc.player.getUuid();
+            else if (mc.getSession() != null) u = mc.getSession().getUuidOrNull();
+            if (u == null) return null;
+            Object[] cached = localUuidCache;
+            if (cached[0] == u || u.equals(cached[0])) return (String) cached[1];
+            String hex = CaeserApi.uuid32(u);
+            localUuidCache = new Object[]{u, hex};
+            return hex;
         } catch (Throwable ignored) {}
         return null;
     }
@@ -298,6 +306,7 @@ public class CaeserPlayerSyncManager {
         f.wings = ownedOrNone(owned, d.wings);
         f.head = ownedOrNone(owned, d.head);
         f.face = ownedOrNone(owned, d.face);
+        f.back = ownedOrNone(owned, d.back);
         f.pet = ownedOrNone(owned, d.pet);
         f.petCustomPlayer = d.petCustomPlayer;
         f.tabBadge = d.tabBadge;
@@ -358,6 +367,26 @@ public class CaeserPlayerSyncManager {
         return badgeSymbol(key != null ? COSMETICS_MAP.get(key) : null);
     }
 
+    /**
+     * Tab-Liste: Badge vor diesem Spieler zeigen? Gleiches Ergebnis wie
+     * {@code isCaeserPlayer(uuid, name) && getPlayerBadgePrefix(uuid, name) != null}, aber mit nur einer
+     * UUID-Umwandlung und ohne doppelte Map-Abfragen (läuft pro Eintrag und Frame).
+     */
+    public static boolean showsTabBadge(UUID uuid, String username) {
+        if (!com.bame.client.module.TabBadgeModule.enabled) return false;
+        if (uuid == null) {
+            if (username == null) return false;
+            if (!isCaeserPlayer(username)) return false;
+            String badge = getPlayerBadgePrefix(username);
+            return badge != null && !badge.isEmpty();
+        }
+        String key = CaeserApi.uuid32(uuid);
+        if (key.equals(localUuid32())) return true; // eigenes Badge: Modul ist an (oben geprüft)
+        PlayerCosmeticsData data = COSMETICS_MAP.get(key);
+        if (data == null && !CAESER_PLAYERS.contains(key) && !EMOTE_MAP.containsKey(key)) return false;
+        return badgeSymbol(data) != null;
+    }
+
     /** Nur noch ein Design: jedes Badge außer {@code none} wird als Caeser Bold gezeigt (auch von älteren Clients). */
     private static String badgeSymbol(PlayerCosmeticsData data) {
         return com.bame.client.module.TabBadgeModule.symbolForRemote(data != null ? data.tabBadge : null);
@@ -378,6 +407,8 @@ public class CaeserPlayerSyncManager {
         state.addProperty("wings", ownedLocal("WINGS", CosmeticsConfig.wings));
         state.addProperty("head", ownedLocal("HEAD", CosmeticsConfig.head));
         state.addProperty("face", ownedLocal("FACE", CosmeticsConfig.face));
+        // Rücken-Slot: wie wings/head/face die Mod-ID in Kleinbuchstaben (Shop-ID = dieselbe in GROSS), nur besessen
+        state.addProperty("back", ownedLocal("BACK", BackCosmetics.sanitizeBack(CosmeticsConfig.back)));
 
         String pet = CosmeticsConfig.pet != null ? CosmeticsConfig.pet.toLowerCase(Locale.ROOT) : "none";
         if ("self".equals(pet) || "custom".equals(pet)) pet = "minime_sit";
@@ -825,6 +856,8 @@ public class CaeserPlayerSyncManager {
         data.head = str(root, "head", "none");
         // Ältere Clients senden kein "face"
         data.face = str(root, "face", "none");
+        // Ältere Clients senden kein "back"; unbekannte Werte gelten als "none"
+        data.back = BackCosmetics.sanitizeBack(str(root, "back", "none"));
         data.pet = str(root, "pet", "none");
         String petCustom = str(root, "petCustom", "");
         data.petCustomPlayer = PET_CUSTOM.matcher(petCustom).matches() ? petCustom : "";

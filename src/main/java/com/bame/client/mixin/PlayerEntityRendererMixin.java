@@ -21,6 +21,16 @@ public class PlayerEntityRendererMixin {
 
     @Inject(method = "updateRenderState(Lnet/minecraft/entity/PlayerLikeEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V", at = @At("TAIL"))
     private void onUpdateRenderState(PlayerLikeEntity entity, PlayerEntityRenderState state, float tickProgress, CallbackInfo ci) {
+        com.bame.client.util.Prof.push("caeser_player_state");
+        try {
+            caeser$updateState(entity, state);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private static void caeser$updateState(PlayerLikeEntity entity, PlayerEntityRenderState state) {
         if (state instanceof EmotePreviewHolder holder) {
             // UUID für den Cosmetic-Sync (Maps nach UUID); Mannequins o. Ä. bekommen keine
             holder.caeser$setPlayerUuid(entity instanceof PlayerEntity player ? player.getUuid() : null);

@@ -42,14 +42,14 @@ public final class KillEffects {
     /**
      * Vom {@link KillDetector}: der lokale Spieler hat jemanden getötet.
      *
-     * @param victimUuid UUID des Opfers (für die zuletzt gesehene Rüstung beim Amboss) oder {@code null}
+     * @param victimUuid UUID des Opfers (für die zuletzt gesehene Rüstung der Figur) oder {@code null}
      * @param player     war das Opfer ein Spieler?
      */
     public static void onLocalKill(Vec3d pos, String victimName, java.util.UUID victimUuid, boolean player) {
         KillEffectType type = equipped();
         if (type == null || pos == null) return;
         String name = KillLogic.sanitizeVictimName(victimName);
-        KillVictims.Figure figure = type == KillEffectType.ANVIL ? KillVictims.figure(victimUuid, name, player) : null;
+        KillVictims.Figure figure = type.usesFigure() ? KillVictims.figure(victimUuid, name, player) : null;
         play(type, pos, name, true, figure);
         send(type, pos, name);
     }
@@ -111,7 +111,7 @@ public final class KillEffects {
         if (mc.player.getEntityPos().squaredDistanceTo(pos) > REMOTE_RANGE * REMOTE_RANGE) return;
         // Fairness: nichts zeigen, was man sonst nicht sehen würde (z. B. einen Kampf hinter einer Wand)
         if (!inLineOfSight(mc, pos)) return;
-        // Amboss: Figur aus der zuletzt gesehenen Rüstung/dem Skin des Opfers (sonst Leder bzw. Skin über den Namen)
+        // Amboss, Snap, Hell Gate: Figur aus der zuletzt gesehenen Rüstung/dem Skin des Opfers (sonst Leder bzw. Skin über den Namen)
         play(type, pos, KillLogic.sanitizeVictimName(victimName), false, null);
     }
 
@@ -148,8 +148,8 @@ public final class KillEffects {
         Vec3d flat = new Vec3d(look.x, 0, look.z);
         flat = flat.lengthSquared() < 1.0E-4 ? new Vec3d(0, 0, 1) : flat.normalize();
         Vec3d pos = mc.player.getEntityPos().add(flat.multiply(3.0));
-        // Amboss: eigener Skin und eigene Rüstung als Figur (ohne Rüstung: Leder)
-        play(type, pos, "Steve", true, type == KillEffectType.ANVIL ? KillVictims.localFigure() : null);
+        // Amboss, Snap, Hell Gate: eigener Skin und eigene Rüstung als Figur (ohne Rüstung: Leder)
+        play(type, pos, "Steve", true, type.usesFigure() ? KillVictims.localFigure() : null);
         return true;
     }
 
@@ -162,7 +162,7 @@ public final class KillEffects {
         KillWorldEffects.tick(mc);
     }
 
-    /** WorldRenderEvents.BEFORE_ENTITIES: Sarg und Amboss (mit Opfer-Figur) zusammen mit den Entities. */
+    /** WorldRenderEvents.BEFORE_ENTITIES: Sarg, Amboss, Snap und Hell Gate (mit Opfer-Figur) zusammen mit den Entities. */
     public static void submitWorld(net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext context) {
         KillWorldEffects.submit(context);
     }
@@ -177,5 +177,6 @@ public final class KillEffects {
         KillWorldEffects.clear();
         KillEffectHud.clear();
         KillVictims.clear();
+        KillFigureTextures.clear();
     }
 }

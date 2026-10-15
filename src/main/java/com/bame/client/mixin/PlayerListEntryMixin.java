@@ -38,8 +38,13 @@ public abstract class PlayerListEntryMixin {
     private void caeser$applyCape(CallbackInfoReturnable<SkinTextures> cir) {
         GameProfile profile = this.getProfile();
         if (profile == null) return;
-        SkinTextures base = cir.getReturnValue();
-        SkinTextures withCape = CaeserCapeManager.apply(profile.id(), base);
-        if (withCape != base) cir.setReturnValue(withCape);
+        com.bame.client.util.Prof.push("caeser_cape_apply");
+        try {
+            SkinTextures base = cir.getReturnValue();
+            SkinTextures withCape = CaeserCapeManager.apply(profile.id(), base);
+            if (withCape != base) cir.setReturnValue(withCape);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
     }
 }

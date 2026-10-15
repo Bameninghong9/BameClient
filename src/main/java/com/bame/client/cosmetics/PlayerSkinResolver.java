@@ -23,27 +23,57 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public class PlayerSkinResolver {
     private static final Map<String, Identifier> CACHE = new ConcurrentHashMap<>();
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
+
+    /*
+     * resolve() läuft pro Frame (MiniMe-/Pet-Skins mit eigenem Spielernamen im Renderer und in der Inventar-Vorschau).
+     * Früher: Regex pro Aufruf, Suche durch die ganze Tab-Liste pro Frame und nach einem fehlgeschlagenen Download
+     * sofort der nächste (Mojang-API-Anfragen in Dauerschleife). Jetzt: Schlüssel zwischengespeichert, Tab-Liste
+     * höchstens alle 2 s je Name, nach einem Fehlschlag frühestens nach 60 s ein neuer Download.
+     */
+    private static final Pattern KEY_INVALID = Pattern.compile("[^a-z0-9_.-]");
+    private static final Map<String, String> KEYS = new ConcurrentHashMap<>();
+    private static final Map<String, Long> NEXT_TAB_SCAN = new ConcurrentHashMap<>();
+    private static final Map<String, Long> RETRY_AT = new ConcurrentHashMap<>();
+    private static final long TAB_SCAN_INTERVAL_MS = 2_000L;
+    private static final long RETRY_AFTER_FAILURE_MS = 60_000L;
+    private static final int MAX_TRACKED = 512;
+
+    private static String keyFor(String clean) {
+        String key = KEYS.get(clean);
+        if (key == null) {
+            if (KEYS.size() > MAX_TRACKED) KEYS.clear();
+            key = KEY_INVALID.matcher(clean.toLowerCase(Locale.ROOT)).replaceAll("_");
+            KEYS.put(clean, key);
+        }
+        return key;
+    }
 
     public static Identifier resolve(String playerName) {
         if (playerName == null || playerName.trim().isEmpty()) {
             return DefaultSkinHelper.getTexture();
         }
         String clean = playerName.trim();
-        String key = clean.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_");
+        String key = keyFor(clean);
 
-        if (CACHE.containsKey(key)) {
-            return CACHE.get(key);
+        Identifier cached = CACHE.get(key);
+        if (cached != null) {
+            return cached;
         }
 
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null) return DefaultSkinHelper.getTexture();
+        long now = System.currentTimeMillis();
 
-        // 1. Check if player is present in current world/server tab list
-        if (mc.getNetworkHandler() != null) {
+        // 1. Check if player is present in current world/server tab list (gedrosselt je Name)
+        Long nextScan = NEXT_TAB_SCAN.get(key);
+        if (mc.getNetworkHandler() != null && (nextScan == null || now >= nextScan)) {
+            if (NEXT_TAB_SCAN.size() > MAX_TRACKED) NEXT_TAB_SCAN.clear();
+            NEXT_TAB_SCAN.put(key, now + TAB_SCAN_INTERVAL_MS);
             for (PlayerListEntry entry : mc.getNetworkHandler().getPlayerList()) {
                 if (entry.getProfile() != null && clean.equalsIgnoreCase(entry.getProfile().name())) {
                     if (entry.getSkinTextures() != null && entry.getSkinTextures().body() != null) {
@@ -55,9 +85,11 @@ public class PlayerSkinResolver {
             }
         }
 
-        // 2. Fetch skin in background thread
-        if (PENDING.add(key)) {
+        // 2. Fetch skin in background thread (nach einem Fehlschlag erst nach einer Pause erneut)
+        Long retryAt = RETRY_AT.get(key);
+        if ((retryAt == null || now >= retryAt) && PENDING.add(key)) {
             CompletableFuture.runAsync(() -> {
+                boolean ok = false;
                 try {
                     String skinUrl = fetchSkinUrlFromMojang(clean);
                     if (skinUrl == null || skinUrl.isEmpty()) {
@@ -74,6 +106,7 @@ public class PlayerSkinResolver {
                             NativeImage rawImage = NativeImage.read(in);
                             if (rawImage != null) {
                                 NativeImage image = CaeserSkinManager.remapSkin(rawImage);
+                                ok = true;
                                 mc.execute(() -> {
                                     try {
                                         NativeImageBackedTexture texture = new NativeImageBackedTexture(() -> "skin_" + key, image);
@@ -89,6 +122,12 @@ public class PlayerSkinResolver {
                     }
                 } catch (Throwable ignored) {
                 } finally {
+                    if (ok) {
+                        RETRY_AT.remove(key);
+                    } else {
+                        if (RETRY_AT.size() > MAX_TRACKED) RETRY_AT.clear();
+                        RETRY_AT.put(key, System.currentTimeMillis() + RETRY_AFTER_FAILURE_MS);
+                    }
                     PENDING.remove(key);
                 }
             });
@@ -151,5 +190,7 @@ public class PlayerSkinResolver {
     public static void clearCache() {
         CACHE.clear();
         PENDING.clear();
+        NEXT_TAB_SCAN.clear();
+        RETRY_AT.clear();
     }
 }

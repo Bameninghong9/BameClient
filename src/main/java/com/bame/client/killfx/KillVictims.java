@@ -19,12 +19,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Aussehen von Kill-Opfern für den Amboss-Effekt, rein auf dem Client:
+ * Aussehen von Kill-Opfern für die Effekte mit Opfer-Figur (Amboss, Thanos Snap, Hell Gate), rein auf dem Client:
  * <ul>
  *   <li>Zwischenspeicher der zuletzt gesehenen Rüstung (und des Skins) lebender Spieler in der Nähe (64 Blöcke, alle 4
  *       Ticks, Einträge verfallen nach 10 s). Getroffene Opfer des lokalen Spielers werden zusätzlich jeden Tick
  *       erfasst ({@link KillDetector}). Nach dem Tod wird nichts mehr erfasst (der Server leert die Ausrüstung).</li>
- *   <li>{@link Figure}: Skin und Rüstung für die Figur unter dem Amboss. Ohne jede Rüstung → komplette Lederrüstung.</li>
+ *   <li>{@link Figure}: Skin und Rüstung der Opfer-Figur. Ohne jede Rüstung → komplette Lederrüstung.</li>
  *   <li>Skin für Fremde: Spieler in der Welt → Zwischenspeicher → Tab-Liste → asynchrone Profil-Abfrage über den Namen
  *       (bis dahin der Standard-Skin).</li>
  * </ul>

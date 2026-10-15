@@ -77,6 +77,7 @@ public final class ShopOverlay {
         if (!EmoteUnlockManager.isCosmeticUnlocked("WINGS", CosmeticsConfig.wings)) return true;
         if (!EmoteUnlockManager.isCosmeticUnlocked("HEAD", CosmeticsConfig.head)) return true;
         if (!EmoteUnlockManager.isCosmeticUnlocked("FACE", CosmeticsConfig.face)) return true;
+        if (!EmoteUnlockManager.isCosmeticUnlocked("BACK", CosmeticsConfig.back)) return true;
         for (String acc : CosmeticsConfig.accessories) {
             if (!EmoteUnlockManager.isCosmeticUnlocked("ACCESSORIES", acc)) return true;
         }

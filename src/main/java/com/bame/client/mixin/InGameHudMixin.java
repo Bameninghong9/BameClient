@@ -32,7 +32,12 @@ public class InGameHudMixin {
             return;
         }
         ci.cancel();
-        com.bame.client.render.ScoreboardRenderer.render(context, objective, com.bame.client.module.ScoreboardModule.hudX, com.bame.client.module.ScoreboardModule.hudY, com.bame.client.module.ScoreboardModule.scale, false);
+        com.bame.client.util.Prof.push("caeser_hud_scoreboard");
+        try {
+            com.bame.client.render.ScoreboardRenderer.render(context, objective, com.bame.client.module.ScoreboardModule.hudX, com.bame.client.module.ScoreboardModule.hudY, com.bame.client.module.ScoreboardModule.scale, false);
+        } finally {
+            com.bame.client.util.Prof.pop();
+        }
     }
 
     @Inject(method = "renderStatusEffectOverlay(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("HEAD"), cancellable = true)

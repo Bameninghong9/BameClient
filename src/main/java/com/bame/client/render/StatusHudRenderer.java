@@ -110,6 +110,17 @@ public class StatusHudRenderer implements HudRenderCallback {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.options.hudHidden) return;
 
+        // Profiler: je HUD-Element ein Abschnitt (swap hält die Tiefe, finally schließt ihn auch beim frühen return)
+        net.minecraft.util.profiler.Profiler prof = net.minecraft.util.profiler.Profilers.get();
+        prof.push("caeser_hud_spotify");
+        try {
+            renderElements(context, client, prof);
+        } finally {
+            prof.pop();
+        }
+    }
+
+    private static void renderElements(DrawContext context, MinecraftClient client, net.minecraft.util.profiler.Profiler prof) {
         if (com.bame.client.module.SpotifyHudModule.enabled) {
             float s = SpotifyHudModule.scale;
             int x = clampHudX(SpotifyHudModule.hudX, SpotifyHudRenderer.getWidth(), s);
@@ -119,21 +130,25 @@ public class StatusHudRenderer implements HudRenderCallback {
 
         if (!com.bame.client.module.ShowHudModule.enabled) return;
 
+        prof.swap("caeser_hud_fps");
         if (FpsModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("fps"))) {
             float s = FpsModule.scale;
             renderFps(context, clampHudX(FpsModule.hudX, getFpsWidth(client), s), clampHudY(FpsModule.hudY, getFpsHeight(), s), s);
         }
 
+        prof.swap("caeser_hud_ping");
         if (PingModule.enabled && (!ServerInfoModule.enabled || !ServerInfoModule.isDocked("ping"))) {
             float s = PingModule.scale;
             renderPing(context, clampHudX(PingModule.hudX, getPingWidth(client), s), clampHudY(PingModule.hudY, getPingHeight(), s), s);
         }
 
+        prof.swap("caeser_hud_cps");
         if (CpsModule.enabled) {
             float s = CpsModule.scale;
             renderCps(context, clampHudX(CpsModule.hudX, getCpsWidth(client), s), clampHudY(CpsModule.hudY, getCpsHeight(), s), s);
         }
 
+        prof.swap("caeser_hud_server_info");
         if (ServerInfoModule.enabled) {
             float s = ServerInfoModule.scale;
             if (!ServerInfoModule.getActiveDockedElements().isEmpty()) {
@@ -156,21 +171,25 @@ public class StatusHudRenderer implements HudRenderCallback {
             }
         }
 
+        prof.swap("caeser_hud_clock");
         if (ClockModule.enabled) {
             float s = ClockModule.scale;
             renderClock(context, clampHudX(ClockModule.hudX, getClockWidth(client), s), clampHudY(ClockModule.hudY, getClockHeight(), s), s);
         }
 
+        prof.swap("caeser_hud_coordinates");
         if (CoordinatesModule.enabled) {
             float s = CoordinatesModule.scale;
             renderCoordinates(context, clampHudX(CoordinatesModule.hudX, getCoordinatesWidth(client), s), clampHudY(CoordinatesModule.hudY, getCoordinatesHeight(client), s), s);
         }
 
+        prof.swap("caeser_hud_potions");
         if (PotionsModule.enabled) {
             float s = PotionsModule.scale;
             renderPotions(context, clampHudX(PotionsModule.hudX, getPotionsWidth(client, false), s), clampHudY(PotionsModule.hudY, getPotionsHeight(client, false), s), s, false);
         }
 
+        prof.swap("caeser_hud_target");
         if (TargetHudModule.enabled) {
             int w = getTargetHudWidth();
             int x = TargetHudModule.hudX;
@@ -185,6 +204,7 @@ public class StatusHudRenderer implements HudRenderCallback {
             renderTargetHud(context, clampHudX(x, w, s), clampHudY(y, getTargetHudHeight(), s), s, false);
         }
 
+        prof.swap("caeser_hud_armor");
         if (ArmorHudModule.enabled) {
             int w = getArmorHudWidth(client);
             int x = ArmorHudModule.hudX;
@@ -199,14 +219,63 @@ public class StatusHudRenderer implements HudRenderCallback {
             renderArmorHud(context, clampHudX(x, w, s), clampHudY(y, getArmorHudHeight(client, false), s), s, false);
         }
 
+        prof.swap("caeser_hud_reach");
         if (ReachDisplayModule.enabled && ReachDisplayModule.mode == 1) {
             float s = ReachDisplayModule.scale;
             renderReachDisplay(context, clampHudX(ReachDisplayModule.hudX, getReachDisplayWidth(client), s), clampHudY(ReachDisplayModule.hudY, getReachDisplayHeight(), s), s);
         }
     }
 
+    // ------------------------------------------------------------------------------------------------------------
+    // Text-Caches (nur Render-Thread): gleiche Texte wie früher, aber nur neu gebaut, wenn sich der Wert ändert.
+    // Früher wurden FPS/Ping/CPS/Uhrzeit pro Frame zwei- bis dreimal (Breite + Zeichnen) neu zusammengesetzt.
+    // ------------------------------------------------------------------------------------------------------------
+    private static int fpsKey = Integer.MIN_VALUE;
+    private static String fpsStr;
+    private static int pingKey = Integer.MIN_VALUE;
+    private static String pingStr;
+    private static int cpsKeyL = Integer.MIN_VALUE, cpsKeyR = Integer.MIN_VALUE;
+    private static String cpsStr;
+    private static long clockKey = Long.MIN_VALUE;
+    private static String clockStr;
+
+    static String fpsText(int fps) {
+        if (fpsStr == null || fps != fpsKey) {
+            fpsKey = fps;
+            fpsStr = fps + " FPS";
+        }
+        return fpsStr;
+    }
+
+    static String pingText(int ping) {
+        if (pingStr == null || ping != pingKey) {
+            pingKey = ping;
+            pingStr = ping + " ms";
+        }
+        return pingStr;
+    }
+
+    static String cpsText(int l, int r) {
+        if (cpsStr == null || l != cpsKeyL || r != cpsKeyR) {
+            cpsKeyL = l;
+            cpsKeyR = r;
+            cpsStr = l + " | " + r + " CPS";
+        }
+        return cpsStr;
+    }
+
+    /** Uhrzeit HH:mm:ss; neu formatiert nur, wenn eine neue Sekunde beginnt. */
+    static String clockText() {
+        long second = Math.floorDiv(System.currentTimeMillis(), 1000L);
+        if (clockStr == null || second != clockKey) {
+            clockKey = second;
+            clockStr = LocalTime.now().format(TIME_FORMATTER);
+        }
+        return clockStr;
+    }
+
     public static int getFpsWidth(MinecraftClient client) {
-        String text = client.getCurrentFps() + " FPS";
+        String text = fpsText(client.getCurrentFps());
         int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
         return FpsModule.customWidth > 0 ? Math.max(nw, FpsModule.customWidth) : nw;
     }
@@ -216,7 +285,7 @@ public class StatusHudRenderer implements HudRenderCallback {
 
     public static int getPingWidth(MinecraftClient client) {
         int ping = getPingValue(client);
-        String text = ping + " ms";
+        String text = pingText(ping);
         int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
         return PingModule.customWidth > 0 ? Math.max(nw, PingModule.customWidth) : nw;
     }
@@ -227,7 +296,7 @@ public class StatusHudRenderer implements HudRenderCallback {
     public static int getCpsWidth(MinecraftClient client) {
         int l = CpsModule.getLeftCps();
         int r = CpsModule.getRightCps();
-        String text = l + " | " + r + " CPS";
+        String text = cpsText(l, r);
         int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
         return CpsModule.customWidth > 0 ? Math.max(nw, CpsModule.customWidth) : nw;
     }
@@ -236,7 +305,7 @@ public class StatusHudRenderer implements HudRenderCallback {
     }
 
     public static int getClockWidth(MinecraftClient client) {
-        String text = LocalTime.now().format(TIME_FORMATTER);
+        String text = clockText();
         int nw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(text)) + 16;
         return ClockModule.customWidth > 0 ? Math.max(nw, ClockModule.customWidth) : nw;
     }
@@ -244,8 +313,55 @@ public class StatusHudRenderer implements HudRenderCallback {
         return ClockModule.customHeight > 0 ? Math.max(18, ClockModule.customHeight) : 18;
     }
 
+    // Letztes Ergebnis von getCoordinatesLines mit allen Eingaben (pro Frame drei Aufrufe: Breite, Höhe, Zeichnen)
+    private static List<String> coordsCached;
+    private static boolean coordsHasPlayer;
+    private static double coordsX, coordsY, coordsZ;
+    private static int coordsBX, coordsBY, coordsBZ;
+    private static int coordsFlags = -1, coordsStyle, coordsLayout;
+    private static Object coordsDim, coordsFacing;
+
+    /** Zeilen der Koordinaten-Anzeige; unveränderliche Liste, aus dem Cache solange sich keine Eingabe ändert. */
     public static List<String> getCoordinatesLines(MinecraftClient client) {
         if (client == null) client = MinecraftClient.getInstance();
+        boolean hasPlayer = client.player != null;
+        double x = hasPlayer ? client.player.getX() : 0.0;
+        double y = hasPlayer ? client.player.getY() : 0.0;
+        double z = hasPlayer ? client.player.getZ() : 0.0;
+        int bx = hasPlayer ? client.player.getBlockX() : 0;
+        int by = hasPlayer ? client.player.getBlockY() : 0;
+        int bz = hasPlayer ? client.player.getBlockZ() : 0;
+        int flags = (CoordinatesModule.showX ? 1 : 0) | (CoordinatesModule.showY ? 2 : 0) | (CoordinatesModule.showZ ? 4 : 0)
+                | (CoordinatesModule.decimals ? 8 : 0) | (CoordinatesModule.showNether ? 16 : 0)
+                | (CoordinatesModule.showDirection ? 32 : 0);
+        Object dim = client.world != null ? client.world.getRegistryKey() : null;
+        Object facing = hasPlayer ? client.player.getHorizontalFacing() : null;
+        int style = CoordinatesModule.style;
+        int layout = CoordinatesModule.layoutMode;
+        if (coordsCached != null && hasPlayer == coordsHasPlayer && flags == coordsFlags && style == coordsStyle
+                && layout == coordsLayout && dim == coordsDim && facing == coordsFacing
+                && Double.compare(x, coordsX) == 0 && Double.compare(y, coordsY) == 0 && Double.compare(z, coordsZ) == 0
+                && bx == coordsBX && by == coordsBY && bz == coordsBZ) {
+            return coordsCached;
+        }
+        List<String> lines = List.copyOf(computeCoordinatesLines(client));
+        coordsCached = lines;
+        coordsHasPlayer = hasPlayer;
+        coordsX = x;
+        coordsY = y;
+        coordsZ = z;
+        coordsBX = bx;
+        coordsBY = by;
+        coordsBZ = bz;
+        coordsFlags = flags;
+        coordsStyle = style;
+        coordsLayout = layout;
+        coordsDim = dim;
+        coordsFacing = facing;
+        return lines;
+    }
+
+    private static List<String> computeCoordinatesLines(MinecraftClient client) {
         boolean hasPlayer = client.player != null;
         boolean showX = CoordinatesModule.showX;
         boolean showY = CoordinatesModule.showY;
@@ -438,18 +554,97 @@ public class StatusHudRenderer implements HudRenderCallback {
         };
     }
 
+    /** Dauer-Texte bis 100 Minuten, einmal erzeugt (pro Frame und Effekt zweimal gebraucht). Nur Render-Thread. */
+    private static final String[] DURATION_CACHE = new String[6000];
+
     private static String formatDuration(int ticks, boolean infinite) {
         if (infinite) return "**:**";
         int totalSeconds = ticks / 20;
+        if (totalSeconds >= 0 && totalSeconds < DURATION_CACHE.length) {
+            String cached = DURATION_CACHE[totalSeconds];
+            if (cached == null) {
+                cached = formatDurationUncached(totalSeconds);
+                DURATION_CACHE[totalSeconds] = cached;
+            }
+            return cached;
+        }
+        return formatDurationUncached(totalSeconds);
+    }
+
+    private static String formatDurationUncached(int totalSeconds) {
         int mins = totalSeconds / 60;
         int secs = totalSeconds % 60;
         return String.format(java.util.Locale.ROOT, "%02d:%02d", mins, secs);
     }
 
+    /*
+     * Effekt-Namen (übersetzt + Stufe) pro Effekt und Stufe zwischengespeichert; bei einem Sprachwechsel (andere
+     * Language-Instanz) wird der Cache geleert. Früher pro Frame und Effekt zweimal: Text.translatable + getString + concat.
+     */
+    private static final java.util.Map<Object, String[]> EFFECT_NAME_CACHE = new java.util.IdentityHashMap<>();
+    private static Object effectNameLanguage;
+
     private static String getEffectName(StatusEffectInstance inst) {
+        Object lang = net.minecraft.util.Language.getInstance();
+        if (lang != effectNameLanguage) {
+            EFFECT_NAME_CACHE.clear();
+            effectNameLanguage = lang;
+        }
+        int amp = inst.getAmplifier();
+        Object key = inst.getEffectType();
+        String[] byAmp = null;
+        if (amp >= 0 && amp < 10) {
+            byAmp = EFFECT_NAME_CACHE.get(key);
+            if (byAmp != null && byAmp[amp] != null) return byAmp[amp];
+        }
         String base = inst.getEffectType().value().getName().getString();
-        return base + getAmplifierString(inst.getAmplifier());
+        String name = base + getAmplifierString(amp);
+        if (amp >= 0 && amp < 10) {
+            if (byAmp == null) {
+                if (EFFECT_NAME_CACHE.size() > 256) EFFECT_NAME_CACHE.clear();
+                byAmp = new String[10];
+                EFFECT_NAME_CACHE.put(key, byAmp);
+            }
+            byAmp[amp] = name;
+        }
+        return name;
     }
+
+    private static final Identifier HEART_CONTAINER = Identifier.ofVanilla("hud/heart/container");
+    private static final Identifier HEART_FULL = Identifier.ofVanilla("hud/heart/full");
+    private static final Identifier HEART_HALF = Identifier.ofVanilla("hud/heart/half");
+
+    private static final String[] PERCENT_TEXT = new String[101];
+    static {
+        for (int i = 0; i <= 100; i++) PERCENT_TEXT[i] = i + "%";
+    }
+
+    // Ziel-HUD: HP- und Entfernungstext nur bei geänderter Zahl neu formatieren (gleiches Format wie früher)
+    private static int hpKey;
+    private static String hpStrCached;
+    private static int distKey;
+    private static String distStrCached;
+
+    private static String hpText(float hp) {
+        int bits = Float.floatToIntBits(hp);
+        if (hpStrCached == null || bits != hpKey) {
+            hpKey = bits;
+            hpStrCached = String.format(java.util.Locale.ROOT, "%.1f HP", hp);
+        }
+        return hpStrCached;
+    }
+
+    private static String distText(float dist) {
+        int bits = Float.floatToIntBits(dist);
+        if (distStrCached == null || bits != distKey) {
+            distKey = bits;
+            distStrCached = String.format(java.util.Locale.ROOT, "%.1fm", dist);
+        }
+        return distStrCached;
+    }
+
+    /** Wiederverwendetes Rüstungs-Array des Ziel-HUDs (nur Render-Thread, nur innerhalb von renderTargetHud gelesen). */
+    private static final ItemStack[] TARGET_PIECES = new ItemStack[5];
 
     public static int getPotionsWidth(MinecraftClient client, boolean isPreview) {
         if (client == null) client = MinecraftClient.getInstance();
@@ -525,26 +720,26 @@ public class StatusHudRenderer implements HudRenderCallback {
 
     public static void renderFps(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String text = client.getCurrentFps() + " FPS";
+        String text = fpsText(client.getCurrentFps());
         renderPill(c, x, y, scale, text, FpsModule.bgMode, FpsModule.outlineColor, FpsModule.customWidth, FpsModule.customHeight);
     }
 
     public static void renderPing(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
         int ping = getPingValue(client);
-        String text = ping + " ms";
+        String text = pingText(ping);
         renderPill(c, x, y, scale, text, PingModule.bgMode, PingModule.outlineColor, PingModule.customWidth, PingModule.customHeight);
     }
 
     public static void renderCps(DrawContext c, int x, int y, float scale) {
         int l = CpsModule.getLeftCps();
         int r = CpsModule.getRightCps();
-        String text = l + " | " + r + " CPS";
+        String text = cpsText(l, r);
         renderPill(c, x, y, scale, text, CpsModule.bgMode, CpsModule.outlineColor, CpsModule.customWidth, CpsModule.customHeight);
     }
 
     public static void renderClock(DrawContext c, int x, int y, float scale) {
-        String text = LocalTime.now().format(TIME_FORMATTER);
+        String text = clockText();
         renderPill(c, x, y, scale, text, ClockModule.bgMode, ClockModule.outlineColor, ClockModule.customWidth, ClockModule.customHeight);
     }
 
@@ -697,25 +892,25 @@ public class StatusHudRenderer implements HudRenderCallback {
 
             for (int i = 0; i < totalHearts; i++) {
                 int hx = tx + i * 8;
-                c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, Identifier.ofVanilla("hud/heart/container"), hx, heartY, 9, 9);
+                c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HEART_CONTAINER, hx, heartY, 9, 9);
 
                 float heartHealth = hp - (i * 2);
                 if (heartHealth >= 2.0f) {
-                    c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, Identifier.ofVanilla("hud/heart/full"), hx, heartY, 9, 9);
+                    c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HEART_FULL, hx, heartY, 9, 9);
                 } else if (heartHealth >= 1.0f) {
-                    c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, Identifier.ofVanilla("hud/heart/half"), hx, heartY, 9, 9);
+                    c.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HEART_HALF, hx, heartY, 9, 9);
                 }
             }
 
-            String hpStr = String.format(java.util.Locale.ROOT, "%.1f HP", hp);
-            String distStr = (target != null && client.player != null) ? String.format(java.util.Locale.ROOT, "%.1fm", client.player.distanceTo(target)) : "1.9m";
+            String hpStr = hpText(hp);
+            String distStr = (target != null && client.player != null) ? distText(client.player.distanceTo(target)) : "1.9m";
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(hpStr), tx, 28, 0xFFB0B8C5, TargetHudModule.bgMode == 1);
             int dw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(distStr));
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(distStr), w - dw - 6, 28, 0xFF8E95A4, TargetHudModule.bgMode == 1);
         } else {
             int nameY = 15;
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(name), tx, nameY, 0xFFFFFFFF, TargetHudModule.bgMode == 1);
-            String distStr = (target != null && client.player != null) ? String.format(java.util.Locale.ROOT, "%.1fm", client.player.distanceTo(target)) : "1.9m";
+            String distStr = (target != null && client.player != null) ? distText(client.player.distanceTo(target)) : "1.9m";
             int dw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(distStr));
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(distStr), w - dw - 6, nameY, 0xFF8E95A4, TargetHudModule.bgMode == 1);
         }
@@ -730,7 +925,17 @@ public class StatusHudRenderer implements HudRenderCallback {
             ItemStack boots = target != null ? target.getEquippedStack(EquipmentSlot.FEET) : ItemStack.EMPTY;
             ItemStack offhand = target != null ? target.getEquippedStack(EquipmentSlot.OFFHAND) : ItemStack.EMPTY;
 
-            ItemStack[] pieces = (isPreview && target == null) ? PREVIEW_ARMOR : new ItemStack[] { helmet, chest, legs, boots, offhand };
+            ItemStack[] pieces;
+            if (isPreview && target == null) {
+                pieces = PREVIEW_ARMOR;
+            } else {
+                pieces = TARGET_PIECES;
+                pieces[0] = helmet;
+                pieces[1] = chest;
+                pieces[2] = legs;
+                pieces[3] = boots;
+                pieces[4] = offhand;
+            }
             int slotSize = 18;
             int gap = 3;
             int totalArmorW = 5 * slotSize + 4 * gap;
@@ -796,7 +1001,7 @@ public class StatusHudRenderer implements HudRenderCallback {
                 int dmg = stack.getDamage();
                 pct = Math.max(0, Math.min(100, Math.round(((float) (max - dmg) / (float) max) * 100.0f)));
             }
-            String pctStr = pct + "%";
+            String pctStr = PERCENT_TEXT[pct];
             int pctColor = pct > 50 ? 0xFF55FF55 : (pct > 25 ? 0xFFFFAA00 : 0xFFFF5555);
             c.drawText(client.textRenderer, CustomGuiUtils.getFontText(pctStr), 27, rowY + 7, pctColor, ArmorHudModule.bgMode == 1);
 
@@ -884,11 +1089,11 @@ public class StatusHudRenderer implements HudRenderCallback {
                 yield 9 + 5 + client.textRenderer.getWidth(CustomGuiUtils.getFontText(server));
             }
             case "time" -> {
-                String time = LocalTime.now().format(TIME_FORMATTER);
+                String time = clockText();
                 yield 8 + 5 + client.textRenderer.getWidth(CustomGuiUtils.getFontText(time));
             }
-            case "fps" -> client.textRenderer.getWidth(CustomGuiUtils.getFontText(client.getCurrentFps() + " FPS"));
-            case "ping" -> client.textRenderer.getWidth(CustomGuiUtils.getFontText(getPingValue(client) + " ms"));
+            case "fps" -> client.textRenderer.getWidth(CustomGuiUtils.getFontText(fpsText(client.getCurrentFps())));
+            case "ping" -> client.textRenderer.getWidth(CustomGuiUtils.getFontText(pingText(getPingValue(client))));
             default -> 20;
         };
     }
@@ -960,16 +1165,16 @@ public class StatusHudRenderer implements HudRenderCallback {
                     c.drawText(client.textRenderer, CustomGuiUtils.getFontText(server), curX + 9 + 5, textY, 0xFFFFFFFF, shadow);
                 }
                 case "time" -> {
-                    String time = LocalTime.now().format(TIME_FORMATTER);
+                    String time = clockText();
                     drawClockIcon(c, curX, 5, 0xFFFFFFFF);
                     c.drawText(client.textRenderer, CustomGuiUtils.getFontText(time), curX + 8 + 5, textY, 0xFFFFFFFF, shadow);
                 }
                 case "fps" -> {
-                    String text = client.getCurrentFps() + " FPS";
+                    String text = fpsText(client.getCurrentFps());
                     c.drawText(client.textRenderer, CustomGuiUtils.getFontText(text), curX, textY, 0xFFFFFFFF, shadow);
                 }
                 case "ping" -> {
-                    String text = getPingValue(client) + " ms";
+                    String text = pingText(getPingValue(client));
                     c.drawText(client.textRenderer, CustomGuiUtils.getFontText(text), curX, textY, 0xFFFFFFFF, shadow);
                 }
             }
@@ -1030,13 +1235,13 @@ public class StatusHudRenderer implements HudRenderCallback {
     }
 
     public static int getTimeWidth(MinecraftClient client) {
-        String time = LocalTime.now().format(TIME_FORMATTER);
+        String time = clockText();
         return 8 + 8 + 5 + client.textRenderer.getWidth(CustomGuiUtils.getFontText(time)) + 8;
     }
 
     public static void renderStandaloneTime(DrawContext c, int x, int y, float scale) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String time = LocalTime.now().format(TIME_FORMATTER);
+        String time = clockText();
         int tw = client.textRenderer.getWidth(CustomGuiUtils.getFontText(time));
         int w = 8 + 8 + 5 + tw + 8;
         int h = 18;

@@ -21,6 +21,8 @@ public enum EmoteType {
     HAMMOCK("Hammock", "HAMMOCK", "🏝", "Relax in a hammock and sway gently"),
     SWING("Swing", "SWING", "🎠", "Swing high on a wooden swing set — friends can take the second seat"),
     PICNIC("Picnic", "PICNIC", "🧺", "Sit on a picnic blanket with a sandwich and a drink"),
+    /** Halloween: auf einem Hexenbesen in kleinen Kreisen schweben (rein optisch, die echte Position bleibt). */
+    WITCH_BROOM("Witch Broom", "WITCHBROOM", "🧹", "Hover in small circles on a witch's broom with a sparkle trail"),
     STOP("Stop", "STOP", "\u23F9", "Stop the current animation");
 
     /** Englischer Anzeigename für Spieler (Menü-Karten, Emote-Rad, Kauf-Dialog). Backend-ID bleibt {@link #name()}. */

@@ -32,6 +32,8 @@ public final class KillEffectPreview {
             case GRAVE -> grave(c, x, y, w, h, groundY, timeMs);
             case COFFIN -> coffin(c, x, y, w, h, groundY, timeMs);
             case ANVIL -> anvil(c, x, y, w, h, groundY, timeMs);
+            case SNAP -> snap(c, x, y, w, h, groundY, timeMs);
+            case HELLGATE -> hellGate(c, x, y, w, h, groundY, timeMs);
         }
     }
 
@@ -347,6 +349,186 @@ public final class KillEffectPreview {
                             withAlpha(0xFF8A7A66, 1.0F - p * 4.0F));
                 }
             }
+        }
+    }
+
+    // ==========================================
+    // Thanos Snap
+    // ==========================================
+
+    /** Mini-Figur (8 x 16 Pixel): Haare, Gesicht, Shirt mit Armen, Hose, Schuhe. */
+    private static final String[] SNAP_SPRITE = {
+            "..HHHH..", "..HSSH..", "..SESE..", "..SSSS..",
+            "AACCCCAA", "SACCCCAS", "SACCCCAS", "S.CCCC.S", "..CCCC..", "..CCCC..",
+            "..PPPP..", "..PPPP..", "..PP.PP.", "..PP.PP.", "..PP.PP.", "..BB.BB."};
+
+    private static int snapColor(char ch) {
+        return switch (ch) {
+            case 'H' -> 0xFF3B2A1A;
+            case 'S' -> 0xFFC69680;
+            case 'E' -> 0xFF3B3A7A;
+            case 'A', 'C' -> 0xFF2FA3A3;
+            case 'P' -> 0xFF3F3FA8;
+            case 'B' -> 0xFF4A4A4A;
+            default -> 0;
+        };
+    }
+
+    /**
+     * Thanos Snap: die Figur zerfällt von den Füßen aufwärts Pixel für Pixel (ausgefranste Kante, dunkler Saum), die
+     * Pixel werden zu Asche, wehen nach rechts weg, steigen leicht und verblassen. Zeiten wie im Spiel.
+     */
+    private static void snap(DrawContext c, int x, int y, int w, int h, int groundY, long timeMs) {
+        long period = KillFxTimeline.SNAP_TOTAL_MS + 500L;
+        long ms = timeMs % period;
+        int rows = SNAP_SPRITE.length, cols = SNAP_SPRITE[0].length();
+        int px = Math.max(2, Math.min(4, (h - 12) / rows));
+        int left = x + w / 2 - cols * px / 2 - px * 2;
+        int top = groundY - rows * px;
+        // Grenze in Sprite-Zeilen von unten (die Figur ist im Spiel ~1,9 Blöcke hoch)
+        float boundary = (KillFxTimeline.snapBoundary(ms) / 1.9F) * rows;
+        float slump = KillFxTimeline.snapSlump(ms);
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                int color = snapColor(SNAP_SPRITE[row].charAt(col));
+                if (color == 0) continue;
+                float fromBottom = rows - 1 - row + 0.5F;
+                long hash = ((row * 31L + col) * 2654435761L) ^ 0x2545F491L;
+                float fray = ((hash & 0xFF) / 255.0F - 0.5F) * 2.2F + (col / (float) cols - 0.5F) * -1.0F;
+                float threshold = fromBottom + fray;
+                int sx = left + col * px;
+                int sy = top + row * px + (row < 4 ? Math.round(slump * px * 0.5F) : 0);
+                if (boundary < threshold) {
+                    float d = threshold - boundary;
+                    if (d < 1.2F) color = darken(color, 0.35F + 0.65F * d / 1.2F);
+                    c.fill(sx, sy, sx + px, sy + px, color);
+                    continue;
+                }
+                // Flocke seit dem Zerfall
+                long birth = KillFxTimeline.snapBirthMs(threshold / rows * 1.9F);
+                float age = (ms - birth) / 1000.0F;
+                float life = 1.0F + ((hash >> 8) & 0xFF) / 255.0F * 0.5F;
+                if (age < 0.0F || age >= life || (hash & 3) == 0) continue;
+                float dx = (6.0F + ((hash >> 16) & 0xFF) / 255.0F * 6.0F) * age + 26.0F * age * age;
+                float dy = -(3.0F * age + 4.0F * age * age) + (float) Math.sin(age * 7.0F + (hash & 7)) * 1.5F;
+                float ash = Math.min(1.0F, age / 0.5F);
+                int col2 = lerpColor(color, 0xFF2E2B29, ash);
+                float alpha = age < life * 0.5F ? 1.0F : 1.0F - (age - life * 0.5F) / (life * 0.5F);
+                int fs = age > life * 0.6F ? Math.max(1, px - 1) : px;
+                int fx = Math.round(sx + dx), fy = Math.round(sy + dy);
+                c.fill(fx, fy, fx + fs, fy + fs, withAlpha(col2, alpha));
+            }
+        }
+    }
+
+    private static int darken(int argb, float f) {
+        int r = Math.round(((argb >> 16) & 255) * f), g = Math.round(((argb >> 8) & 255) * f * 0.97F), b = Math.round((argb & 255) * f * 0.93F);
+        return (argb & 0xFF000000) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int lerpColor(int a, int b, float t) {
+        int ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+        int br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+        int r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg - ag) * t), bl = Math.round(ab + (bb - ab) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    // ==========================================
+    // Hell Gate
+    // ==========================================
+
+    /**
+     * Hell Gate (Schrägansicht): ein glühender Runenkreis öffnet sich unter der Figur, rote Arme greifen nach ihr und
+     * ziehen sie hinab; das Tor schließt sich mit einem Lichtblitz, ein Brandfleck verblasst. Zeiten wie im Spiel.
+     */
+    private static void hellGate(DrawContext c, int x, int y, int w, int h, int groundY, long timeMs) {
+        long period = KillFxTimeline.HELLGATE_TOTAL_MS + 500L;
+        long ms = timeMs % period;
+        int cx = x + w / 2;
+        float unit = Math.max(8.0F, Math.min(14.0F, (h - 14) / 3.0F));
+        int gy = groundY - 3;
+        float r = KillFxTimeline.gateRadius(ms) * unit * 1.35F;
+        float glow = KillFxTimeline.gateGlow(ms);
+        // Brandfleck
+        float scorch = KillFxTimeline.scorchAlpha(ms);
+        if (scorch > 0.01F) ellipse(c, cx, gy, unit * 1.3F, unit * 0.32F, withAlpha(0xFF1A0E08, scorch));
+        // Tor: Glut-Rand, Schlund, drehende Runen
+        if (r > 1.0F) {
+            float ry = Math.max(1.0F, r * 0.28F);
+            ellipse(c, cx, gy, r + 2.0F, ry + 1.0F, withAlpha(0xFFFF5A14, 0.5F * glow));
+            ellipse(c, cx, gy, r, ry, 0xFFE8641C);
+            ellipse(c, cx, gy, r * 0.85F, ry * 0.8F, 0xFF7A1206);
+            ellipse(c, cx, gy, r * 0.62F, ry * 0.58F, 0xFF140202);
+            float spin = (float) Math.toRadians(KillFxTimeline.gateSpinDeg(ms));
+            for (int i = 0; i < 12; i++) {
+                double a = spin + Math.PI * 2.0 * i / 12.0;
+                dot(c, cx + (float) Math.cos(a) * r * 0.93F, gy + (float) Math.sin(a) * ry * 0.93F, 2, withAlpha(0xFFFFD27A, glow));
+            }
+        }
+        // Figur (wird in den Schlund gezogen; unter dem Boden abgeschnitten)
+        float sink = KillFxTimeline.hellSink(ms) * unit;
+        float pop = ms < KillFxTimeline.HELLGATE_BANG_MS ? KillFxTimeline.figurePop(ms) : 0.0F;
+        float struggle = KillFxTimeline.hellStruggle(ms);
+        if (pop > 0.01F && sink < KillFxTimeline.FIGURE_HEIGHT * unit + 2) {
+            c.enableScissor(x, y, x + w, gy);
+            float fh = KillFxTimeline.FIGURE_HEIGHT * unit * pop;
+            float fw = 0.6F * unit * pop;
+            float base = gy + sink;
+            float wob = (float) Math.sin(ms * 0.013) * 1.5F * struggle;
+            float headH = fh * 0.26F, bodyH = fh * 0.37F, legH = fh - headH - bodyH;
+            int fx0 = Math.round(cx - fw / 2 + wob), fx1 = Math.round(cx + fw / 2 + wob);
+            c.fill(fx0, Math.round(base - legH), fx1, Math.round(base), 0xFF7A4A2A);
+            float shoulder = base - legH - bodyH;
+            float armW = fw * 0.42F;
+            float lift = struggle * (bodyH * 1.4F + (float) Math.sin(ms * 0.02) * 2.0F);
+            c.fill(Math.round(fx0 - armW), Math.round(shoulder - lift), fx0, Math.round(shoulder + bodyH - lift), 0xFF8A5A34);
+            c.fill(fx1, Math.round(shoulder - lift * 0.9F), Math.round(fx1 + armW), Math.round(shoulder + bodyH - lift * 0.9F), 0xFF8A5A34);
+            c.fill(fx0, Math.round(shoulder), fx1, Math.round(base - legH), 0xFF8A5A34);
+            float hw = fw * 0.82F;
+            int hx0 = Math.round(cx - hw / 2 + wob), hx1 = Math.round(cx + hw / 2 + wob);
+            c.fill(hx0, Math.round(shoulder - headH), hx1, Math.round(shoulder), 0xFFC69680);
+            c.fill(hx0, Math.round(shoulder - headH), hx1, Math.round(shoulder - headH * 0.65F), 0xFF7A4A2A);
+            c.disableScissor();
+        }
+        // Dämonenarme (vom Schlund zur Figur)
+        if (ms < KillFxTimeline.HELLGATE_BANG_MS) {
+            c.enableScissor(x, y, x + w, gy + 1);
+            float[] p = new float[3];
+            for (int i = 0; i < KillFxTimeline.HELLGATE_HANDS; i++) {
+                if (KillFxTimeline.handReach(i, ms) <= 0.0F) continue;
+                KillFxTimeline.hellHandPos(i, ms, 0.3F, p);
+                float sxp = cx + p[0] * unit * 1.6F;
+                float syp = gy - p[1] * unit + p[2] * unit * 0.3F;
+                float bx = cx + p[0] * unit * 2.6F;
+                CustomGuiUtils.drawSmoothLine(c, bx, gy + 2, sxp, syp, 3.0F, 0xFFA01810);
+                CustomGuiUtils.drawSmoothLine(c, bx, gy + 2, sxp, syp, 1.0F, 0xFFFF7A2A);
+                dot(c, sxp, syp, 3, 0xFF7A0E08);
+                dot(c, sxp + (p[0] > 0 ? -2 : 2), syp - 1, 1, 0xFF1A1414);
+            }
+            c.disableScissor();
+        }
+        // Lichtblitz beim Zuschlagen
+        float flash = KillFxTimeline.bangFlash(ms);
+        if (flash > 0.01F) {
+            float fr = unit * (0.5F + 2.0F * (1.0F - flash));
+            ellipse(c, cx, gy, fr, fr * 0.35F, withAlpha(0xFFFFC88A, flash));
+            c.fill(x + 2, y + 2, x + w - 2, groundY, withAlpha(0x40FFB070, flash));
+            for (int i = 0; i < 10; i++) {
+                double a = Math.PI + Math.PI * (i + 0.5) / 10.0;
+                float d = 4.0F + (1.0F - flash) * 18.0F;
+                dot(c, cx + (float) Math.cos(a) * d, gy + (float) Math.sin(a) * d * 0.5F, 2, withAlpha(0xFFFF9A3A, flash));
+            }
+        }
+    }
+
+    /** Gefüllte Ellipse (zeilenweise). */
+    private static void ellipse(DrawContext c, float cx, float cy, float rx, float ry, int color) {
+        int r = Math.max(1, Math.round(ry));
+        for (int dy = -r; dy <= r; dy++) {
+            float t = dy / ry;
+            if (Math.abs(t) > 1.0F) continue;
+            float half = rx * (float) Math.sqrt(1.0F - t * t);
+            c.fill(Math.round(cx - half), Math.round(cy + dy), Math.round(cx + half), Math.round(cy + dy) + 1, color);
         }
     }
 }

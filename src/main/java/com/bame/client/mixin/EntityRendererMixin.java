@@ -4,6 +4,7 @@ import com.bame.client.emotes.CampfireCoordinator;
 import com.bame.client.emotes.HammockCoordinator;
 import com.bame.client.emotes.PicnicCoordinator;
 import com.bame.client.emotes.SwingCoordinator;
+import com.bame.client.emotes.WitchBroomCoordinator;
 import com.bame.client.module.NameProtectModule;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.entity.EntityRenderer;
@@ -30,7 +31,8 @@ public abstract class EntityRendererMixin<T extends Entity, S extends EntityRend
      * Lagerfeuer: Der Gastgeber zeichnet das Feuer im eigenen Modellraum mit. Liegt nur das Feuer im Sichtfeld, würde
      * Vanilla den Spieler samt Feuer wegschneiden; dann zählt zusätzlich die Box des Feuers. Alle anderen Entities und
      * Spieler ohne Feuer bleiben unverändert. Gleiches gilt für die Hängematte (Pfosten bis 1,9 Blöcke neben dem Spieler),
-     * die Schaukel (Gerüst; der zweite Spieler wird am Sitz gezeichnet) und das Picknick (Decke und Korb).
+     * die Schaukel (Gerüst; der zweite Spieler wird am Sitz gezeichnet), das Picknick (Decke und Korb) und den
+     * Hexenbesen (Reiter wird auf der Kreisbahn um den Startpunkt gezeichnet).
      */
     @Inject(method = "shouldRender", at = @At("RETURN"), cancellable = true)
     private void caeser$campfireCulling(T entity, Frustum frustum, double x, double y, double z,
@@ -40,6 +42,7 @@ public abstract class EntityRendererMixin<T extends Entity, S extends EntityRend
         if (fire == null) fire = HammockCoordinator.cullBox(player);
         if (fire == null) fire = SwingCoordinator.cullBox(player);
         if (fire == null) fire = PicnicCoordinator.cullBox(player);
+        if (fire == null) fire = WitchBroomCoordinator.cullBox(player);
         if (fire != null && entity.shouldRender(x, y, z) && frustum.isVisible(fire)) {
             cir.setReturnValue(true);
         }

@@ -37,7 +37,7 @@ import java.util.Set;
 public class CosmeticsTab implements ClientTab {
 
     // Interne IDs bleiben "HEAD" und "PETS" (Config-Schlüssel head/pet), angezeigt werden "HAT" und "PET".
-    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "EMOTES", "SKINS"
+    public static String subCategory = "ALL"; // "ALL", "WINGS", "HEAD", "PETS", "ACCESSORIES", "FACE", "BACK", "EMOTES", "SKINS"
     public static int assigningToWheelSlot = -1;
 
     // ==========================================
@@ -73,6 +73,7 @@ public class CosmeticsTab implements ClientTab {
             new SidebarEntry("PETS", "PET", 1, false, DROPDOWN_ID),
             new SidebarEntry("ACCESSORIES", "ACCESSORIES", 1, false, DROPDOWN_ID),
             new SidebarEntry("FACE", "FACE", 1, false, DROPDOWN_ID),
+            new SidebarEntry("BACK", "BACK", 1, false, DROPDOWN_ID),
             new SidebarEntry(EMOTES_DROPDOWN_ID, "EMOTES", 0, true, null),
             new SidebarEntry(EMOTES_BASIC, "BASIC", 1, false, EMOTES_DROPDOWN_ID),
             new SidebarEntry(EMOTES_SPORT, "SPORT", 1, false, EMOTES_DROPDOWN_ID),
@@ -208,6 +209,7 @@ public class CosmeticsTab implements ClientTab {
     public static String previewWings = null;
     public static String previewHead = null;
     public static String previewFace = null;
+    public static String previewBack = null;
     public static String previewPet = null;
     public static String previewSkin = null;
 
@@ -215,6 +217,7 @@ public class CosmeticsTab implements ClientTab {
         previewWings = null;
         previewHead = null;
         previewFace = null;
+        previewBack = null;
         previewPet = null;
         previewSkin = null;
         customizingAccessory = null;
@@ -436,6 +439,7 @@ public class CosmeticsTab implements ClientTab {
             case "ACCESSORIES" -> emotes ? null : "ACCESSORIES";
             case "PETS" -> emotes ? null : "PET";
             case "FACE" -> emotes ? null : "FACE";
+            case "BACK" -> emotes ? null : "BACK";
             case EMOTES_BASIC -> "BASIC";
             case EMOTES_SPORT -> "SPORT";
             case EMOTES_PARTNER -> "PARTNER";
@@ -530,6 +534,7 @@ public class CosmeticsTab implements ClientTab {
                 case "WINGS" -> id.equalsIgnoreCase(CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(CosmeticsConfig.head);
                 case "FACE" -> id.equalsIgnoreCase(CosmeticsConfig.face);
+                case "BACK" -> id.equalsIgnoreCase(CosmeticsConfig.back);
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(CaeserSkinManager.getActiveSkinId());
@@ -543,6 +548,7 @@ public class CosmeticsTab implements ClientTab {
                 case "WINGS" -> id.equalsIgnoreCase(previewWings != null ? previewWings : CosmeticsConfig.wings);
                 case "HEAD" -> id.equalsIgnoreCase(previewHead != null ? previewHead : CosmeticsConfig.head);
                 case "FACE" -> id.equalsIgnoreCase(previewFace != null ? previewFace : CosmeticsConfig.face);
+                case "BACK" -> id.equalsIgnoreCase(previewBack != null ? previewBack : CosmeticsConfig.back);
                 case "ACCESSORIES", "PETS", "PET" -> CosmeticsConfig.isAccessoryEquipped(id);
                 case "EMOTES" -> CosmeticsConfig.isEmoteEquipped(id);
                 case "SKINS" -> id.equalsIgnoreCase(previewSkin != null ? previewSkin : CaeserSkinManager.getActiveSkinId());
@@ -556,6 +562,7 @@ public class CosmeticsTab implements ClientTab {
                 case "WINGS" -> previewWings = id;
                 case "HEAD" -> previewHead = id;
                 case "FACE" -> previewFace = id;
+                case "BACK" -> previewBack = id;
                 case "ACCESSORIES", "PETS", "PET" -> previewPet = id;
                 case "SKINS" -> previewSkin = id;
             }
@@ -596,6 +603,16 @@ public class CosmeticsTab implements ClientTab {
                     } else {
                         CosmeticsConfig.setFace(id);
                         previewFace = id;
+                    }
+                }
+                case "BACK" -> {
+                    // höchstens ein Rücken-Item (unabhängig von Flügeln und Cape); erneuter Klick legt es ab
+                    if (isEquipped()) {
+                        CosmeticsConfig.setBack("none");
+                        previewBack = "none";
+                    } else {
+                        CosmeticsConfig.setBack(id);
+                        previewBack = id;
                     }
                 }
                 case "ACCESSORIES", "PETS", "PET" -> {
@@ -662,7 +679,8 @@ public class CosmeticsTab implements ClientTab {
         List<CosmeticSection> sections = new ArrayList<>();
         sections.add(new CosmeticSection("WINGS", "WINGS", List.of(
                 new CosmeticItem("angel", "WINGS", "Gold Wings", "Golden wings with shimmer animation"),
-                new CosmeticItem("dragon", "WINGS", "Dragon Wings", "Ender dragon wings with flapping animation")
+                new CosmeticItem("dragon", "WINGS", "Dragon Wings", "Ender dragon wings with flapping animation"),
+                new CosmeticItem("butterfly_wings", "WINGS", "Butterfly Wings", "Monarch wings that slowly open and close, flutter as you walk")
         )));
         sections.add(new CosmeticSection("HAT", "HEAD", List.of(
                 new CosmeticItem("halo", "HEAD", "Angel Halo", "Floating glowing angel halo"),
@@ -687,7 +705,16 @@ public class CosmeticsTab implements ClientTab {
         )));
         sections.add(new CosmeticSection("FACE", "FACE", List.of(
                 new CosmeticItem("sunglasses", "FACE", "Sunglasses", "Cool black shades"),
-                new CosmeticItem("skull_mask", "FACE", "Skull Mask", "Spooky skull face mask")
+                new CosmeticItem("skull_mask", "FACE", "Skull Mask", "Spooky skull face mask"),
+                new CosmeticItem("gas_mask", "FACE", "Gas Mask", "Rubber respirator with glass eyes and a filter canister"),
+                new CosmeticItem("aviator_goggles", "FACE", "Aviator Goggles", "Leather and brass pilot goggles with tinted lenses")
+        )));
+        sections.add(new CosmeticSection("BACK", "BACK", List.of(
+                new CosmeticItem("jetpack", "BACK", "Jetpack", "Twin steel tanks that puff flames when you jump or fall"),
+                new CosmeticItem("guitar", "BACK", "Guitar", "Acoustic guitar slung across your back"),
+                new CosmeticItem("quiver", "BACK", "Quiver", "Leather quiver with arrows that bob as you walk"),
+                new CosmeticItem("katana", "BACK", "Katana", "Lacquered scabbard with a wrapped hilt over your shoulder"),
+                new CosmeticItem("backpack", "BACK", "Adventure Backpack", "Canvas pack with a bedroll, frying pan and a glowing lantern")
         )));
         // Emotes: Kategorie bleibt "EMOTES" (Freischaltung/Ausrüsten), gruppiert in eigene Abschnitte
         sections.add(new CosmeticSection(EMOTES_BASIC, "BASIC", "EMOTES", List.of(
@@ -708,6 +735,7 @@ public class CosmeticsTab implements ClientTab {
                 emote(com.bame.client.emotes.EmoteType.HAMMOCK, "hammock"),
                 emote(com.bame.client.emotes.EmoteType.SWING, "swing"),
                 emote(com.bame.client.emotes.EmoteType.PICNIC, "picnic"),
+                emote(com.bame.client.emotes.EmoteType.WITCH_BROOM, "witch_broom"),
                 emote(com.bame.client.emotes.EmoteType.BUTTERFLY, "butterfly")
         )));
 
@@ -872,6 +900,11 @@ public class CosmeticsTab implements ClientTab {
                 || "emote".contains(q) || "emotes".contains(q)
                 || "hat".contains(q) || "hut".contains(q) || "face".contains(q) || "gesicht".contains(q)
                 || "brille".contains(q) || "maske".contains(q)
+                || "back".contains(q) || "rücken".contains(q) || "ruecken".contains(q) || "jetpack".contains(q)
+                || "guitar".contains(q) || "gitarre".contains(q) || "quiver".contains(q) || "köcher".contains(q)
+                || "katana".contains(q) || "backpack".contains(q) || "rucksack".contains(q)
+                || "butterfly".contains(q) || "schmetterling".contains(q) || "goggles".contains(q) || "gas mask".contains(q)
+                || "gasmaske".contains(q)
                 || "killeffects".contains(q) || "kill effects".contains(q) || "killeffekte".contains(q)
                 || "totem".contains(q) || "lightning".contains(q) || "blitz".contains(q)
                 || "gravestone".contains(q) || "tombstone".contains(q) || "grabstein".contains(q);
@@ -881,7 +914,9 @@ public class CosmeticsTab implements ClientTab {
     private static String searchKeywords(String category) {
         return switch (category) {
             case "HEAD" -> "hat hut kopf head";
-            case "FACE" -> "face gesicht brille maske glasses mask";
+            case "FACE" -> "face gesicht brille maske glasses mask gasmaske gas mask goggles fliegerbrille pilot";
+            case "WINGS" -> "wings flügel fluegel schmetterling butterfly";
+            case "BACK" -> "back rücken ruecken jetpack gitarre guitar köcher koecher quiver pfeile arrows katana schwert sword rucksack backpack laterne lantern";
             case "PETS" -> "pet pets begleiter";
             case "KILLEFFECTS" -> "kill kills killeffects kill effects killeffekte effekt effect totem lightning bolt grave gravestone tombstone blitz grabstein coffin casket sarg anvil amboss";
             default -> "";
@@ -902,6 +937,16 @@ public class CosmeticsTab implements ClientTab {
             case "cat_ears" -> "CAT EARS";
             case "sunglasses" -> "SUNGLASSES";
             case "skull_mask" -> "SKULL MASK";
+            case "gas_mask" -> "GAS MASK";
+            case "aviator_goggles" -> "AVIATOR GOGGLES";
+            case "angel" -> "GOLD WINGS";
+            case "dragon" -> "DRAGON WINGS";
+            case "butterfly_wings" -> "BUTTERFLY WINGS";
+            case "jetpack" -> "JETPACK";
+            case "guitar" -> "GUITAR";
+            case "quiver" -> "QUIVER";
+            case "katana" -> "KATANA";
+            case "backpack" -> "ADVENTURE BACKPACK";
             default -> id.toUpperCase(Locale.ROOT);
         };
     }
@@ -1350,16 +1395,20 @@ public class CosmeticsTab implements ClientTab {
         String curW = previewWings != null ? previewWings : CosmeticsConfig.wings;
         String curH = previewHead != null ? previewHead : CosmeticsConfig.head;
         String curF = previewFace != null ? previewFace : CosmeticsConfig.face;
+        String curB = previewBack != null ? previewBack : CosmeticsConfig.back;
 
         List<EquippedPreviewItem> equippedItems = new ArrayList<>();
         if (curW != null && !"none".equalsIgnoreCase(curW)) {
-            equippedItems.add(new EquippedPreviewItem(curW, "angel".equalsIgnoreCase(curW) ? "GOLD WINGS" : "DRAGON WINGS", "WINGS"));
+            equippedItems.add(new EquippedPreviewItem(curW, equippedLabel(curW), "WINGS"));
         }
         if (curH != null && !"none".equalsIgnoreCase(curH)) {
             equippedItems.add(new EquippedPreviewItem(curH, equippedLabel(curH), "HEAD"));
         }
         if (curF != null && !"none".equalsIgnoreCase(curF)) {
             equippedItems.add(new EquippedPreviewItem(curF, equippedLabel(curF), "FACE"));
+        }
+        if (curB != null && !"none".equalsIgnoreCase(curB)) {
+            equippedItems.add(new EquippedPreviewItem(curB, equippedLabel(curB), "BACK"));
         }
         if (CosmeticsConfig.accessories != null) {
             for (String acc : CosmeticsConfig.accessories) {
