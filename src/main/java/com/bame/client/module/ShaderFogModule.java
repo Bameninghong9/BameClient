@@ -5,48 +5,59 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.InputUtil;
 
 /**
- * Shader Fog (früher Custom Sky): eigener Oberwelt-Himmel und farbiger Dunst über der fernen Landschaft.
- * Stile: Weltraum (Nebel, viele Sterne, Ringplanet), Tiefsee (dunkles Türkis) oder eine eigene Farbe. Nether und End
- * bleiben unverändert, unter Wasser und in Lava bleibt der Nebel Vanilla.
+ * Shader Fog: animierter Oberwelt-Himmel aus einem eigenen Shader ({@code ShaderFogRenderer}) und farbiger Dunst über
+ * der fernen Landschaft. Modi: Nebula (helle, wirbelnde Wolken), Bloom (leuchtende Lichtbahnen), Saturn (Weltraum mit
+ * Ringplanet, Sternen und Sternschnuppen), Drain (dunkler, langsam kreisender Strudel) und Color (eigene Farbe ohne
+ * Shader). Nether und End bleiben unverändert, unter Wasser und in Lava bleibt der Nebel Vanilla.
  */
 public class ShaderFogModule {
-    public enum Style {
-        SPACE("Space", 0xFF04050B, true),
-        DEEP_SEA("Deep Sea", 0xFF0A2431, true),
-        COLOR("Color", 0, false);
+    public enum Mode {
+        NEBULA("Nebula", true),
+        BLOOM("Bloom", true),
+        SATURN("Saturn", true),
+        DRAIN("Drain", true),
+        COLOR("Color", false);
 
         public final String label;
-        /** Grundfarbe der Himmelsscheibe (bei COLOR die eigene Farbe). */
-        public final int baseSky;
-        /** Mit eigener Himmelstextur (Skybox) statt nur einer Farbe. */
-        public final boolean skybox;
+        /** Wird mit dem eigenen Himmels-Shader gezeichnet. */
+        public final boolean shader;
 
-        Style(String label, int baseSky, boolean skybox) {
+        Mode(String label, boolean shader) {
             this.label = label;
-            this.baseSky = baseSky;
-            this.skybox = skybox;
+            this.shader = shader;
         }
 
-        public Style next() { return values()[(ordinal() + 1) % values().length]; }
+        public Mode next() { return values()[(ordinal() + 1) % values().length]; }
 
-        public static Style parse(String name, Style fallback) {
-            for (Style s : values()) if (s.name().equalsIgnoreCase(name)) return s;
+        /** Auch alte Stil-Namen (bis 0.3.37) werden erkannt. */
+        public static Mode parse(String name, Mode fallback) {
+            if (name == null) return fallback;
+            if (name.equalsIgnoreCase("SPACE")) return SATURN;
+            if (name.equalsIgnoreCase("DEEP_SEA")) return DRAIN;
+            for (Mode m : values()) if (m.name().equalsIgnoreCase(name)) return m;
             return fallback;
         }
+
+        /** Dunkler Himmel: Wolken werden abgedunkelt. */
+        public boolean dark() { return this == BLOOM || this == SATURN || this == DRAIN; }
     }
 
     public static boolean enabled = false;
     public static boolean expanded = false;
     public static int keyBind = -1;
 
-    public static Style style = Style.SPACE;
-    /** Eigene Himmelsfarbe (Stil COLOR). */
-    public static int skyColor = 0xFFB23CEE;
+    public static Mode mode = Mode.NEBULA;
+    /** Farbe des Effekts (Shader-Modi) bzw. des Himmels (Color). */
+    public static int color = 0xFF2F8CFF;
     public static boolean chroma = false;
-    /** Stil COLOR: nachts dunkler werden wie der Vanilla-Himmel. */
+    public static float speed = 1.0f;
+    public static float scale = 5.0f;
+    public static float intensity = 0.5f;
+    /** Deckkraft des Shader-Himmels über dem Vanilla-Himmel. */
+    public static float alpha = 1.0f;
+    /** Nachts dunkler werden wie der Vanilla-Himmel. */
     public static boolean dayNightCycle = true;
-    /** Ringplanet am Himmel. */
-    public static boolean planet = true;
+    /** Größe des Planeten im Modus Saturn. */
     public static float planetSize = 1.0f;
     /** Sonne, Mond und Abendrot ausblenden. */
     public static boolean hideSunMoon = true;
@@ -57,14 +68,15 @@ public class ShaderFogModule {
     public static float fogDensity = 0.5f;
     public static boolean customClouds = false;
     public static int cloudColor = 0xFFFFC2F2;
-    /** Sterne auch tagsüber (Helligkeit 0 bis 1). 0 = Vanilla. */
+    /** Vanilla-Sterne auch tagsüber (Helligkeit 0 bis 1). 0 = Vanilla. */
     public static float stars = 0.0f;
 
     private static boolean wasKeyBindPressed = false;
 
-    public static int skyRgb() {
+    /** Effektfarbe als 0xRRGGBB (RGB-Modus läuft in 12 Sekunden einmal durch). */
+    public static int rgb() {
         if (chroma) return java.awt.Color.HSBtoRGB((System.currentTimeMillis() % 12000L) / 12000.0f, 0.75f, 1.0f) & 0xFFFFFF;
-        return skyColor & 0xFFFFFF;
+        return color & 0xFFFFFF;
     }
 
     /**
@@ -93,11 +105,14 @@ public class ShaderFogModule {
     }
 
     public static void resetToDefault() {
-        style = Style.SPACE;
-        skyColor = 0xFFB23CEE;
+        mode = Mode.NEBULA;
+        color = 0xFF2F8CFF;
         chroma = false;
+        speed = 1.0f;
+        scale = 5.0f;
+        intensity = 0.5f;
+        alpha = 1.0f;
         dayNightCycle = true;
-        planet = true;
         planetSize = 1.0f;
         hideSunMoon = true;
         colorFog = true;

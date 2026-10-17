@@ -445,11 +445,22 @@ public class BameClientConfig {
                 CustomFireModule.keyBind = getInt(props, "keyBind", CustomFireModule.keyBind);
                 CustomFireModule.expanded = getBool(props, "expanded", CustomFireModule.expanded);
                 CustomFireModule.color = getHex(props, "color", CustomFireModule.color);
-                CustomFireModule.chroma = getBool(props, "chroma", CustomFireModule.chroma);
+                // bis 0.3.37: "gradient" + "topColor" statt Zweitfarbe
+                boolean oldGradient = props.containsKey("gradient") && !props.containsKey("secondaryColor");
+                CustomFireModule.secondaryColor = getHex(props, oldGradient ? "topColor" : "secondaryColor", CustomFireModule.secondaryColor);
+                CustomFireModule.autoSecondary = oldGradient ? !getBool(props, "gradient", false)
+                        : getBool(props, "autoSecondary", CustomFireModule.autoSecondary);
                 CustomFireModule.height = Math.clamp(getFloat(props, "height", CustomFireModule.height), 0.0f, 1.0f);
-                CustomFireModule.opacity = Math.clamp(getFloat(props, "opacity", CustomFireModule.opacity), 0.1f, 1.0f);
-                CustomFireModule.gradient = getBool(props, "gradient", CustomFireModule.gradient);
-                CustomFireModule.topColor = getHex(props, "topColor", CustomFireModule.topColor);
+                CustomFireModule.opacity = Math.clamp(getFloat(props, "opacity", CustomFireModule.opacity), 0.0f, 1.0f);
+                CustomFireModule.speed = Math.clamp(getFloat(props, "speed", CustomFireModule.speed), 0.0f, 5.0f);
+                CustomFireModule.intensity = Math.clamp(getFloat(props, "intensity", CustomFireModule.intensity), 0.0f, 2.5f);
+                CustomFireModule.edgeGlow = Math.clamp(getFloat(props, "edgeGlow", CustomFireModule.edgeGlow), 0.0f, 1.0f);
+                CustomFireModule.centerClear = Math.clamp(getFloat(props, "centerClear", CustomFireModule.centerClear), 0.0f, 1.0f);
+                CustomFireModule.bottomFade = Math.clamp(getFloat(props, "bottomFade", CustomFireModule.bottomFade), 0.0f, 1.0f);
+                CustomFireModule.style = CustomFireModule.Style.parse(props.getProperty("style"), CustomFireModule.style);
+                CustomFireModule.hideVanillaFire = getBool(props, "hideVanillaFire", CustomFireModule.hideVanillaFire);
+                CustomFireModule.restyleWorldFire = getBool(props, "restyleWorldFire", CustomFireModule.restyleWorldFire);
+                CustomFireModule.worldFlameHeight = Math.clamp(getFloat(props, "worldFlameHeight", CustomFireModule.worldFlameHeight), 0.15f, 1.0f);
                 CustomFireModule.soulFire = getBool(props, "soulFire", CustomFireModule.soulFire);
                 CustomFireModule.hideWithFireResistance = getBool(props, "hideWithFireResistance", CustomFireModule.hideWithFireResistance);
             } catch (Exception e) { logLoadError(customFireFile, e); } }
@@ -464,12 +475,16 @@ public class BameClientConfig {
                 ShaderFogModule.enabled = getBool(props, "enabled", ShaderFogModule.enabled);
                 ShaderFogModule.keyBind = getInt(props, "keyBind", ShaderFogModule.keyBind);
                 ShaderFogModule.expanded = getBool(props, "expanded", ShaderFogModule.expanded);
-                ShaderFogModule.style = migrateSky ? ShaderFogModule.Style.COLOR
-                        : ShaderFogModule.Style.parse(props.getProperty("style"), ShaderFogModule.style);
-                ShaderFogModule.skyColor = getHex(props, "skyColor", ShaderFogModule.skyColor);
+                // Modus: bis 0.3.37 "style" (SPACE/DEEP_SEA/COLOR), davor Custom Sky (immer eigene Farbe)
+                ShaderFogModule.mode = migrateSky ? ShaderFogModule.Mode.COLOR
+                        : ShaderFogModule.Mode.parse(props.getProperty("mode", props.getProperty("style")), ShaderFogModule.mode);
+                ShaderFogModule.color = getHex(props, props.containsKey("color") ? "color" : "skyColor", ShaderFogModule.color);
                 ShaderFogModule.chroma = getBool(props, "chroma", ShaderFogModule.chroma);
+                ShaderFogModule.speed = Math.clamp(getFloat(props, "speed", ShaderFogModule.speed), 0.0f, 5.0f);
+                ShaderFogModule.scale = Math.clamp(getFloat(props, "scale", ShaderFogModule.scale), 1.0f, 20.0f);
+                ShaderFogModule.intensity = Math.clamp(getFloat(props, "intensity", ShaderFogModule.intensity), 0.0f, 1.0f);
+                ShaderFogModule.alpha = Math.clamp(getFloat(props, "alpha", ShaderFogModule.alpha), 0.0f, 1.0f);
                 ShaderFogModule.dayNightCycle = getBool(props, "dayNightCycle", ShaderFogModule.dayNightCycle);
-                ShaderFogModule.planet = getBool(props, "planet", ShaderFogModule.planet);
                 ShaderFogModule.planetSize = Math.clamp(getFloat(props, "planetSize", ShaderFogModule.planetSize), 0.4f, 2.5f);
                 ShaderFogModule.hideSunMoon = getBool(props, "hideSunMoon", ShaderFogModule.hideSunMoon);
                 ShaderFogModule.colorFog = getBool(props, migrateSky ? "tintFog" : "colorFog", ShaderFogModule.colorFog);
@@ -1522,11 +1537,19 @@ public class BameClientConfig {
             customFireProps.setProperty("keyBind", String.valueOf(CustomFireModule.keyBind));
             customFireProps.setProperty("expanded", String.valueOf(CustomFireModule.expanded));
             customFireProps.setProperty("color", Integer.toHexString(CustomFireModule.color));
-            customFireProps.setProperty("chroma", String.valueOf(CustomFireModule.chroma));
+            customFireProps.setProperty("secondaryColor", Integer.toHexString(CustomFireModule.secondaryColor));
+            customFireProps.setProperty("autoSecondary", String.valueOf(CustomFireModule.autoSecondary));
             customFireProps.setProperty("height", String.valueOf(CustomFireModule.height));
             customFireProps.setProperty("opacity", String.valueOf(CustomFireModule.opacity));
-            customFireProps.setProperty("gradient", String.valueOf(CustomFireModule.gradient));
-            customFireProps.setProperty("topColor", Integer.toHexString(CustomFireModule.topColor));
+            customFireProps.setProperty("speed", String.valueOf(CustomFireModule.speed));
+            customFireProps.setProperty("intensity", String.valueOf(CustomFireModule.intensity));
+            customFireProps.setProperty("edgeGlow", String.valueOf(CustomFireModule.edgeGlow));
+            customFireProps.setProperty("centerClear", String.valueOf(CustomFireModule.centerClear));
+            customFireProps.setProperty("bottomFade", String.valueOf(CustomFireModule.bottomFade));
+            customFireProps.setProperty("style", CustomFireModule.style.name());
+            customFireProps.setProperty("hideVanillaFire", String.valueOf(CustomFireModule.hideVanillaFire));
+            customFireProps.setProperty("restyleWorldFire", String.valueOf(CustomFireModule.restyleWorldFire));
+            customFireProps.setProperty("worldFlameHeight", String.valueOf(CustomFireModule.worldFlameHeight));
             customFireProps.setProperty("soulFire", String.valueOf(CustomFireModule.soulFire));
             customFireProps.setProperty("hideWithFireResistance", String.valueOf(CustomFireModule.hideWithFireResistance));
             queue(out, visualsDir.resolve("custom_fire.properties"), customFireProps, "Caeser Client - Custom Fire");
@@ -1536,11 +1559,14 @@ public class BameClientConfig {
             shaderFogProps.setProperty("enabled", String.valueOf(ShaderFogModule.enabled));
             shaderFogProps.setProperty("keyBind", String.valueOf(ShaderFogModule.keyBind));
             shaderFogProps.setProperty("expanded", String.valueOf(ShaderFogModule.expanded));
-            shaderFogProps.setProperty("style", ShaderFogModule.style.name());
-            shaderFogProps.setProperty("skyColor", Integer.toHexString(ShaderFogModule.skyColor));
+            shaderFogProps.setProperty("mode", ShaderFogModule.mode.name());
+            shaderFogProps.setProperty("color", Integer.toHexString(ShaderFogModule.color));
             shaderFogProps.setProperty("chroma", String.valueOf(ShaderFogModule.chroma));
+            shaderFogProps.setProperty("speed", String.valueOf(ShaderFogModule.speed));
+            shaderFogProps.setProperty("scale", String.valueOf(ShaderFogModule.scale));
+            shaderFogProps.setProperty("intensity", String.valueOf(ShaderFogModule.intensity));
+            shaderFogProps.setProperty("alpha", String.valueOf(ShaderFogModule.alpha));
             shaderFogProps.setProperty("dayNightCycle", String.valueOf(ShaderFogModule.dayNightCycle));
-            shaderFogProps.setProperty("planet", String.valueOf(ShaderFogModule.planet));
             shaderFogProps.setProperty("planetSize", String.valueOf(ShaderFogModule.planetSize));
             shaderFogProps.setProperty("hideSunMoon", String.valueOf(ShaderFogModule.hideSunMoon));
             shaderFogProps.setProperty("colorFog", String.valueOf(ShaderFogModule.colorFog));

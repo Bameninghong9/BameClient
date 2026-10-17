@@ -1,6 +1,6 @@
 package com.bame.client.mixin;
 
-import com.bame.client.render.FireRecolor;
+import com.bame.client.render.FireRestyle;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.texture.SpriteContents;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,6 +14,6 @@ public class SpriteContentsMixin {
     @Inject(method = "createAnimator", at = @At("RETURN"))
     private void caeser$trackFire(GpuBufferSlice bufferSlice, int animationInfoSize, CallbackInfoReturnable<SpriteContents.Animator> cir) {
         SpriteContents.Animator animator = cir.getReturnValue();
-        if (animator != null) FireRecolor.register((SpriteContents) (Object) this, animator);
+        if (animator != null) FireRestyle.register((SpriteContents) (Object) this, animator);
     }
 }

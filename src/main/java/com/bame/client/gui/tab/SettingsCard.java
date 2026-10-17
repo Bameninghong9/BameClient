@@ -33,6 +33,27 @@ final class SettingsCard {
 
     private static final int ROW = 26;
     private static final int SLIDER_LABEL_W = 104;
+    private int labelColumnFor = -1;
+    private int labelColumn = SLIDER_LABEL_W;
+
+    /**
+     * Abstand vom Kartenrand bis zum Schieberegler: so breit wie die längste Beschriftung der Karte (mit Wert), damit
+     * sich Text und Regler nicht überlappen; der Regler bleibt mindestens 50 px breit. Gleich für Zeichnen und Klicks.
+     */
+    private int labelColumn(int w) {
+        if (labelColumnFor == w) return labelColumn;
+        net.minecraft.client.font.TextRenderer tr = net.minecraft.client.MinecraftClient.getInstance().textRenderer;
+        int widest = 0;
+        for (Row row : rows) {
+            if (row instanceof Slider s) {
+                String sample = s.label() + ": " + s.format().apply(s.max());
+                widest = Math.max(widest, tr.getWidth(CustomGuiUtils.getFontText(sample)));
+            }
+        }
+        labelColumn = Math.clamp(14 + widest + 10, SLIDER_LABEL_W, Math.max(SLIDER_LABEL_W, w - 64));
+        labelColumnFor = w;
+        return labelColumn;
+    }
     private static final int CHOICE_W = 74;
 
     private final String keyId;
@@ -110,8 +131,8 @@ final class SettingsCard {
                 }
                 case Slider s -> {
                     screen.text(c, s.label() + ": " + s.format().apply(s.get().get()), x + 14, curY + 4, 0xFFD4D8E0);
-                    int sx = x + SLIDER_LABEL_W;
-                    int sw = w - SLIDER_LABEL_W - 14;
+                    int sx = x + labelColumn(w);
+                    int sw = w - labelColumn(w) - 14;
                     screen.drawCustomSlider(c, sx, curY + 6, sw, (s.get().get() - s.min()) / (s.max() - s.min()));
                 }
                 case Choice ch -> {
@@ -159,8 +180,8 @@ final class SettingsCard {
                     }
                 }
                 case Slider s -> {
-                    int sx = x + SLIDER_LABEL_W;
-                    int sw = w - SLIDER_LABEL_W - 14;
+                    int sx = x + labelColumn(w);
+                    int sw = w - labelColumn(w) - 14;
                     if (screen.inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
                         dragging = s;
                         dragX = sx;

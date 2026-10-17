@@ -28,7 +28,8 @@ public class WorldRendererMixin {
 
     /**
      * Shader Fog: Wolkenfarbe (Helligkeit und Alpha folgen den Vanilla-Wolken, also auch nachts dunkler). Ohne eigene
-     * Farbe werden die Wolken bei Weltraum und Tiefsee dunkel, damit sie nicht weiß vor dem dunklen Himmel stehen.
+     * Farbe werden die Wolken bei dunklen Modi (Bloom, Saturn, Drain) abgedunkelt, damit sie nicht weiß vor dem
+     * dunklen Himmel stehen.
      */
     @ModifyArg(method = "render", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/render/WorldRenderer;renderClouds(Lnet/minecraft/client/render/FrameGraphBuilder;Lnet/minecraft/client/option/CloudRenderMode;Lnet/minecraft/util/math/Vec3d;JFIF)V"),
@@ -36,10 +37,6 @@ public class WorldRendererMixin {
     private int caeser$cloudColor(int color) {
         if (!ShaderFogModule.enabled) return color;
         if (ShaderFogModule.customClouds) return ShaderFogModule.shade(ShaderFogModule.cloudColor & 0xFFFFFF, color, 255, true);
-        return switch (ShaderFogModule.style) {
-            case SPACE -> ShaderFogModule.shade(0x3A3F4E, color, 255, true);
-            case DEEP_SEA -> ShaderFogModule.shade(0x3D5E6C, color, 255, true);
-            case COLOR -> color;
-        };
+        return ShaderFogModule.mode.dark() ? ShaderFogModule.shade(0x3A3F4E, color, 255, true) : color;
     }
 }
