@@ -22,6 +22,7 @@ import java.nio.file.StandardCopyOption;
 public class VisualsGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
+        if ("perf".equalsIgnoreCase(System.getenv("CAESER_TEST_ONLY"))) return;
         try (TestSingleplayerContext world = context.worldBuilder().setUseConsistentSettings(true).create()) {
             world.getClientWorld().waitForChunksRender();
             world.getServer().runCommand("time set 6000");
@@ -151,6 +152,15 @@ public class VisualsGameTest implements FabricClientGameTest {
             look(context, 200.0f, 6.0f, Perspective.FIRST_PERSON);
             context.waitTicks(10);
             context.takeScreenshot("sky_saturn_horizon");
+
+            // Nahtstellen des Panoramas: genau nach oben (Zenit) und Richtung -X (dort treffen die Panorama-Ränder aufeinander)
+            context.runOnClient(client -> ShaderFogModule.mode = ShaderFogModule.Mode.NEBULA);
+            look(context, 0.0f, -90.0f, Perspective.FIRST_PERSON);
+            context.waitTicks(10);
+            context.takeScreenshot("sky_nebula_zenith");
+            look(context, 90.0f, -25.0f, Perspective.FIRST_PERSON);
+            context.waitTicks(10);
+            context.takeScreenshot("sky_nebula_seam");
 
             context.runOnClient(client -> ShaderFogModule.enabled = false);
         }

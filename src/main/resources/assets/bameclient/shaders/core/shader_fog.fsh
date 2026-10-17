@@ -3,14 +3,19 @@
 #moj_import <minecraft:fog.glsl>
 #moj_import <minecraft:dynamictransforms.glsl>
 
-// Shader Fog (Caeser Client): animierter Himmel. Werte aus DynamicTransforms:
-//   ColorModulator.rgb = Effektfarbe, ColorModulator.a = Deckkraft
-//   ModelOffset = (Zeit in Sekunden, Tageshelligkeit 0..1, Modus 0 Nebula / 1 Bloom / 2 Saturn / 3 Drain)
-//   TextureMat[0] = (Geschwindigkeit, Skalierung, Intensität, Planetengröße), TextureMat[1].x = Horizont im Nebel
+// Shader Fog (Caeser Client), jedes Bild: liest den gebackenen Himmel (Sampler0, Panorama aus shader_fog_bake) für
+// die Blickrichtung und ergänzt scharfe Sterne, Sternschnuppen und den Ringplaneten. Werte aus DynamicTransforms:
+//   ColorModulator.a = Deckkraft, ModelOffset = (Animationszeit, Tageshelligkeit 0..1, Modus 0 Nebula / 1 Bloom /
+//   2 Saturn / 3 Drain), TextureMat[0].w = Planetengröße, TextureMat[1].x = Horizont im Nebel
+
+uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
 
 in vec3 skyDir;
 
 out vec4 fragColor;
+
+const float PI = 3.14159265;
 
 float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -18,31 +23,21 @@ float hash13(vec3 p) {
     return fract((p.x + p.y) * p.z);
 }
 
-float noise3(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    float n000 = hash13(i);
-    float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
-    float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
-    float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
-    float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
-    float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
-    float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
-    float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
-    return mix(mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
-               mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
+// 3D-Wertrauschen mit einem Texturzugriff (siehe shader_fog_bake.fsh)
+float noise1(vec3 x) {
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    vec2 uv = p.xy + vec2(37.0, 17.0) * p.z + f.xy;
+    vec2 s = textureLod(Sampler1, (uv + 0.5) / 256.0, 0.0).xy;
+    return mix(s.x, s.y, f.z);
 }
 
-float fbm(vec3 p) {
-    float sum = 0.0;
-    float amp = 0.5;
-    for (int i = 0; i < 5; i++) {
-        sum += amp * noise3(p);
-        p = p * 2.03 + vec3(17.1, 9.2, 3.7);
-        amp *= 0.5;
-    }
-    return sum / 0.96875;
+float fbm3(vec3 p) {
+    float sum = 0.5 * noise1(p);
+    sum += 0.25 * noise1(p * 2.03 + vec3(17.1, 9.2, 3.7));
+    sum += 0.125 * noise1(p * 4.12 + vec3(3.4, 21.7, 8.8));
+    return sum / 0.875;
 }
 
 // Sterne: in einem Raster um die Kugel trägt jede Zelle mit kleiner Wahrscheinlichkeit einen Stern
@@ -79,50 +74,22 @@ float meteor(vec3 d, float t) {
     return smoothstep(0.004, 0.0, dist) * hseg * fade * 1.4;
 }
 
-vec3 nebula(vec3 d, float t, float scale, float intensity, vec3 tint) {
-    vec3 p = d * scale * 0.35;
-    vec3 q = vec3(fbm(p + vec3(0.0, 0.0, t * 0.05)),
-                  fbm(p + vec3(5.2, 1.3, -t * 0.04)),
-                  fbm(p + vec3(2.1, 7.7, t * 0.03)));
-    vec3 r = vec3(fbm(p + 3.0 * q + vec3(1.7, 9.2, t * 0.06)),
-                  fbm(p + 3.0 * q + vec3(8.3, 2.8, -t * 0.05)),
-                  fbm(p + 3.0 * q + vec3(4.4, 6.1, t * 0.04)));
-    float f = fbm(p + 2.6 * r);
-    vec3 deep = tint * 0.62;
-    vec3 bright = mix(tint, vec3(1.0), 0.18) * 1.12;
-    vec3 col = mix(deep, bright, smoothstep(0.30, 0.75, f));
-    float wisps = smoothstep(0.60, 0.90, f + 0.15 * (r.x - 0.5));
-    col = mix(col, vec3(1.0), wisps * (0.35 + 0.50 * clamp(intensity, 0.0, 1.0)));
-    return col;
-}
-
-vec3 bloom(vec3 d, float t, float scale, float intensity, vec3 tint) {
-    vec3 p = d * scale * 0.25;
-    float n = fbm(p + vec3(0.0, t * 0.04, 0.0));
-    float n2 = fbm(p * 1.6 + vec3(t * 0.03, 0.0, 3.0));
-    float field = n * 2.2 + n2 * 0.9;
-    float iso = abs(fract(field) - 0.5);
-    float mask = smoothstep(0.42, 0.68, fbm(p * 0.7 + vec3(9.0, t * 0.02, 1.0)));
-    float line = exp(-iso * 70.0) * mask;
-    float glow = exp(-iso * 10.0) * mask;
-    vec3 col = vec3(0.004, 0.008, 0.02) + tint * 0.04;
-    col += tint * glow * (0.35 + 0.65 * intensity);
-    col += mix(tint, vec3(1.0), 0.6) * line * (0.6 + 0.8 * intensity);
-    return col;
-}
-
 // Ringplanet: Schnitt der Blickrichtung mit Kugel und Ringscheibe (Planet in 100 Blöcken Entfernung)
 vec4 saturn(vec3 d, float size) {
     vec3 fwd = normalize(vec3(-0.45, 0.62, -0.64));
     vec3 c = fwd * 100.0;
     float radius = 13.0 * size;
+    // Weit weg vom Planeten (mehr als der Ring) gibt es nichts zu zeichnen
+    float b = dot(d, c);
+    float closest = length(cross(d, c));
+    if (b <= 0.0 || closest > radius * 2.6) return vec4(0.0);
+
     vec3 n = normalize(vec3(0.28, 1.0, 0.16));
     // Licht von vorne oben links (vom Betrachter aus): der Planet ist fast ganz beleuchtet, Schatten rechts unten
     vec3 right = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
     vec3 up = normalize(cross(right, fwd));
     vec3 light = normalize(-fwd * 0.9 + up * 0.55 - right * 0.45);
 
-    float b = dot(d, c);
     float disc = b * b - (dot(c, c) - radius * radius);
     float tPlanet = disc > 0.0 ? b - sqrt(disc) : 1e9;
 
@@ -157,12 +124,9 @@ vec4 saturn(vec3 d, float size) {
 
     vec3 col = vec3(0.0);
     float a = 0.0;
-    float closest = length(cross(d, c));
-    if (b > 0.0) {
-        float halo = exp(-max(closest - radius, 0.0) / (radius * 0.16)) * 0.6;
-        col += vec3(1.0, 0.82, 0.55) * halo;
-        a = max(a, halo);
-    }
+    float halo = exp(-max(closest - radius, 0.0) / (radius * 0.16)) * 0.6;
+    col += vec3(1.0, 0.82, 0.55) * halo;
+    a = max(a, halo);
     if (ringAlpha > 0.0 && tRing > tPlanet) {
         col = mix(col, ringCol, ringAlpha);
         a = max(a, ringAlpha);
@@ -172,7 +136,7 @@ vec4 saturn(vec3 d, float size) {
         vec3 nn = normalize(p - c);
         float diff = clamp(dot(nn, light), 0.0, 1.0);
         float lat = dot(nn, n);
-        float turb = fbm(nn * 4.0);
+        float turb = fbm3(nn * 4.0);
         float band = 0.5 + 0.3 * sin(lat * 24.0 + turb * 2.5) + 0.2 * sin(lat * 61.0 + 1.3);
         vec3 pc = mix(vec3(0.62, 0.42, 0.22), vec3(1.0, 0.92, 0.74), clamp(band, 0.0, 1.0));
         pc *= 0.12 + 1.0 * diff;
@@ -188,50 +152,24 @@ vec4 saturn(vec3 d, float size) {
     return vec4(col, a);
 }
 
-vec3 space(vec3 d, float t, float scale, float intensity, vec3 tint, float size) {
-    float neb = fbm(d * scale * 0.45 + vec3(0.0, 0.0, t * 0.01));
-    float wisps = smoothstep(0.55, 0.95, neb);
-    vec3 col = vec3(0.004, 0.005, 0.008);
-    col += vec3(0.07, 0.075, 0.085) * wisps * (0.4 + intensity);
-    col += tint * 0.025 * wisps;
-    col += vec3(starLayer(d, 320.0, 0.012, t) + 1.4 * starLayer(d, 110.0, 0.01, t));
-    col += vec3(meteor(d, t));
-    vec4 planet = saturn(d, size);
-    col = col * (1.0 - planet.a) + planet.rgb;
-    return col;
-}
-
-vec3 drain(vec3 d, float t, float scale, float intensity, vec3 tint) {
-    float r = acos(clamp(d.y, -1.0, 1.0));
-    float ang = atan(d.z, d.x);
-    float swirl = ang + r * 2.2 - t * 0.12;
-    vec3 p = vec3(cos(swirl) * r, sin(swirl) * r, r * 0.6 - t * 0.04) * scale * 0.55;
-    float n = fbm(p);
-    float n2 = fbm(p * 2.4 + vec3(4.0, 1.0, t * 0.05));
-    vec3 col = tint * (0.10 + 0.08 * n) + vec3(0.008, 0.015, 0.024);
-    col += tint * pow(n2, 3.0) * (0.15 + 0.7 * intensity);
-    return col;
-}
-
 void main() {
     vec3 d = normalize(skyDir);
-    float t = ModelOffset.x * TextureMat[0][0];
+    float t = ModelOffset.x;
     float day = ModelOffset.y;
     float mode = ModelOffset.z;
-    float scale = max(TextureMat[0][1], 0.1);
-    float intensity = TextureMat[0][2];
     float size = TextureMat[0][3];
-    vec3 tint = ColorModulator.rgb;
 
-    vec3 col;
+    // Blickrichtung -> Panorama-Koordinate (Gegenstück zu shader_fog_bake.fsh)
+    vec2 uv = vec2(atan(d.z, d.x) * (0.5 / PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
+    vec3 col = textureLod(Sampler0, uv, 0.0).rgb;
+
     if (mode < 0.5) {
-        col = nebula(d, t, scale, intensity, tint) * mix(0.12, 1.0, day);
-    } else if (mode < 1.5) {
-        col = bloom(d, t, scale, intensity, tint);
-    } else if (mode < 2.5) {
-        col = space(d, t, scale, intensity, tint, size);
-    } else {
-        col = drain(d, t, scale, intensity, tint);
+        col *= mix(0.12, 1.0, day);
+    } else if (mode > 1.5 && mode < 2.5) {
+        col += vec3(starLayer(d, 320.0, 0.012, t) + 1.4 * starLayer(d, 110.0, 0.01, t));
+        col += vec3(meteor(d, t));
+        vec4 planet = saturn(d, size);
+        col = col * (1.0 - planet.a) + planet.rgb;
     }
 
     // Horizont geht in den Nebel über, damit die ferne Landschaft nahtlos anschließt

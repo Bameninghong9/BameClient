@@ -6,9 +6,13 @@
   "environment": "client",
   "entrypoints": {
     "fabric-client-gametest": [
-      "com.bame.client.gametest.VisualsGameTest"
+      "com.bame.client.gametest.VisualsGameTest",
+      "com.bame.client.gametest.ShaderFogPerfGameTest"
     ]
   },
+  "mixins": [
+    "bameclient-gametest.mixins.json"
+  ],
   "depends": {
     "bameclient": "*"
   }
