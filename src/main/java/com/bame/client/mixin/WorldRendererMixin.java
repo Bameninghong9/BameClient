@@ -1,7 +1,7 @@
 package com.bame.client.mixin;
 
 import com.bame.client.module.BlockOutlineModule;
-import com.bame.client.module.CustomSkyModule;
+import com.bame.client.module.ShaderFogModule;
 import net.minecraft.client.render.WorldRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,12 +26,20 @@ public class WorldRendererMixin {
         return lineWidth;
     }
 
-    /** Custom Sky: eigene Wolkenfarbe (Helligkeit und Alpha folgen den Vanilla-Wolken, also auch nachts dunkler). */
+    /**
+     * Shader Fog: Wolkenfarbe (Helligkeit und Alpha folgen den Vanilla-Wolken, also auch nachts dunkler). Ohne eigene
+     * Farbe werden die Wolken bei Weltraum und Tiefsee dunkel, damit sie nicht weiß vor dem dunklen Himmel stehen.
+     */
     @ModifyArg(method = "render", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/render/WorldRenderer;renderClouds(Lnet/minecraft/client/render/FrameGraphBuilder;Lnet/minecraft/client/option/CloudRenderMode;Lnet/minecraft/util/math/Vec3d;JFIF)V"),
             index = 5)
     private int caeser$cloudColor(int color) {
-        if (!CustomSkyModule.enabled || !CustomSkyModule.customClouds) return color;
-        return CustomSkyModule.shade(CustomSkyModule.cloudColor & 0xFFFFFF, color, 255);
+        if (!ShaderFogModule.enabled) return color;
+        if (ShaderFogModule.customClouds) return ShaderFogModule.shade(ShaderFogModule.cloudColor & 0xFFFFFF, color, 255, true);
+        return switch (ShaderFogModule.style) {
+            case SPACE -> ShaderFogModule.shade(0x3A3F4E, color, 255, true);
+            case DEEP_SEA -> ShaderFogModule.shade(0x3D5E6C, color, 255, true);
+            case COLOR -> color;
+        };
     }
 }

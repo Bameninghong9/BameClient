@@ -6,33 +6,31 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.effect.StatusEffects;
 
 /**
- * Eigenes Feuer: Farbe (oder RGB), Höhe und Deckkraft des Feuers am Bildschirmrand, optional auch die Farbe des Feuers
- * auf brennenden Spielern und Mobs. Gezeichnet wird eine graue Kopie der Feuer-Textur ({@code CustomFireRenderer}),
- * damit jede Farbe kräftig wirkt (Einfärben der orangen Vanilla-Textur würde z. B. Blau fast schwarz machen).
+ * Eigenes Feuer: färbt die Feuer-Animation selbst um ({@code FireRecolor}), dadurch ist jedes Feuer in der eigenen
+ * Farbe: Feuer-Blöcke in der Welt, das Feuer am Bildschirmrand und brennende Spieler/Mobs. Optional Farbverlauf von
+ * unten nach oben, RGB und Seelenfeuer. Höhe und Deckkraft gelten für das Feuer am Bildschirmrand.
  */
 public class CustomFireModule {
     public static boolean enabled = false;
     public static boolean expanded = false;
     public static int keyBind = -1;
 
-    public static int color = 0xFF2F8CFF;
+    /** Farbe des Feuers (beim Verlauf: unten). */
+    public static int color = 0xFFFFFFFF;
+    /** Verlauf von {@link #color} (unten) nach {@link #topColor} (oben). */
+    public static boolean gradient = false;
+    public static int topColor = 0xFFB23CEE;
     public static boolean chroma = false;
+    /** Auch das blaue Seelenfeuer umfärben. */
+    public static boolean soulFire = false;
     /** Höhe des Feuers am Bildschirm: 0.0 = ganz unten, 1.0 = Vanilla. */
     public static float height = 0.55f;
-    /** Deckkraft 0.1 bis 1.0 (Vanilla 0.9). */
+    /** Deckkraft des Feuers am Bildschirm, 0.1 bis 1.0 (Vanilla 0.9). */
     public static float opacity = 0.75f;
-    /** Feuer auf brennenden Entities (auch dem eigenen Spieler in F5) in derselben Farbe. */
-    public static boolean entityFire = true;
     /** Bildschirm-Feuer ausblenden, solange Feuerresistenz wirkt. */
     public static boolean hideWithFireResistance = true;
 
     private static boolean wasKeyBindPressed = false;
-
-    /** Aktuelle Feuerfarbe als 0xRRGGBB (RGB-Modus läuft in 3 Sekunden einmal durch). */
-    public static int rgb() {
-        if (chroma) return java.awt.Color.HSBtoRGB((System.currentTimeMillis() % 3000L) / 3000.0f, 0.85f, 1.0f) & 0xFFFFFF;
-        return color & 0xFFFFFF;
-    }
 
     /** Verschiebung des Bildschirm-Feuers nach unten (Vanilla: -0.3). */
     public static float overlayYOffset() {
@@ -52,14 +50,17 @@ public class CustomFireModule {
             BameClientConfig.save();
         }
         wasKeyBindPressed = pressed;
+        com.bame.client.render.FireRecolor.tick();
     }
 
     public static void resetToDefault() {
-        color = 0xFF2F8CFF;
+        color = 0xFFFFFFFF;
+        gradient = false;
+        topColor = 0xFFB23CEE;
         chroma = false;
+        soulFire = false;
         height = 0.55f;
         opacity = 0.75f;
-        entityFire = true;
         hideWithFireResistance = true;
     }
 }

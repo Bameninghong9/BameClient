@@ -18,7 +18,10 @@ import java.util.function.IntSupplier;
  * Taste, dann Farbe/Schalter/Schieberegler je 26 px, unten „Reset“. Zeichnen und Klicks nutzen dieselbe Geometrie.
  */
 final class SettingsCard {
-    sealed interface Row permits Toggle, Slider, ColorRow {}
+    sealed interface Row permits Toggle, Slider, ColorRow, Choice {}
+
+    /** Auswahl aus mehreren Werten: Klick auf den Knopf rechts schaltet zum nächsten Wert. */
+    record Choice(String label, java.util.function.Supplier<String> value, Runnable next) implements Row {}
 
     record Toggle(String label, BooleanSupplier get, Consumer<Boolean> set) implements Row {}
 
@@ -30,6 +33,7 @@ final class SettingsCard {
 
     private static final int ROW = 26;
     private static final int SLIDER_LABEL_W = 104;
+    private static final int CHOICE_W = 74;
 
     private final String keyId;
     private final String title;
@@ -110,6 +114,10 @@ final class SettingsCard {
                     int sw = w - SLIDER_LABEL_W - 14;
                     screen.drawCustomSlider(c, sx, curY + 6, sw, (s.get().get() - s.min()) / (s.max() - s.min()));
                 }
+                case Choice ch -> {
+                    screen.text(c, ch.label(), x + 14, curY + 4, 0xFFD4D8E0);
+                    screen.modeButton(c, ch.value().get(), x + w - 12 - CHOICE_W, curY + 1, CHOICE_W, 16, mx, my, true);
+                }
             }
             curY += ROW;
         }
@@ -139,6 +147,14 @@ final class SettingsCard {
                 case ColorRow cr -> {
                     if (screen.inside(mx, my, x + w - 32, curY + 2, 16, 16)) {
                         screen.openColorPicker(cr.pickerTitle(), cr.get(), cr.set());
+                        return true;
+                    }
+                }
+                case Choice ch -> {
+                    if (screen.inside(mx, my, x + w - 12 - CHOICE_W, curY + 1, CHOICE_W, 16)) {
+                        ch.next().run();
+                        com.bame.client.sound.ClientSoundManager.playClick();
+                        BameClientConfig.save();
                         return true;
                     }
                 }

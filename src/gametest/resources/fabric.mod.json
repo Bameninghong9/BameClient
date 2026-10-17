@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "bameclient-gametest",
+  "version": "1.0.0",
+  "name": "Caeser Client visual game tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "com.bame.client.gametest.VisualsGameTest"
+    ]
+  },
+  "depends": {
+    "bameclient": "*"
+  }
+}

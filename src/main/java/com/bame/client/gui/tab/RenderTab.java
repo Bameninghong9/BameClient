@@ -93,28 +93,35 @@ public class RenderTab implements ClientTab {
                     new SettingsCard.Toggle("Own nametag (F5)", () -> NametagsModule.showOwn, v -> NametagsModule.showOwn = v),
                     new SettingsCard.Toggle("Caeser badge", () -> NametagsModule.showBadge, v -> NametagsModule.showBadge = v)));
 
-    private final SettingsCard skyCard = new SettingsCard("CustomSkyModule", "Custom Sky",
-            "Your own sky, horizon, cloud color and stars",
-            List.of("custom sky", "sky", "himmel", "clouds", "wolken", "stars", "sterne", "horizon", "fog"),
-            () -> CustomSkyModule.enabled,
+    private final SettingsCard shaderFogCard = new SettingsCard("ShaderFogModule", "Shader Fog",
+            "Space sky with planet, deep sea or own color, colored haze",
+            List.of("shader fog", "shader", "fog", "nebel", "dunst", "custom sky", "sky", "himmel", "space", "weltraum",
+                    "planet", "clouds", "wolken", "stars", "sterne", "horizon"),
+            () -> ShaderFogModule.enabled,
             () -> {
-                CustomSkyModule.enabled = !CustomSkyModule.enabled;
-                com.bame.client.notification.NotificationManager.showModuleToggle("Custom Sky", CustomSkyModule.enabled);
+                ShaderFogModule.enabled = !ShaderFogModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Shader Fog", ShaderFogModule.enabled);
             },
-            () -> CustomSkyModule.expanded, () -> CustomSkyModule.expanded = !CustomSkyModule.expanded,
-            () -> CustomSkyModule.keyBind, k -> CustomSkyModule.keyBind = k, CustomSkyModule::resetToDefault,
+            () -> ShaderFogModule.expanded, () -> ShaderFogModule.expanded = !ShaderFogModule.expanded,
+            () -> ShaderFogModule.keyBind, k -> ShaderFogModule.keyBind = k, ShaderFogModule::resetToDefault,
             List.of(
-                    new SettingsCard.ColorRow("Sky color", "SKY COLOR", () -> CustomSkyModule.skyColor, v -> CustomSkyModule.skyColor = v),
-                    new SettingsCard.Toggle("Chroma (RGB)", () -> CustomSkyModule.chroma, v -> CustomSkyModule.chroma = v),
-                    new SettingsCard.Toggle("Day/night cycle", () -> CustomSkyModule.dayNightCycle, v -> CustomSkyModule.dayNightCycle = v),
-                    new SettingsCard.Toggle("Color horizon", () -> CustomSkyModule.tintFog, v -> CustomSkyModule.tintFog = v),
-                    new SettingsCard.Toggle("Custom clouds", () -> CustomSkyModule.customClouds, v -> CustomSkyModule.customClouds = v),
-                    new SettingsCard.ColorRow("Cloud color", "CLOUD COLOR", () -> CustomSkyModule.cloudColor, v -> CustomSkyModule.cloudColor = v),
-                    new SettingsCard.Slider("Stars", 0.0f, 1.0f, 0.05f, v -> v <= 0.0f ? "Vanilla" : pct(v), () -> CustomSkyModule.stars, v -> CustomSkyModule.stars = v)));
+                    new SettingsCard.Choice("Style", () -> ShaderFogModule.style.label, () -> ShaderFogModule.style = ShaderFogModule.style.next()),
+                    new SettingsCard.ColorRow("Sky color (Color)", "SKY COLOR", () -> ShaderFogModule.skyColor, v -> ShaderFogModule.skyColor = v),
+                    new SettingsCard.Toggle("Chroma (RGB)", () -> ShaderFogModule.chroma, v -> ShaderFogModule.chroma = v),
+                    new SettingsCard.Toggle("Day/night cycle", () -> ShaderFogModule.dayNightCycle, v -> ShaderFogModule.dayNightCycle = v),
+                    new SettingsCard.Toggle("Planet", () -> ShaderFogModule.planet, v -> ShaderFogModule.planet = v),
+                    new SettingsCard.Slider("Planet size", 0.4f, 2.5f, 0.05f, RenderTab::pct, () -> ShaderFogModule.planetSize, v -> ShaderFogModule.planetSize = v),
+                    new SettingsCard.Toggle("Hide sun & moon", () -> ShaderFogModule.hideSunMoon, v -> ShaderFogModule.hideSunMoon = v),
+                    new SettingsCard.Toggle("Color fog", () -> ShaderFogModule.colorFog, v -> ShaderFogModule.colorFog = v),
+                    new SettingsCard.ColorRow("Fog color", "FOG COLOR", () -> ShaderFogModule.fogColor, v -> ShaderFogModule.fogColor = v),
+                    new SettingsCard.Slider("Fog", 0.0f, 1.0f, 0.05f, v -> v <= 0.0f ? "Vanilla" : pct(v), () -> ShaderFogModule.fogDensity, v -> ShaderFogModule.fogDensity = v),
+                    new SettingsCard.Toggle("Custom clouds", () -> ShaderFogModule.customClouds, v -> ShaderFogModule.customClouds = v),
+                    new SettingsCard.ColorRow("Cloud color", "CLOUD COLOR", () -> ShaderFogModule.cloudColor, v -> ShaderFogModule.cloudColor = v),
+                    new SettingsCard.Slider("Stars", 0.0f, 1.0f, 0.05f, v -> v <= 0.0f ? "Vanilla" : pct(v), () -> ShaderFogModule.stars, v -> ShaderFogModule.stars = v)));
 
     private final SettingsCard fireCard = new SettingsCard("CustomFireModule", "Custom Fire",
-            "Color, height and opacity of fire",
-            List.of("custom fire", "fire", "feuer", "flamme", "burn", "low fire"),
+            "Color of all fire: blocks, screen and burning players",
+            List.of("custom fire", "custom flame", "flame", "fire", "feuer", "flamme", "burn", "low fire", "soul fire"),
             () -> CustomFireModule.enabled,
             () -> {
                 CustomFireModule.enabled = !CustomFireModule.enabled;
@@ -124,10 +131,12 @@ public class RenderTab implements ClientTab {
             () -> CustomFireModule.keyBind, k -> CustomFireModule.keyBind = k, CustomFireModule::resetToDefault,
             List.of(
                     new SettingsCard.ColorRow("Fire color", "FIRE COLOR", () -> CustomFireModule.color, v -> CustomFireModule.color = v),
+                    new SettingsCard.Toggle("Gradient", () -> CustomFireModule.gradient, v -> CustomFireModule.gradient = v),
+                    new SettingsCard.ColorRow("Top color (gradient)", "FIRE TOP COLOR", () -> CustomFireModule.topColor, v -> CustomFireModule.topColor = v),
                     new SettingsCard.Toggle("Chroma (RGB)", () -> CustomFireModule.chroma, v -> CustomFireModule.chroma = v),
+                    new SettingsCard.Toggle("Soul fire too", () -> CustomFireModule.soulFire, v -> CustomFireModule.soulFire = v),
                     new SettingsCard.Slider("Height", 0.0f, 1.0f, 0.05f, RenderTab::pct, () -> CustomFireModule.height, v -> CustomFireModule.height = v),
                     new SettingsCard.Slider("Opacity", 0.1f, 1.0f, 0.05f, RenderTab::pct, () -> CustomFireModule.opacity, v -> CustomFireModule.opacity = v),
-                    new SettingsCard.Toggle("Color burning entities", () -> CustomFireModule.entityFire, v -> CustomFireModule.entityFire = v),
                     new SettingsCard.Toggle("Hide with Fire Resistance", () -> CustomFireModule.hideWithFireResistance, v -> CustomFireModule.hideWithFireResistance = v)));
 
     /**
@@ -152,7 +161,7 @@ public class RenderTab implements ClientTab {
         this.leftCards = part == Part.VISUALS ? List.of(nametagsCard) : List.of();
         this.rightCards = switch (part) {
             case VISUALS -> List.of(fireCard);
-            case WORLD -> List.of(skyCard);
+            case WORLD -> List.of(shaderFogCard);
             case MISC -> List.of();
         };
         List<SettingsCard> all = new ArrayList<>(leftCards);

@@ -41,7 +41,7 @@ public final class KeybindConflicts {
             new Entry("TabBadgeModule", "Tablist Badge", () -> TabBadgeModule.keyBind, false),
             new Entry("HideArmorModule", "Hide Armor", () -> HideArmorModule.keyBind, false),
             new Entry("NametagsModule", "Nametags", () -> NametagsModule.keyBind, false),
-            new Entry("CustomSkyModule", "Custom Sky", () -> CustomSkyModule.keyBind, false),
+            new Entry("ShaderFogModule", "Shader Fog", () -> ShaderFogModule.keyBind, false),
             new Entry("CustomFireModule", "Custom Fire", () -> CustomFireModule.keyBind, false),
             new Entry("KeyStrokesModule", "Key Strokes", () -> KeyStrokesModule.keyBind, false),
             new Entry("FpsModule", "FPS", () -> FpsModule.keyBind, false),

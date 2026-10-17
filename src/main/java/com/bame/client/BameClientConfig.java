@@ -448,25 +448,37 @@ public class BameClientConfig {
                 CustomFireModule.chroma = getBool(props, "chroma", CustomFireModule.chroma);
                 CustomFireModule.height = Math.clamp(getFloat(props, "height", CustomFireModule.height), 0.0f, 1.0f);
                 CustomFireModule.opacity = Math.clamp(getFloat(props, "opacity", CustomFireModule.opacity), 0.1f, 1.0f);
-                CustomFireModule.entityFire = getBool(props, "entityFire", CustomFireModule.entityFire);
+                CustomFireModule.gradient = getBool(props, "gradient", CustomFireModule.gradient);
+                CustomFireModule.topColor = getHex(props, "topColor", CustomFireModule.topColor);
+                CustomFireModule.soulFire = getBool(props, "soulFire", CustomFireModule.soulFire);
                 CustomFireModule.hideWithFireResistance = getBool(props, "hideWithFireResistance", CustomFireModule.hideWithFireResistance);
             } catch (Exception e) { logLoadError(customFireFile, e); } }
 
-            // Visuals - Custom Sky
-            Path customSkyFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_sky.properties");
-            if (Files.exists(customSkyFile)) { try {
-                Properties props = loadProps(customSkyFile);
-                CustomSkyModule.enabled = getBool(props, "enabled", CustomSkyModule.enabled);
-                CustomSkyModule.keyBind = getInt(props, "keyBind", CustomSkyModule.keyBind);
-                CustomSkyModule.expanded = getBool(props, "expanded", CustomSkyModule.expanded);
-                CustomSkyModule.skyColor = getHex(props, "skyColor", CustomSkyModule.skyColor);
-                CustomSkyModule.chroma = getBool(props, "chroma", CustomSkyModule.chroma);
-                CustomSkyModule.dayNightCycle = getBool(props, "dayNightCycle", CustomSkyModule.dayNightCycle);
-                CustomSkyModule.tintFog = getBool(props, "tintFog", CustomSkyModule.tintFog);
-                CustomSkyModule.customClouds = getBool(props, "customClouds", CustomSkyModule.customClouds);
-                CustomSkyModule.cloudColor = getHex(props, "cloudColor", CustomSkyModule.cloudColor);
-                CustomSkyModule.stars = Math.clamp(getFloat(props, "stars", CustomSkyModule.stars), 0.0f, 1.0f);
-            } catch (Exception e) { logLoadError(customSkyFile, e); } }
+            // Visuals - Shader Fog (bis 0.3.36 "Custom Sky": alte Datei einmalig übernehmen, als eigene Farbe)
+            Path shaderFogFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("shader_fog.properties");
+            Path oldCustomSkyFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_sky.properties");
+            boolean migrateSky = !Files.exists(shaderFogFile) && Files.exists(oldCustomSkyFile);
+            Path skyFile = migrateSky ? oldCustomSkyFile : shaderFogFile;
+            if (Files.exists(skyFile)) { try {
+                Properties props = loadProps(skyFile);
+                ShaderFogModule.enabled = getBool(props, "enabled", ShaderFogModule.enabled);
+                ShaderFogModule.keyBind = getInt(props, "keyBind", ShaderFogModule.keyBind);
+                ShaderFogModule.expanded = getBool(props, "expanded", ShaderFogModule.expanded);
+                ShaderFogModule.style = migrateSky ? ShaderFogModule.Style.COLOR
+                        : ShaderFogModule.Style.parse(props.getProperty("style"), ShaderFogModule.style);
+                ShaderFogModule.skyColor = getHex(props, "skyColor", ShaderFogModule.skyColor);
+                ShaderFogModule.chroma = getBool(props, "chroma", ShaderFogModule.chroma);
+                ShaderFogModule.dayNightCycle = getBool(props, "dayNightCycle", ShaderFogModule.dayNightCycle);
+                ShaderFogModule.planet = getBool(props, "planet", ShaderFogModule.planet);
+                ShaderFogModule.planetSize = Math.clamp(getFloat(props, "planetSize", ShaderFogModule.planetSize), 0.4f, 2.5f);
+                ShaderFogModule.hideSunMoon = getBool(props, "hideSunMoon", ShaderFogModule.hideSunMoon);
+                ShaderFogModule.colorFog = getBool(props, migrateSky ? "tintFog" : "colorFog", ShaderFogModule.colorFog);
+                ShaderFogModule.fogColor = migrateSky ? getHex(props, "skyColor", ShaderFogModule.fogColor) : getHex(props, "fogColor", ShaderFogModule.fogColor);
+                ShaderFogModule.fogDensity = Math.clamp(getFloat(props, "fogDensity", ShaderFogModule.fogDensity), 0.0f, 1.0f);
+                ShaderFogModule.customClouds = getBool(props, "customClouds", ShaderFogModule.customClouds);
+                ShaderFogModule.cloudColor = getHex(props, "cloudColor", ShaderFogModule.cloudColor);
+                ShaderFogModule.stars = Math.clamp(getFloat(props, "stars", ShaderFogModule.stars), 0.0f, 1.0f);
+            } catch (Exception e) { logLoadError(skyFile, e); } }
 
             // Visuals - Nametags
             Path nametagsFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("nametags.properties");
@@ -1513,23 +1525,31 @@ public class BameClientConfig {
             customFireProps.setProperty("chroma", String.valueOf(CustomFireModule.chroma));
             customFireProps.setProperty("height", String.valueOf(CustomFireModule.height));
             customFireProps.setProperty("opacity", String.valueOf(CustomFireModule.opacity));
-            customFireProps.setProperty("entityFire", String.valueOf(CustomFireModule.entityFire));
+            customFireProps.setProperty("gradient", String.valueOf(CustomFireModule.gradient));
+            customFireProps.setProperty("topColor", Integer.toHexString(CustomFireModule.topColor));
+            customFireProps.setProperty("soulFire", String.valueOf(CustomFireModule.soulFire));
             customFireProps.setProperty("hideWithFireResistance", String.valueOf(CustomFireModule.hideWithFireResistance));
             queue(out, visualsDir.resolve("custom_fire.properties"), customFireProps, "Caeser Client - Custom Fire");
 
-            // Visuals - Custom Sky
-            Properties customSkyProps = new Properties();
-            customSkyProps.setProperty("enabled", String.valueOf(CustomSkyModule.enabled));
-            customSkyProps.setProperty("keyBind", String.valueOf(CustomSkyModule.keyBind));
-            customSkyProps.setProperty("expanded", String.valueOf(CustomSkyModule.expanded));
-            customSkyProps.setProperty("skyColor", Integer.toHexString(CustomSkyModule.skyColor));
-            customSkyProps.setProperty("chroma", String.valueOf(CustomSkyModule.chroma));
-            customSkyProps.setProperty("dayNightCycle", String.valueOf(CustomSkyModule.dayNightCycle));
-            customSkyProps.setProperty("tintFog", String.valueOf(CustomSkyModule.tintFog));
-            customSkyProps.setProperty("customClouds", String.valueOf(CustomSkyModule.customClouds));
-            customSkyProps.setProperty("cloudColor", Integer.toHexString(CustomSkyModule.cloudColor));
-            customSkyProps.setProperty("stars", String.valueOf(CustomSkyModule.stars));
-            queue(out, visualsDir.resolve("custom_sky.properties"), customSkyProps, "Caeser Client - Custom Sky");
+            // Visuals - Shader Fog
+            Properties shaderFogProps = new Properties();
+            shaderFogProps.setProperty("enabled", String.valueOf(ShaderFogModule.enabled));
+            shaderFogProps.setProperty("keyBind", String.valueOf(ShaderFogModule.keyBind));
+            shaderFogProps.setProperty("expanded", String.valueOf(ShaderFogModule.expanded));
+            shaderFogProps.setProperty("style", ShaderFogModule.style.name());
+            shaderFogProps.setProperty("skyColor", Integer.toHexString(ShaderFogModule.skyColor));
+            shaderFogProps.setProperty("chroma", String.valueOf(ShaderFogModule.chroma));
+            shaderFogProps.setProperty("dayNightCycle", String.valueOf(ShaderFogModule.dayNightCycle));
+            shaderFogProps.setProperty("planet", String.valueOf(ShaderFogModule.planet));
+            shaderFogProps.setProperty("planetSize", String.valueOf(ShaderFogModule.planetSize));
+            shaderFogProps.setProperty("hideSunMoon", String.valueOf(ShaderFogModule.hideSunMoon));
+            shaderFogProps.setProperty("colorFog", String.valueOf(ShaderFogModule.colorFog));
+            shaderFogProps.setProperty("fogColor", Integer.toHexString(ShaderFogModule.fogColor));
+            shaderFogProps.setProperty("fogDensity", String.valueOf(ShaderFogModule.fogDensity));
+            shaderFogProps.setProperty("customClouds", String.valueOf(ShaderFogModule.customClouds));
+            shaderFogProps.setProperty("cloudColor", Integer.toHexString(ShaderFogModule.cloudColor));
+            shaderFogProps.setProperty("stars", String.valueOf(ShaderFogModule.stars));
+            queue(out, visualsDir.resolve("shader_fog.properties"), shaderFogProps, "Caeser Client - Shader Fog");
 
             // Visuals - Nametags
             Properties nametagsProps = new Properties();

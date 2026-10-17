@@ -254,7 +254,7 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.module.HandPositionModule.onTick(client);
             prof.swap("caeser_custom_visuals");
             com.bame.client.module.CustomFireModule.onTick(client);
-            com.bame.client.module.CustomSkyModule.onTick(client);
+            com.bame.client.module.ShaderFogModule.onTick(client);
             com.bame.client.module.NametagsModule.onTick(client);
             prof.swap("caeser_durability_guard");
             DurabilityGuardModule.onTick(client);

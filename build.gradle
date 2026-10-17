@@ -20,6 +20,18 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
+// Client-Gametests (src/gametest): echte Testwelt mit Screenshots für optische Module, Start mit ./gradlew runClientGameTest.
+// Nicht Teil von "build"; die Screenshots landen unter build/run/clientGameTest/screenshots.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "bameclient-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
 processResources {
 	inputs.property "version", project.version
 
