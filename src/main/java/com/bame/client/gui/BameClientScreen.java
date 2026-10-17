@@ -92,13 +92,15 @@ public class BameClientScreen extends Screen {
         super(Text.literal("Caeser Client"));
         com.bame.client.util.Prof.push("caeser_menu_ctor");
         try {
-            tabs.put("Combat", new CombatTab(false));
-            tabs.put("Movement", new MovementTab(false));
-            tabs.put("Visuals", new RenderTab());
-            tabs.put("VisualsCombat", new CombatTab(true));   // Reach Display, Hit Color, Low Shield, Hitboxes
-            tabs.put("Misc", new MiscTab());
-            tabs.put("MiscEmotes", new MovementTab(true));    // Animations & Emotes
-            tabs.put("World", new WorldTab());
+            tabs.put("Combat", new CombatTab());                            // Auto Clicker, Reach Display, Hit Color, Low Shield, Hitboxes
+            tabs.put("Movement", new MovementTab(false));                   // Inv Move, Freelook
+            tabs.put("Visuals", new RenderTab(RenderTab.Part.VISUALS));
+            tabs.put("WorldVisuals", new RenderTab(RenderTab.Part.WORLD));  // Fullbright, Custom Sky
+            tabs.put("World", new WorldTab());                              // Area Miner, Time Changer, No Fog
+            tabs.put("WorldAutoTool", new MiscTab(true));                   // Auto Tool
+            tabs.put("Misc", new MiscTab(false));                           // Container Search, Durability Guard
+            tabs.put("MiscEmotes", new MovementTab(true));                  // Animations & Emotes
+            tabs.put("MiscSpotify", new RenderTab(RenderTab.Part.MISC));    // Spotify HUD
             tabs.put(COSMETICS_TAB, new CosmeticsTab());
             BameClientConfig.selectedCategory = BameClientConfig.sanitizeCategory(BameClientConfig.selectedCategory);
         } finally {

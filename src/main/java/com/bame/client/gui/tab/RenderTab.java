@@ -130,9 +130,35 @@ public class RenderTab implements ClientTab {
                     new SettingsCard.Toggle("Color burning entities", () -> CustomFireModule.entityFire, v -> CustomFireModule.entityFire = v),
                     new SettingsCard.Toggle("Hide with Fire Resistance", () -> CustomFireModule.hideWithFireResistance, v -> CustomFireModule.hideWithFireResistance = v)));
 
-    private final List<SettingsCard> leftCards = List.of(nametagsCard, skyCard);
-    private final List<SettingsCard> rightCards = List.of(fireCard);
-    private final List<SettingsCard> extraCards = List.of(nametagsCard, skyCard, fireCard);
+    /**
+     * Ein RenderTab-Objekt zeigt nur die Karten seiner Kategorie: Visuals (Optik), World (Fullbright, Custom Sky)
+     * oder Misc (Spotify HUD). So liegen die Karten in der passenden Kategorie, ohne den Code zu verdoppeln.
+     */
+    public enum Part {
+        VISUALS("Visuals"), WORLD("World"), MISC("Misc");
+
+        private final String category;
+
+        Part(String category) { this.category = category; }
+    }
+
+    private final Part part;
+    private final List<SettingsCard> leftCards;
+    private final List<SettingsCard> rightCards;
+    private final List<SettingsCard> extraCards;
+
+    public RenderTab(Part part) {
+        this.part = part;
+        this.leftCards = part == Part.VISUALS ? List.of(nametagsCard) : List.of();
+        this.rightCards = switch (part) {
+            case VISUALS -> List.of(fireCard);
+            case WORLD -> List.of(skyCard);
+            case MISC -> List.of();
+        };
+        List<SettingsCard> all = new ArrayList<>(leftCards);
+        all.addAll(rightCards);
+        this.extraCards = List.copyOf(all);
+    }
 
     /** Klick auf eine Zusatz-Karte; beginnt sie auf eine Taste zu warten, hören alle anderen Karten auf. */
     private boolean clickCard(SettingsCard card, BameClientScreen screen, double mx, double my, int x, int y, int w) {
@@ -147,7 +173,7 @@ public class RenderTab implements ClientTab {
 
     @Override
     public String getCategory() {
-        return "Visuals";
+        return part.category;
     }
 
     @Override
@@ -163,18 +189,21 @@ public class RenderTab implements ClientTab {
     }
 
     public boolean fullbrightVisible(String search) {
+        if (part != Part.WORLD) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "fullbright".contains(q) || "brightness".contains(q) || "helligkeit".contains(q) || "gamma".contains(q) || "visuals".contains(q);
         return true;
     }
 
     public boolean zoomVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "zoom".contains(q) || "optifine".contains(q) || "herankommen".contains(q) || "visuals".contains(q);
         return true;
     }
 
     public boolean showHudVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) {
             return "show hud".contains(q) || "hud".contains(q) || "fps".contains(q) || "ping".contains(q) ||
@@ -188,6 +217,7 @@ public class RenderTab implements ClientTab {
     }
 
     public boolean hideArmorVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "hide armor".contains(q) || "armor".contains(q) || "rüstung".contains(q) || "ausblenden".contains(q)
                 || "helmet".contains(q) || "elytra".contains(q) || "visuals".contains(q);
@@ -195,42 +225,49 @@ public class RenderTab implements ClientTab {
     }
 
     public boolean scoreboardVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "scoreboard".contains(q);
         return true;
     }
 
     public boolean spotifyHudVisible(String search) {
+        if (part != Part.MISC) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "spotify hud".contains(q) || "spotify".contains(q) || "music".contains(q) || "song".contains(q);
         return true;
     }
 
     public boolean customCrosshairVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "custom crosshair".contains(q) || "crosshair".contains(q) || "fadenkreuz".contains(q);
         return true;
     }
 
     public boolean blockOutlineVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "blockoutline".contains(q) || "block outline".contains(q) || "outline".contains(q) || "glow".contains(q);
         return true;
     }
 
     public boolean handPositionVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "handposition".contains(q) || "hand position".contains(q) || "item position".contains(q) || "hand".contains(q) || "position".contains(q) || "offset".contains(q) || "viewmodel".contains(q) || "doom".contains(q) || "waffe".contains(q) || "schwert".contains(q) || "mining".contains(q) || "abbau".contains(q) || "anim".contains(q) || "animation".contains(q);
         return true;
     }
 
     public boolean itemSizeVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "itemsize".contains(q) || "item size".contains(q) || "item scale".contains(q) || "size".contains(q) || "größe".contains(q) || "blocks".contains(q) || "items".contains(q);
         return true;
     }
 
     public boolean tabBadgeVisible(String search) {
+        if (part != Part.VISUALS) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "tab badge".contains(q) || "tablist".contains(q) || "badge".contains(q) || "tab".contains(q) || "icon".contains(q) || "symbol".contains(q) || "visuals".contains(q);
         return true;

@@ -27,24 +27,9 @@ public class CombatTab implements ClientTab {
     private boolean draggingHitboxAlpha = false;
     private boolean draggingHitboxWidth = false;
 
-    /**
-     * Anzeige-Zuordnung: Die rein optischen Module (Reach Display, Hit Color, Low Shield, Hitboxes) erscheinen
-     * im Tab "Visuals", Auto Clicker bleibt in "Combat". Es gibt dafür zwei Instanzen dieser Klasse; Logik,
-     * Layout innerhalb der Karten und Config-Schlüssel bleiben unverändert.
-     */
-    private final boolean visualPart;
-
-    public CombatTab() {
-        this(false);
-    }
-
-    public CombatTab(boolean visualPart) {
-        this.visualPart = visualPart;
-    }
-
     @Override
     public String getCategory() {
-        return visualPart ? "Visuals" : "Combat";
+        return "Combat";
     }
 
     @Override
@@ -58,35 +43,30 @@ public class CombatTab implements ClientTab {
     }
 
     public boolean autoClickerVisible(String search) {
-        if (visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "autoclicker".contains(q) || "auto clicker".contains(q) || "cps".contains(q);
         return true;
     }
 
     public boolean reachDisplayVisible(String search) {
-        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "reachdisplay".contains(q) || "reach display".contains(q) || "reach".contains(q);
         return true;
     }
 
     public boolean hitColorVisible(String search) {
-        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "hitcolor".contains(q) || "hit color".contains(q) || "color".contains(q) || "hurt".contains(q);
         return true;
     }
 
     public boolean lowShieldVisible(String search) {
-        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "lowshield".contains(q) || "low shield".contains(q) || "shield".contains(q) || "totem".contains(q);
         return true;
     }
 
     public boolean customHitboxesVisible(String search) {
-        if (!visualPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "customhitboxes".contains(q) || "custom hitboxes".contains(q) || "hitbox".contains(q) || "hitboxes".contains(q) || "f3+b".contains(q) || "esp".contains(q);
         return true;

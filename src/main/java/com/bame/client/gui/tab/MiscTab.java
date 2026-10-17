@@ -29,9 +29,16 @@ public class MiscTab implements ClientTab {
     private boolean listeningDurabilityGuard = false;
     private final Map<String, CustomTextFieldWidget> toolThresholdFields = new LinkedHashMap<>();
 
+    /** true: nur Auto Tool (Kategorie World, neben dem Area Miner); false: Container Search und Durability Guard. */
+    private final boolean worldPart;
+
+    public MiscTab(boolean worldPart) {
+        this.worldPart = worldPart;
+    }
+
     @Override
     public String getCategory() {
-        return "Misc";
+        return worldPart ? "World" : "Misc";
     }
 
     @Override
@@ -53,18 +60,21 @@ public class MiscTab implements ClientTab {
     }
 
     public boolean autoToolVisible(String search) {
+        if (!worldPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "autotool".contains(q) || "auto tool".contains(q) || "tool".contains(q) || "werkzeug".contains(q);
         return true;
     }
 
     public boolean durabilityGuardVisible(String search) {
+        if (worldPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "durabilityguard".contains(q) || "durability guard".contains(q) || "durability".contains(q) || "guard".contains(q) || "haltbarkeit".contains(q);
         return true;
     }
 
     public boolean containerSearchVisible(String search) {
+        if (worldPart) return false;
         String q = search.toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) return "container search".contains(q) || "containersearch".contains(q) || "chest search".contains(q)
                 || "search".contains(q) || "suche".contains(q) || "truhe".contains(q) || "kiste".contains(q)
