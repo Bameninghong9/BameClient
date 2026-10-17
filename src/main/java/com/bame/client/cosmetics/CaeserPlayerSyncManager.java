@@ -373,7 +373,14 @@ public class CaeserPlayerSyncManager {
      * UUID-Umwandlung und ohne doppelte Map-Abfragen (läuft pro Eintrag und Frame).
      */
     public static boolean showsTabBadge(UUID uuid, String username) {
-        if (!com.bame.client.module.TabBadgeModule.enabled) return false;
+        return com.bame.client.module.TabBadgeModule.enabled && hasCaeserBadge(uuid, username);
+    }
+
+    /**
+     * Ob der Spieler ein Caeser-Badge trägt (eigener Spieler immer; andere, wenn sie Caeser nutzen und ihr Badge nicht
+     * ausgeschaltet haben). Unabhängig davon, ob die Tab-Liste es gerade zeigt; genutzt auch für Nametags.
+     */
+    public static boolean hasCaeserBadge(UUID uuid, String username) {
         if (uuid == null) {
             if (username == null) return false;
             if (!isCaeserPlayer(username)) return false;
@@ -381,7 +388,7 @@ public class CaeserPlayerSyncManager {
             return badge != null && !badge.isEmpty();
         }
         String key = CaeserApi.uuid32(uuid);
-        if (key.equals(localUuid32())) return true; // eigenes Badge: Modul ist an (oben geprüft)
+        if (key.equals(localUuid32())) return true; // eigener Spieler
         PlayerCosmeticsData data = COSMETICS_MAP.get(key);
         if (data == null && !CAESER_PLAYERS.contains(key) && !EMOTE_MAP.containsKey(key)) return false;
         return badgeSymbol(data) != null;

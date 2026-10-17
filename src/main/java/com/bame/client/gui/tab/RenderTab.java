@@ -73,6 +73,78 @@ public class RenderTab implements ClientTab {
                 return alpha;
             });
 
+    private static String pct(float v) { return Math.round(v * 100) + "%"; }
+
+    private final SettingsCard nametagsCard = new SettingsCard("NametagsModule", "Nametags",
+            "Size, background and Caeser badge on nametags",
+            List.of("nametags", "nametag", "name tag", "namen", "badge", "f5", "third person"),
+            () -> NametagsModule.enabled,
+            () -> {
+                NametagsModule.enabled = !NametagsModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Nametags", NametagsModule.enabled);
+            },
+            () -> NametagsModule.expanded, () -> NametagsModule.expanded = !NametagsModule.expanded,
+            () -> NametagsModule.keyBind, k -> NametagsModule.keyBind = k, NametagsModule::resetToDefault,
+            List.of(
+                    new SettingsCard.Slider("Size", 0.5f, 2.0f, 0.05f, RenderTab::pct, () -> NametagsModule.scale, v -> NametagsModule.scale = v),
+                    new SettingsCard.Slider("Background", 0.0f, 1.0f, 0.05f, RenderTab::pct, () -> NametagsModule.backgroundOpacity, v -> NametagsModule.backgroundOpacity = v),
+                    new SettingsCard.ColorRow("Background color", "NAMETAG BACKGROUND", () -> NametagsModule.backgroundColor, v -> NametagsModule.backgroundColor = v),
+                    new SettingsCard.Toggle("Text shadow", () -> NametagsModule.textShadow, v -> NametagsModule.textShadow = v),
+                    new SettingsCard.Toggle("Own nametag (F5)", () -> NametagsModule.showOwn, v -> NametagsModule.showOwn = v),
+                    new SettingsCard.Toggle("Caeser badge", () -> NametagsModule.showBadge, v -> NametagsModule.showBadge = v)));
+
+    private final SettingsCard skyCard = new SettingsCard("CustomSkyModule", "Custom Sky",
+            "Your own sky, horizon, cloud color and stars",
+            List.of("custom sky", "sky", "himmel", "clouds", "wolken", "stars", "sterne", "horizon", "fog"),
+            () -> CustomSkyModule.enabled,
+            () -> {
+                CustomSkyModule.enabled = !CustomSkyModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Custom Sky", CustomSkyModule.enabled);
+            },
+            () -> CustomSkyModule.expanded, () -> CustomSkyModule.expanded = !CustomSkyModule.expanded,
+            () -> CustomSkyModule.keyBind, k -> CustomSkyModule.keyBind = k, CustomSkyModule::resetToDefault,
+            List.of(
+                    new SettingsCard.ColorRow("Sky color", "SKY COLOR", () -> CustomSkyModule.skyColor, v -> CustomSkyModule.skyColor = v),
+                    new SettingsCard.Toggle("Chroma (RGB)", () -> CustomSkyModule.chroma, v -> CustomSkyModule.chroma = v),
+                    new SettingsCard.Toggle("Day/night cycle", () -> CustomSkyModule.dayNightCycle, v -> CustomSkyModule.dayNightCycle = v),
+                    new SettingsCard.Toggle("Color horizon", () -> CustomSkyModule.tintFog, v -> CustomSkyModule.tintFog = v),
+                    new SettingsCard.Toggle("Custom clouds", () -> CustomSkyModule.customClouds, v -> CustomSkyModule.customClouds = v),
+                    new SettingsCard.ColorRow("Cloud color", "CLOUD COLOR", () -> CustomSkyModule.cloudColor, v -> CustomSkyModule.cloudColor = v),
+                    new SettingsCard.Slider("Stars", 0.0f, 1.0f, 0.05f, v -> v <= 0.0f ? "Vanilla" : pct(v), () -> CustomSkyModule.stars, v -> CustomSkyModule.stars = v)));
+
+    private final SettingsCard fireCard = new SettingsCard("CustomFireModule", "Custom Fire",
+            "Color, height and opacity of fire",
+            List.of("custom fire", "fire", "feuer", "flamme", "burn", "low fire"),
+            () -> CustomFireModule.enabled,
+            () -> {
+                CustomFireModule.enabled = !CustomFireModule.enabled;
+                com.bame.client.notification.NotificationManager.showModuleToggle("Custom Fire", CustomFireModule.enabled);
+            },
+            () -> CustomFireModule.expanded, () -> CustomFireModule.expanded = !CustomFireModule.expanded,
+            () -> CustomFireModule.keyBind, k -> CustomFireModule.keyBind = k, CustomFireModule::resetToDefault,
+            List.of(
+                    new SettingsCard.ColorRow("Fire color", "FIRE COLOR", () -> CustomFireModule.color, v -> CustomFireModule.color = v),
+                    new SettingsCard.Toggle("Chroma (RGB)", () -> CustomFireModule.chroma, v -> CustomFireModule.chroma = v),
+                    new SettingsCard.Slider("Height", 0.0f, 1.0f, 0.05f, RenderTab::pct, () -> CustomFireModule.height, v -> CustomFireModule.height = v),
+                    new SettingsCard.Slider("Opacity", 0.1f, 1.0f, 0.05f, RenderTab::pct, () -> CustomFireModule.opacity, v -> CustomFireModule.opacity = v),
+                    new SettingsCard.Toggle("Color burning entities", () -> CustomFireModule.entityFire, v -> CustomFireModule.entityFire = v),
+                    new SettingsCard.Toggle("Hide with Fire Resistance", () -> CustomFireModule.hideWithFireResistance, v -> CustomFireModule.hideWithFireResistance = v)));
+
+    private final List<SettingsCard> leftCards = List.of(nametagsCard, skyCard);
+    private final List<SettingsCard> rightCards = List.of(fireCard);
+    private final List<SettingsCard> extraCards = List.of(nametagsCard, skyCard, fireCard);
+
+    /** Klick auf eine Zusatz-Karte; beginnt sie auf eine Taste zu warten, hören alle anderen Karten auf. */
+    private boolean clickCard(SettingsCard card, BameClientScreen screen, double mx, double my, int x, int y, int w) {
+        boolean listeningBefore = card.isListening();
+        if (!card.mouseClicked(screen, mx, my, x, y, w)) return false;
+        if (card.isListening() && !listeningBefore) {
+            clearKeyListeners();
+            card.startListening();
+        }
+        return true;
+    }
+
     @Override
     public String getCategory() {
         return "Visuals";
@@ -82,7 +154,7 @@ public class RenderTab implements ClientTab {
     public boolean isListeningForKey() {
         return listeningFullbright || listeningShowHud || listeningZoom || listeningSpotify || listeningScoreboard
                 || listeningCrosshair || listeningBlockOutline || listeningHandPosition || listeningItemSize
-                || listeningHideArmor;
+                || listeningHideArmor || extraCards.stream().anyMatch(SettingsCard::isListening);
     }
 
     @Override
@@ -170,7 +242,8 @@ public class RenderTab implements ClientTab {
         return fullbrightVisible(search) || zoomVisible(search) || showHudVisible(search)
                 || scoreboardVisible(search) || spotifyHudVisible(search) || customCrosshairVisible(search)
                 || blockOutlineVisible(search) || handPositionVisible(search) || itemSizeVisible(search)
-                || tabBadgeVisible(search) || hideArmorVisible(search);
+                || tabBadgeVisible(search) || hideArmorVisible(search)
+                || extraCards.stream().anyMatch(card -> card.visible(search));
     }
 
     public int getTabBadgeHeight() {
@@ -235,6 +308,7 @@ public class RenderTab implements ClientTab {
         if (blockOutlineVisible(search)) tracker.leftY += getBlockOutlineHeight() + 12;
         if (handPositionVisible(search)) tracker.leftY += getHandPositionHeight() + 12;
         if (tabBadgeVisible(search)) tracker.leftY += getTabBadgeHeight() + 12;
+        for (SettingsCard card : leftCards) if (card.visible(search)) tracker.leftY += card.height() + 12;
 
         if (fullbrightVisible(search)) tracker.rightY += getFullbrightHeight() + 12;
         if (zoomVisible(search)) tracker.rightY += getZoomHeight() + 12;
@@ -242,6 +316,7 @@ public class RenderTab implements ClientTab {
         if (customCrosshairVisible(search)) tracker.rightY += getCustomCrosshairHeight() + 12;
         if (itemSizeVisible(search)) tracker.rightY += getItemSizeHeight() + 12;
         if (hideArmorVisible(search)) tracker.rightY += getHideArmorHeight() + 12;
+        for (SettingsCard card : rightCards) if (card.visible(search)) tracker.rightY += card.height() + 12;
     }
 
     @Override
@@ -282,6 +357,12 @@ public class RenderTab implements ClientTab {
             if (screen.isVisibleRow(tracker.leftY, h)) {
                 renderTabBadge(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
             }
+            tracker.leftY += h + 12;
+        }
+        for (SettingsCard card : leftCards) {
+            if (!card.visible(search)) continue;
+            int h = card.height();
+            if (screen.isVisibleRow(tracker.leftY, h)) card.render(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
             tracker.leftY += h + 12;
         }
 
@@ -326,6 +407,12 @@ public class RenderTab implements ClientTab {
             if (screen.isVisibleRow(tracker.rightY, h)) {
                 renderHideArmor(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
             }
+            tracker.rightY += h + 12;
+        }
+        for (SettingsCard card : rightCards) {
+            if (!card.visible(search)) continue;
+            int h = card.height();
+            if (screen.isVisibleRow(tracker.rightY, h)) card.render(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
             tracker.rightY += h + 12;
         }
     }
@@ -950,6 +1037,7 @@ public class RenderTab implements ClientTab {
         listeningHandPosition = false;
         listeningItemSize = false;
         listeningHideArmor = false;
+        extraCards.forEach(SettingsCard::stopListening);
     }
 
     @Override
@@ -1468,6 +1556,11 @@ public class RenderTab implements ClientTab {
             }
             tracker.leftY += h + 12;
         }
+        for (SettingsCard card : leftCards) {
+            if (!card.visible(search)) continue;
+            if (clickCard(card, screen, mx, my, leftX, tracker.leftY, columnWidth)) return true;
+            tracker.leftY += card.height() + 12;
+        }
 
         // Right Column
         // 5. Fullbright
@@ -1790,12 +1883,18 @@ public class RenderTab implements ClientTab {
             if (HideArmorModule.expanded && clickHideArmor(screen, mx, my, rightX, y, columnWidth)) return true;
             tracker.rightY += h + 12;
         }
+        for (SettingsCard card : rightCards) {
+            if (!card.visible(search)) continue;
+            if (clickCard(card, screen, mx, my, rightX, tracker.rightY, columnWidth)) return true;
+            tracker.rightY += card.height() + 12;
+        }
 
         return false;
     }
 
     @Override
     public boolean mouseDragged(BameClientScreen screen, Click click, double deltaX, double deltaY) {
+        for (SettingsCard card : extraCards) if (card.mouseDragged(click.x())) return true;
         int columnWidth = screen.getColumnWidth();
         int leftX = screen.getContentLeftX();
         int rightX = screen.getContentRightX();
@@ -1939,6 +2038,7 @@ public class RenderTab implements ClientTab {
 
     @Override
     public boolean mouseReleased(BameClientScreen screen, Click click) {
+        for (SettingsCard card : extraCards) if (card.mouseReleased()) return true;
         if (gridDragMode >= 0) {
             gridDragMode = -1;
             lastEditedCol = -1;
@@ -1975,6 +2075,7 @@ public class RenderTab implements ClientTab {
 
     @Override
     public boolean keyPressed(BameClientScreen screen, KeyInput input) {
+        for (SettingsCard card : extraCards) if (card.keyPressed(input.key())) return true;
         if (listeningFullbright) {
             FullbrightModule.keyBind = input.key() == GLFW.GLFW_KEY_ESCAPE ? -1 : input.key();
             listeningFullbright = false;

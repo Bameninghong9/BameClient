@@ -437,6 +437,52 @@ public class BameClientConfig {
                 TabBadgeModule.expanded = getBool(props, "expanded", TabBadgeModule.expanded);
             } catch (Exception e) { logLoadError(tabBadgeFile, e); } }
 
+            // Visuals - Custom Fire
+            Path customFireFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_fire.properties");
+            if (Files.exists(customFireFile)) { try {
+                Properties props = loadProps(customFireFile);
+                CustomFireModule.enabled = getBool(props, "enabled", CustomFireModule.enabled);
+                CustomFireModule.keyBind = getInt(props, "keyBind", CustomFireModule.keyBind);
+                CustomFireModule.expanded = getBool(props, "expanded", CustomFireModule.expanded);
+                CustomFireModule.color = getHex(props, "color", CustomFireModule.color);
+                CustomFireModule.chroma = getBool(props, "chroma", CustomFireModule.chroma);
+                CustomFireModule.height = Math.clamp(getFloat(props, "height", CustomFireModule.height), 0.0f, 1.0f);
+                CustomFireModule.opacity = Math.clamp(getFloat(props, "opacity", CustomFireModule.opacity), 0.1f, 1.0f);
+                CustomFireModule.entityFire = getBool(props, "entityFire", CustomFireModule.entityFire);
+                CustomFireModule.hideWithFireResistance = getBool(props, "hideWithFireResistance", CustomFireModule.hideWithFireResistance);
+            } catch (Exception e) { logLoadError(customFireFile, e); } }
+
+            // Visuals - Custom Sky
+            Path customSkyFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("custom_sky.properties");
+            if (Files.exists(customSkyFile)) { try {
+                Properties props = loadProps(customSkyFile);
+                CustomSkyModule.enabled = getBool(props, "enabled", CustomSkyModule.enabled);
+                CustomSkyModule.keyBind = getInt(props, "keyBind", CustomSkyModule.keyBind);
+                CustomSkyModule.expanded = getBool(props, "expanded", CustomSkyModule.expanded);
+                CustomSkyModule.skyColor = getHex(props, "skyColor", CustomSkyModule.skyColor);
+                CustomSkyModule.chroma = getBool(props, "chroma", CustomSkyModule.chroma);
+                CustomSkyModule.dayNightCycle = getBool(props, "dayNightCycle", CustomSkyModule.dayNightCycle);
+                CustomSkyModule.tintFog = getBool(props, "tintFog", CustomSkyModule.tintFog);
+                CustomSkyModule.customClouds = getBool(props, "customClouds", CustomSkyModule.customClouds);
+                CustomSkyModule.cloudColor = getHex(props, "cloudColor", CustomSkyModule.cloudColor);
+                CustomSkyModule.stars = Math.clamp(getFloat(props, "stars", CustomSkyModule.stars), 0.0f, 1.0f);
+            } catch (Exception e) { logLoadError(customSkyFile, e); } }
+
+            // Visuals - Nametags
+            Path nametagsFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("nametags.properties");
+            if (Files.exists(nametagsFile)) { try {
+                Properties props = loadProps(nametagsFile);
+                NametagsModule.enabled = getBool(props, "enabled", NametagsModule.enabled);
+                NametagsModule.keyBind = getInt(props, "keyBind", NametagsModule.keyBind);
+                NametagsModule.expanded = getBool(props, "expanded", NametagsModule.expanded);
+                NametagsModule.scale = Math.clamp(getFloat(props, "scale", NametagsModule.scale), 0.5f, 2.0f);
+                NametagsModule.backgroundOpacity = Math.clamp(getFloat(props, "backgroundOpacity", NametagsModule.backgroundOpacity), 0.0f, 1.0f);
+                NametagsModule.backgroundColor = getHex(props, "backgroundColor", NametagsModule.backgroundColor);
+                NametagsModule.textShadow = getBool(props, "textShadow", NametagsModule.textShadow);
+                NametagsModule.showOwn = getBool(props, "showOwn", NametagsModule.showOwn);
+                NametagsModule.showBadge = getBool(props, "showBadge", NametagsModule.showBadge);
+            } catch (Exception e) { logLoadError(nametagsFile, e); } }
+
             // Visuals - Hotbar (Vanilla-Hotbar im HUD-Editor verschoben: Versatz zur Vanilla-Stelle unten mittig)
             Path hotbarFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("hotbar.properties");
             if (Files.exists(hotbarFile)) { try {
@@ -1457,6 +1503,46 @@ public class BameClientConfig {
             tabBadgeProps.setProperty("keyBind", String.valueOf(TabBadgeModule.keyBind));
             tabBadgeProps.setProperty("expanded", String.valueOf(TabBadgeModule.expanded));
             queue(out, visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
+
+            // Visuals - Custom Fire
+            Properties customFireProps = new Properties();
+            customFireProps.setProperty("enabled", String.valueOf(CustomFireModule.enabled));
+            customFireProps.setProperty("keyBind", String.valueOf(CustomFireModule.keyBind));
+            customFireProps.setProperty("expanded", String.valueOf(CustomFireModule.expanded));
+            customFireProps.setProperty("color", Integer.toHexString(CustomFireModule.color));
+            customFireProps.setProperty("chroma", String.valueOf(CustomFireModule.chroma));
+            customFireProps.setProperty("height", String.valueOf(CustomFireModule.height));
+            customFireProps.setProperty("opacity", String.valueOf(CustomFireModule.opacity));
+            customFireProps.setProperty("entityFire", String.valueOf(CustomFireModule.entityFire));
+            customFireProps.setProperty("hideWithFireResistance", String.valueOf(CustomFireModule.hideWithFireResistance));
+            queue(out, visualsDir.resolve("custom_fire.properties"), customFireProps, "Caeser Client - Custom Fire");
+
+            // Visuals - Custom Sky
+            Properties customSkyProps = new Properties();
+            customSkyProps.setProperty("enabled", String.valueOf(CustomSkyModule.enabled));
+            customSkyProps.setProperty("keyBind", String.valueOf(CustomSkyModule.keyBind));
+            customSkyProps.setProperty("expanded", String.valueOf(CustomSkyModule.expanded));
+            customSkyProps.setProperty("skyColor", Integer.toHexString(CustomSkyModule.skyColor));
+            customSkyProps.setProperty("chroma", String.valueOf(CustomSkyModule.chroma));
+            customSkyProps.setProperty("dayNightCycle", String.valueOf(CustomSkyModule.dayNightCycle));
+            customSkyProps.setProperty("tintFog", String.valueOf(CustomSkyModule.tintFog));
+            customSkyProps.setProperty("customClouds", String.valueOf(CustomSkyModule.customClouds));
+            customSkyProps.setProperty("cloudColor", Integer.toHexString(CustomSkyModule.cloudColor));
+            customSkyProps.setProperty("stars", String.valueOf(CustomSkyModule.stars));
+            queue(out, visualsDir.resolve("custom_sky.properties"), customSkyProps, "Caeser Client - Custom Sky");
+
+            // Visuals - Nametags
+            Properties nametagsProps = new Properties();
+            nametagsProps.setProperty("enabled", String.valueOf(NametagsModule.enabled));
+            nametagsProps.setProperty("keyBind", String.valueOf(NametagsModule.keyBind));
+            nametagsProps.setProperty("expanded", String.valueOf(NametagsModule.expanded));
+            nametagsProps.setProperty("scale", String.valueOf(NametagsModule.scale));
+            nametagsProps.setProperty("backgroundOpacity", String.valueOf(NametagsModule.backgroundOpacity));
+            nametagsProps.setProperty("backgroundColor", Integer.toHexString(NametagsModule.backgroundColor));
+            nametagsProps.setProperty("textShadow", String.valueOf(NametagsModule.textShadow));
+            nametagsProps.setProperty("showOwn", String.valueOf(NametagsModule.showOwn));
+            nametagsProps.setProperty("showBadge", String.valueOf(NametagsModule.showBadge));
+            queue(out, visualsDir.resolve("nametags.properties"), nametagsProps, "Caeser Client - Nametags");
 
             // Visuals - Hotbar
             Properties hotbarProps = new Properties();

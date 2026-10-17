@@ -36,6 +36,26 @@ public class FogRendererMixin {
         return fogData;
     }
 
+    /**
+     * Custom Sky: Horizont/Nebel in der Himmelsfarbe (nur Oberwelt an der Luft, nicht unter Wasser, in Lava oder
+     * Pulverschnee). Helligkeit wie Vanilla, damit Nacht, Blindheit und Gewitter dunkel bleiben. Der Vektor ist auch
+     * die Hintergrundfarbe des Bildes, deshalb passt der Himmel nahtlos.
+     */
+    @ModifyVariable(
+        method = "applyFog(Lnet/minecraft/client/render/Camera;ILnet/minecraft/client/render/RenderTickCounter;FLnet/minecraft/client/world/ClientWorld;)Lorg/joml/Vector4f;",
+        at = @At("STORE"), ordinal = 0
+    )
+    private Vector4f caeser$skyFogColor(Vector4f color, Camera camera, int viewDistance, RenderTickCounter tickCounter, float f, ClientWorld world) {
+        if (!com.bame.client.module.CustomSkyModule.enabled || !com.bame.client.module.CustomSkyModule.tintFog || color == null) return color;
+        if (world == null || world.getDimension().skybox() != net.minecraft.world.dimension.DimensionType.Skybox.OVERWORLD) return color;
+        if (camera.getSubmersionType() != net.minecraft.block.enums.CameraSubmersionType.NONE) return color;
+        int vanilla = 0xFF000000 | (Math.clamp(Math.round(color.x * 255f), 0, 255) << 16)
+                | (Math.clamp(Math.round(color.y * 255f), 0, 255) << 8) | Math.clamp(Math.round(color.z * 255f), 0, 255);
+        int shaded = com.bame.client.module.CustomSkyModule.shade(com.bame.client.module.CustomSkyModule.skyRgb(), vanilla, 255);
+        color.set(((shaded >> 16) & 255) / 255f, ((shaded >> 8) & 255) / 255f, (shaded & 255) / 255f, color.w);
+        return color;
+    }
+
     @Inject(method = "applyFog(Ljava/nio/ByteBuffer;ILorg/joml/Vector4f;FFFFFF)V", at = @At("HEAD"), cancellable = true)
     private void onApplyFogBuffer(ByteBuffer byteBuffer, int position, Vector4f fogColor, float environmentalStart, float environmentalEnd, float renderDistanceStart, float renderDistanceEnd, float skyEnd, float cloudEnd, CallbackInfo ci) {
         if (NoFogModule.shouldDisableFog()) {

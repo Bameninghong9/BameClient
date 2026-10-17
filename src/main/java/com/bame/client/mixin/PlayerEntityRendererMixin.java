@@ -11,6 +11,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import net.minecraft.client.MinecraftClient;
 
 @Mixin(PlayerEntityRenderer.class)
 public class PlayerEntityRendererMixin {
@@ -44,6 +46,22 @@ public class PlayerEntityRendererMixin {
         EmoteAnimator.applyCampfireLight(state);
         // Fliegender Teppich: Nametag so weit höher, wie der schwebende Reiter gezeichnet wird (nur der Render-State)
         com.bame.client.emotes.FlyingCarpetCoordinator.liftNameLabel(state);
+        // Nametags: Caeser-Badge vor dem Namen (wie in der Tab-Liste); NameProtect hat den Namen schon ersetzt
+        if (com.bame.client.module.NametagsModule.enabled && com.bame.client.module.NametagsModule.showBadge
+                && state.displayName != null && entity instanceof PlayerEntity pe
+                && com.bame.client.cosmetics.CaeserPlayerSyncManager.hasCaeserBadge(pe.getUuid(), pe.getGameProfile().name())) {
+            state.displayName = com.bame.client.module.TabBadgeModule.badgeText().append(state.displayName);
+        }
+    }
+
+    /** Nametags: eigener Nametag in der Third-Person-Ansicht (F5), nicht in der Ego-Perspektive. */
+    @Inject(method = "hasLabel(Lnet/minecraft/entity/PlayerLikeEntity;D)Z", at = @At("RETURN"), cancellable = true)
+    private void caeser$ownNametag(PlayerLikeEntity entity, double squaredDistance, CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() || !com.bame.client.module.NametagsModule.enabled || !com.bame.client.module.NametagsModule.showOwn) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (entity != client.player || entity != client.getCameraEntity()) return;
+        if (client.options.getPerspective().isFirstPerson() || !MinecraftClient.isHudEnabled() || entity.isInvisible()) return;
+        cir.setReturnValue(true);
     }
 
     /**

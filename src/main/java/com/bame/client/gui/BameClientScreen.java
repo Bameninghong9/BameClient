@@ -52,6 +52,11 @@ public class BameClientScreen extends Screen {
     private boolean hitColorColorPickerOpen = false;
     private boolean hitboxColorPickerOpen = false;
     private boolean blockOutlineColorPickerOpen = false;
+    // Allgemeiner Farbwähler (Custom Fire, Custom Sky, Nametags): Titel, Lesen und Schreiben kommen vom Aufrufer
+    private boolean genericColorPickerOpen = false;
+    private String genericPickerTitle = "COLOR PICKER";
+    private java.util.function.IntSupplier genericPickerGet = () -> 0xFFFFFFFF;
+    private java.util.function.IntConsumer genericPickerSet = color -> {};
     private float cpHue = 0f, cpSat = 0f, cpVal = 1f;
     private int cpDrag = -1; // 0=sv, 1=hue
     private int cpX, cpY;
@@ -350,10 +355,30 @@ public class BameClientScreen extends Screen {
         hitColorColorPickerOpen = (type == 1);
         hitboxColorPickerOpen = (type == 2);
         blockOutlineColorPickerOpen = (type == 3);
+        genericColorPickerOpen = false;
         if (type == 0) syncCrosshairHsv();
         else if (type == 1) syncHitColorHsv();
         else if (type == 2) syncHitboxHsv();
         else if (type == 3) syncBlockOutlineHsv();
+    }
+
+    /** Farbwähler für beliebige Einstellungen; jede Änderung geht sofort an {@code set} (Speichern macht der Dialog). */
+    public void openColorPicker(String title, java.util.function.IntSupplier get, java.util.function.IntConsumer set) {
+        openModalColorPicker(-1, 0);
+        genericPickerTitle = title;
+        genericPickerGet = get;
+        genericPickerSet = set;
+        genericColorPickerOpen = true;
+        int color = get.getAsInt();
+        float[] hsv = java.awt.Color.RGBtoHSB((color >> 16) & 255, (color >> 8) & 255, color & 255, null);
+        cpHue = hsv[0];
+        cpSat = hsv[1];
+        cpVal = hsv[2];
+    }
+
+    private boolean anyColorPickerOpen() {
+        return crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen
+                || genericColorPickerOpen;
     }
 
     public int getColumnWidth() { return (cw - 16) / 2; }
@@ -536,7 +561,7 @@ public class BameClientScreen extends Screen {
     /** Ein Dialog liegt über dem Panel: Neigung und Schweben ausblenden, damit er gerade und ruhig steht. */
     private boolean panelModalOpen() {
         return itemModalOpen || crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen
-                || blockOutlineColorPickerOpen
+                || blockOutlineColorPickerOpen || genericColorPickerOpen
                 || (currentView == ViewMode.COSMETICS && (CosmeticsTab.customSkinModalOpen || ShopOverlay.isModalOpen()));
     }
 
@@ -1037,7 +1062,7 @@ public class BameClientScreen extends Screen {
             ThreeDGuiManager.renderPanelRim(c, panel3D, px, py, pw, ph);
         }
 
-        if (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) {
+        if (anyColorPickerOpen()) {
             renderModalColorPicker(c, mx, my);
         }
 
@@ -1301,7 +1326,9 @@ public class BameClientScreen extends Screen {
             cpHue = (float) Math.clamp((mx - barX) / (double) barW, 0.0, 1.0);
         }
         int rgb = java.awt.Color.HSBtoRGB(cpHue, cpSat, cpVal) & 0xFFFFFF;
-        if (hitColorColorPickerOpen) {
+        if (genericColorPickerOpen) {
+            genericPickerSet.accept(0xFF000000 | rgb);
+        } else if (hitColorColorPickerOpen) {
             HitColorModule.color = 0xFF000000 | rgb;
             HitColorModule.apply();
         } else if (hitboxColorPickerOpen) {
@@ -1323,10 +1350,10 @@ public class BameClientScreen extends Screen {
         context.fill(myCpX, myCpY, myCpX + CP_W, myCpY + CP_H, 0xF013171F);
         CustomGuiUtils.drawUltraRoundedOutline(context, myCpX, myCpY, CP_W, CP_H, 0xFF353C4D, 4);
 
-        String title = hitColorColorPickerOpen ? "HIT COLOR" : (hitboxColorPickerOpen ? "HITBOX COLOR" : (blockOutlineColorPickerOpen ? "BLOCK OUTLINE COLOR" : "COLOR PICKER"));
+        String title = genericColorPickerOpen ? genericPickerTitle : hitColorColorPickerOpen ? "HIT COLOR" : (hitboxColorPickerOpen ? "HITBOX COLOR" : (blockOutlineColorPickerOpen ? "BLOCK OUTLINE COLOR" : "COLOR PICKER"));
         text(context, title, myCpX + 10, myCpY + 8, 0xFF8E95A4);
 
-        int curCol = hitColorColorPickerOpen ? HitColorModule.color : (hitboxColorPickerOpen ? CustomHitboxesModule.color : (blockOutlineColorPickerOpen ? BlockOutlineModule.color : CustomCrosshairModule.color));
+        int curCol = genericColorPickerOpen ? genericPickerGet.getAsInt() : hitColorColorPickerOpen ? HitColorModule.color : (hitboxColorPickerOpen ? CustomHitboxesModule.color : (blockOutlineColorPickerOpen ? BlockOutlineModule.color : CustomCrosshairModule.color));
         int swatchX = myCpX + CP_W - 36;
         int swatchY = myCpY + 22;
         int swatchSize = 26;
@@ -1858,7 +1885,7 @@ public class BameClientScreen extends Screen {
             return true;
         }
 
-        if (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) {
+        if (anyColorPickerOpen()) {
             int CP_W = 150;
             int CP_H = 100;
             int myCpX = (width - CP_W) / 2;
@@ -1868,6 +1895,7 @@ public class BameClientScreen extends Screen {
                 hitColorColorPickerOpen = false;
                 hitboxColorPickerOpen = false;
                 blockOutlineColorPickerOpen = false;
+                genericColorPickerOpen = false;
                 cpDrag = -1;
                 return true;
             }
@@ -1896,6 +1924,7 @@ public class BameClientScreen extends Screen {
             hitColorColorPickerOpen = false;
             hitboxColorPickerOpen = false;
             blockOutlineColorPickerOpen = false;
+            genericColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
@@ -2157,7 +2186,7 @@ public class BameClientScreen extends Screen {
     public boolean mouseDragged(Click click, double dx, double dy) {
         Click localClick = toPanelClick(click);
 
-        if ((crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen) && cpDrag >= 0) {
+        if ((anyColorPickerOpen()) && cpDrag >= 0) {
             updateModalColor(localClick.x(), localClick.y());
             return true;
         }
@@ -2296,11 +2325,12 @@ public class BameClientScreen extends Screen {
             }
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && (crosshairColorPickerOpen || hitColorColorPickerOpen || hitboxColorPickerOpen || blockOutlineColorPickerOpen)) {
+        if (key == GLFW.GLFW_KEY_ESCAPE && (anyColorPickerOpen())) {
             crosshairColorPickerOpen = false;
             hitColorColorPickerOpen = false;
             hitboxColorPickerOpen = false;
             blockOutlineColorPickerOpen = false;
+            genericColorPickerOpen = false;
             cpDrag = -1;
             return true;
         }
