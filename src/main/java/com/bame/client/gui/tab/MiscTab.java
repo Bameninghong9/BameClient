@@ -6,6 +6,7 @@ import com.bame.client.gui.CustomGuiUtils;
 import com.bame.client.gui.CustomTextFieldWidget;
 import com.bame.client.gui.GuiTheme;
 import com.bame.client.module.AutoToolModule;
+import com.bame.client.module.ContainerSearchModule;
 import com.bame.client.module.DurabilityGuardModule;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
@@ -63,14 +64,27 @@ public class MiscTab implements ClientTab {
         return true;
     }
 
+    public boolean containerSearchVisible(String search) {
+        String q = search.toLowerCase(Locale.ROOT);
+        if (!q.isEmpty()) return "container search".contains(q) || "containersearch".contains(q) || "chest search".contains(q)
+                || "search".contains(q) || "suche".contains(q) || "truhe".contains(q) || "kiste".contains(q)
+                || "shulker".contains(q) || "inventory".contains(q) || "inventar".contains(q);
+        return true;
+    }
+
     @Override
     public boolean isVisible(String search) {
         if (search.isEmpty()) return true;
-        return autoToolVisible(search) || durabilityGuardVisible(search);
+        return autoToolVisible(search) || durabilityGuardVisible(search) || containerSearchVisible(search);
     }
 
     public int getAutoToolHeight() {
         return AutoToolModule.expanded ? 130 : 50;
+    }
+
+    /** Kopf 54 + fünf Schalter-Zeilen à 26 + Reset-Zeile (16) + 6 Rand. */
+    public int getContainerSearchHeight() {
+        return ContainerSearchModule.expanded ? 206 : 50;
     }
 
     public int getDurabilityGuardHeight() {
@@ -85,6 +99,7 @@ public class MiscTab implements ClientTab {
     @Override
     public void calculateHeight(BameClientScreen screen, int columnWidth, ColumnTracker tracker, String search) {
         if (autoToolVisible(search)) tracker.leftY += getAutoToolHeight() + 12;
+        if (containerSearchVisible(search)) tracker.leftY += getContainerSearchHeight() + 12;
         if (durabilityGuardVisible(search)) tracker.rightY += getDurabilityGuardHeight() + 12;
     }
 
@@ -94,6 +109,10 @@ public class MiscTab implements ClientTab {
         if (autoToolVisible(search)) {
             renderAutoTool(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
             tracker.leftY += getAutoToolHeight() + 12;
+        }
+        if (containerSearchVisible(search)) {
+            renderContainerSearch(screen, c, mx, my, delta, leftX, tracker.leftY, columnWidth);
+            tracker.leftY += getContainerSearchHeight() + 12;
         }
         if (durabilityGuardVisible(search)) {
             renderDurabilityGuard(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
@@ -118,6 +137,84 @@ public class MiscTab implements ClientTab {
         curY += 26;
 
         screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    // Container Search: Zeichnen und Klicks nutzen dieselbe Zeilenfolge (Schalter rechts, 26 px pro Zeile)
+    private void renderContainerSearch(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
+        int h = getContainerSearchHeight();
+        screen.moduleCard(c, x, y, w, h, ContainerSearchModule.enabled, ContainerSearchModule.expanded,
+                "Container Search", "Search bar below chests, grays out other items", null, "misc", mx, my);
+
+        if (!ContainerSearchModule.expanded) return;
+
+        int curY = y + 54;
+        screen.text(c, "Also in player inventory", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, ContainerSearchModule.playerInventory, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Search lore & enchantments", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, ContainerSearchModule.searchLoreEnchantments, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Search inside shulkers", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, ContainerSearchModule.searchShulkers, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Highlight matches", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, ContainerSearchModule.highlightMatches, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Remember search", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, ContainerSearchModule.rememberSearch, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Ctrl+F: focus search", x + 14, curY + 4, 0xFF8E95A4);
+        screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    private boolean clickContainerSearch(BameClientScreen screen, double mx, double my, int x, int y, int w) {
+        int curY = y + 54;
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ContainerSearchModule.playerInventory = !ContainerSearchModule.playerInventory;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ContainerSearchModule.searchLoreEnchantments = !ContainerSearchModule.searchLoreEnchantments;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ContainerSearchModule.searchShulkers = !ContainerSearchModule.searchShulkers;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ContainerSearchModule.highlightMatches = !ContainerSearchModule.highlightMatches;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ContainerSearchModule.rememberSearch = !ContainerSearchModule.rememberSearch;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 58, curY, 46, 16)) {
+            ContainerSearchModule.resetOptions();
+            BameClientConfig.save();
+            return true;
+        }
+        return false;
     }
 
     private void renderDurabilityGuard(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
@@ -254,6 +351,21 @@ public class MiscTab implements ClientTab {
                     return true;
                 }
             }
+            tracker.leftY += h + 12;
+        }
+
+        if (containerSearchVisible(search)) {
+            int y = tracker.leftY;
+            int h = getContainerSearchHeight();
+            if (screen.handleCardHeaderClick((int) mx, (int) my, leftX, y, columnWidth,
+                    () -> {
+                        ContainerSearchModule.enabled = !ContainerSearchModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Container Search", ContainerSearchModule.enabled);
+                    },
+                    () -> ContainerSearchModule.expanded = !ContainerSearchModule.expanded)) {
+                return true;
+            }
+            if (ContainerSearchModule.expanded && clickContainerSearch(screen, mx, my, leftX, y, columnWidth)) return true;
             tracker.leftY += h + 12;
         }
 

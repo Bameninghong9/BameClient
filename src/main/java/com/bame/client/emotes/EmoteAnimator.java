@@ -138,6 +138,8 @@ public class EmoteAnimator {
                 model.rightArm.roll += (float) (Math.sin(swing * Math.PI) * 0.22f);
             }
         }
+            // Auslaufen des fliegenden Teppichs: der Reiter sitzt noch, bis der Teppich gelandet ist, dann steht er auf
+            applyFlyingCarpetOutro(model, state);
         }
 
         syncLayers(model);
@@ -375,6 +377,7 @@ public class EmoteAnimator {
             case SWING -> applySwing(model, t, isPreview, state);
             case PICNIC -> applyPicnic(model, t, isPreview, state);
             case WITCH_BROOM -> applyWitchBroom(model, t, isPreview, state);
+            case FLYING_CARPET -> applyFlyingCarpet(model, t, isPreview, state);
             case SIT -> {
                 // Lower body & legs forward
                 float yOffset = 8.5f;
@@ -431,7 +434,16 @@ public class EmoteAnimator {
             applyWitchBroomTransform(state, matrices, active);
             return;
         }
-        if (active == null || active.emote() != EmoteType.PUSH_UPS) return;
+        if (active != null && active.emote() == EmoteType.FLYING_CARPET) {
+            applyFlyingCarpetTransform(state, matrices, active);
+            return;
+        }
+        if (active == null) {
+            // Auslaufen des fliegenden Teppichs: Reiter und Teppich sinken noch weich zu Boden
+            applyFlyingCarpetOutroTransform(state, matrices);
+            return;
+        }
+        if (active.emote() != EmoteType.PUSH_UPS) return;
         // Vanilla-Posen mit eigener Drehung nicht überlagern
         if (state.isGliding || state.leaningPitch > 0.0F || state.usingRiptide || state.deathTime > 0.0F
                 || state.hasVehicle || state.isInPose(EntityPose.SLEEPING)) {
@@ -1109,6 +1121,190 @@ public class EmoteAnimator {
             model.leftLeg.pitch += -swing * 1.4F * limbAmp * 0.5F;
             model.leftArm.pitch += swing * limbAmp * 0.5F;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Fliegender Teppich
+    // ------------------------------------------------------------------
+
+    /**
+     * Vorschau (Menü, Emote-Rad): schräg von vorne und leicht von oben, damit Muster und Neigung zu sehen sind; schwebt
+     * dort nur {@link FlyingCarpetLogic#PREVIEW_ALT} hoch, damit alles im Rahmen bleibt.
+     */
+    private static final float CARPET_PREVIEW_YAW = -35.0F;
+    private static final float CARPET_PREVIEW_TILT = -16.0F;
+    private static final float CARPET_PREVIEW_SCALE = 0.8F;
+    private static final float CARPET_PREVIEW_LIFT = 0.02F;
+    /** Vanilla zeichnet schleichende Spieler 2 px tiefer; beim Teppich übernimmt das ein weiches Absinken. */
+    private static final float VANILLA_SNEAK_DROP = 2.0F / 16.0F;
+
+    private static final FlyingCarpetMotion.Input FC_IN = new FlyingCarpetMotion.Input();
+    private static final FlyingCarpetMotion.Pose FC_POSE = new FlyingCarpetMotion.Pose();
+    private static final FlyingCarpetLogic.Tilt FC_TILT = new FlyingCarpetLogic.Tilt();
+
+    /**
+     * Fliegender Teppich (am Ende von {@code setupTransforms}): Schwebehöhe (beim Start weich aufsteigend, dann je nach
+     * Tempo bzw. Schleichen weich geglättet), Schweben und die Neigung von Teppich und Reiter (Kurve, Vorderkante,
+     * Steigen/Sinken beim erlaubten Fliegen) als Verschiebung und Drehung um die Mitte des Teppichs; Teppich und
+     * Cosmetics werden in derselben Matrix gezeichnet und gehen mit. <b>Nur Darstellung:</b> Position, Bewegung und
+     * Hitbox des Spielers bleiben unverändert; der Vanilla-Schatten bleibt am Boden, den Nametag hebt der Koordinator
+     * im Render-State mit an.
+     */
+    private static void applyFlyingCarpetTransform(PlayerEntityRenderState state, MatrixStack matrices, ActiveEmote active) {
+        if (!hammockTransformApplies(state)) return;
+        FlyingCarpetLogic.Tilt tl = FC_TILT;
+        FlyingCarpetCoordinator.View v = FlyingCarpetCoordinator.tilt(state, active, tl);
+        if (v.preview) {
+            matrices.translate(0.0F, CARPET_PREVIEW_LIFT, 0.0F);
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(CARPET_PREVIEW_TILT));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(CARPET_PREVIEW_YAW));
+            matrices.scale(CARPET_PREVIEW_SCALE, CARPET_PREVIEW_SCALE, CARPET_PREVIEW_SCALE);
+        } else if (state.isInSneakingPose) {
+            matrices.translate(0.0F, VANILLA_SNEAK_DROP, 0.0F);
+        }
+        pushCarpetTilt(matrices, tl);
+    }
+
+    /**
+     * Nach dem Ende: Reiter und Teppich sinken von der zuletzt gezeigten Höhe weich zu Boden, die Neigung klingt ab
+     * ({@link FlyingCarpetMotion#outroTilt}); erst danach steht der Reiter auf.
+     */
+    private static void applyFlyingCarpetOutroTransform(PlayerEntityRenderState state, MatrixStack matrices) {
+        if (!hammockTransformApplies(state)) return;
+        FlyingCarpetCoordinator.OutroView o = FlyingCarpetCoordinator.outro(state);
+        if (o == null) return;
+        // Solange der Reiter sitzt, wie im Emote nicht 2 px tiefer (beim Aufstehen weich zurück zu Vanilla)
+        if (state.isInSneakingPose) matrices.translate(0.0F, VANILLA_SNEAK_DROP * o.motion.rider, 0.0F);
+        FlyingCarpetLogic.Tilt tl = FC_TILT;
+        FlyingCarpetMotion.outroTilt(o.motion, o.dy0, o.w0, o.bank, o.nose, tl);
+        pushCarpetTilt(matrices, tl);
+    }
+
+    /** {@code Tr(0, dy, 0) · Tr(P) · Rz(bank) · Rx(nose) · Tr(−P)} (siehe {@link FlyingCarpetLogic.Tilt}). */
+    private static void pushCarpetTilt(MatrixStack matrices, FlyingCarpetLogic.Tilt tl) {
+        if (tl.dy != 0.0) matrices.translate(0.0F, (float) tl.dy, 0.0F);
+        if (tl.bank != 0.0F || tl.nose != 0.0F) {
+            matrices.translate(0.0F, (float) tl.pivotY, (float) tl.pivotZ);
+            if (tl.bank != 0.0F) matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(tl.bank));
+            if (tl.nose != 0.0F) matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(tl.nose));
+            matrices.translate(0.0F, (float) -tl.pivotY, (float) -tl.pivotZ);
+        }
+    }
+
+    /**
+     * Fliegender Teppich: Schneidersitz (alle Teile per {@code originY} abgesenkt, Hüfte auf dem Teppich), Vorbeugen um
+     * die Hüfte, im Stand Hände auf den Knien, in Fahrt rechte Hand an der Vorderkante und linke an der Seitenkante;
+     * der Kopf schaut sich ab und zu um und folgt dem Blick. Die Beine machen keine Laufbewegung
+     * ({@link FlyingCarpetMotion}).
+     */
+    private static void applyFlyingCarpet(PlayerEntityModel model, float t, boolean isPreview, PlayerEntityRenderState state) {
+        // Vanilla-Posen mit eigener Drehung (Gleiten, Schwimmen, Reiten ...) bis zum STOP nicht überlagern
+        if (!isPreview && state != null && !hammockTransformApplies(state)) return;
+        FlyingCarpetMotion.Input in = FC_IN;
+        in.t = t;
+        in.slim = model.rightArm.getDefaultTransform().y() > 2.25F;
+        ActiveEmote active = state != null ? resolveActiveEmote(state) : null;
+        if (active != null && active.emote() == EmoteType.FLYING_CARPET) {
+            FlyingCarpetCoordinator.View v = FlyingCarpetCoordinator.view(state, active);
+            in.speed = v.speed;
+            in.sneak = v.sneak;
+            in.hold = v.hold;
+            in.bank = v.bank;
+        } else {
+            in.speed = 0.0F;
+            in.sneak = 0.0F;
+            in.hold = 0.0F;
+            in.bank = isPreview ? FlyingCarpetMotion.previewBank(t) : 0.0F;
+        }
+        in.look = !isPreview && state != null;
+        in.lookYaw = in.look ? state.relativeHeadYaw : 0.0F;
+        in.lookPitch = in.look ? state.pitch : 0.0F;
+        FlyingCarpetMotion.Pose p = FC_POSE;
+        FlyingCarpetMotion.sample(in, p);
+        poseFlyingCarpet(model, p);
+    }
+
+    private static final float[] FC_VANILLA = new float[36];
+
+    /**
+     * Auslaufen (kein Emote mehr, aus {@link #apply}): solange der Teppich noch schwebt bzw. sinkt, sitzt der Reiter
+     * weiter im Schneidersitz (keine Beine durch den Teppich); danach steht er auf und geht dabei weich in die
+     * Vanilla-Pose über (Laufen, Blick, Arme), ohne Sprung am Ende.
+     */
+    private static void applyFlyingCarpetOutro(PlayerEntityModel model, PlayerEntityRenderState state) {
+        if (!hammockTransformApplies(state)) return;
+        FlyingCarpetCoordinator.OutroView o = FlyingCarpetCoordinator.outro(state);
+        if (o == null || !(o.motion.rider > 0.0F)) return;
+        ModelPart[] parts = {model.head, model.body, model.rightArm, model.leftArm, model.rightLeg, model.leftLeg};
+        float[] v = FC_VANILLA;
+        for (int i = 0; i < parts.length; i++) {
+            ModelPart m = parts[i];
+            v[6 * i] = m.pitch;
+            v[6 * i + 1] = m.yaw;
+            v[6 * i + 2] = m.roll;
+            v[6 * i + 3] = m.originX;
+            v[6 * i + 4] = m.originY;
+            v[6 * i + 5] = m.originZ;
+        }
+        float zScale = model.body.zScale;
+        resetAllParts(model);
+        FlyingCarpetMotion.Input in = FC_IN;
+        in.t = o.tEnd + o.age;
+        in.slim = model.rightArm.getDefaultTransform().y() > 2.25F;
+        in.speed = o.speed;
+        in.sneak = o.sneak;
+        in.hold = o.hold;
+        in.bank = o.bank;
+        in.look = true;
+        in.lookYaw = state.relativeHeadYaw;
+        in.lookPitch = state.pitch;
+        FlyingCarpetMotion.Pose p = FC_POSE;
+        FlyingCarpetMotion.sampleOutro(in, o.motion, o.tEnd, o.age, o.w0, p);
+        poseFlyingCarpet(model, p);
+        float rider = o.motion.rider;
+        for (int i = 0; i < parts.length; i++) {
+            ModelPart m = parts[i];
+            // Arme: beim Schlagen bzw. Benutzen eines Items weich die Vanilla-Bewegung (die Schultern bleiben am Rumpf)
+            float w = i == 2 || i == 3 ? rider * (1.0F - o.arm) : rider;
+            m.pitch = lerp(v[6 * i], m.pitch, w);
+            m.yaw = lerp(v[6 * i + 1], m.yaw, w);
+            m.roll = lerp(v[6 * i + 2], m.roll, w);
+            m.originX = lerp(v[6 * i + 3], m.originX, rider);
+            m.originY = lerp(v[6 * i + 4], m.originY, rider);
+            m.originZ = lerp(v[6 * i + 5], m.originZ, rider);
+        }
+        model.body.zScale = lerp(zScale, model.body.zScale, rider);
+    }
+
+    /** Pose aus {@link FlyingCarpetMotion} auf das zurückgesetzte Modell übertragen. */
+    private static void poseFlyingCarpet(PlayerEntityModel model, FlyingCarpetMotion.Pose p) {
+        float drop = p.drop;
+        model.body.originY += drop + p.neckDY;
+        model.body.originZ += p.neckDZ;
+        model.head.originY += drop + p.neckDY;
+        model.head.originZ += p.neckDZ;
+        model.rightArm.originY += drop + p.shoulderDY;
+        model.rightArm.originZ += p.shoulderDZ;
+        model.leftArm.originY += drop + p.shoulderDY;
+        model.leftArm.originZ += p.shoulderDZ;
+        model.rightLeg.originY += drop;
+        model.leftLeg.originY += drop;
+
+        model.body.pitch = p.lean;
+        model.body.zScale = p.chestScale;
+        model.head.pitch = p.headPitch;
+        model.head.yaw = p.headYaw;
+        model.head.roll = p.headRoll;
+        model.rightArm.pitch = p.rArmPitch;
+        model.rightArm.yaw = p.rArmYaw;
+        model.rightArm.roll = p.rArmRoll;
+        model.leftArm.pitch = p.lArmPitch;
+        model.leftArm.yaw = p.lArmYaw;
+        model.leftArm.roll = p.lArmRoll;
+        model.rightLeg.pitch = p.rLegPitch;
+        model.rightLeg.yaw = p.rLegYaw;
+        model.leftLeg.pitch = p.lLegPitch;
+        model.leftLeg.yaw = p.lLegYaw;
     }
 
     private static float clampF(float x, float lo, float hi) {

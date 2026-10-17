@@ -48,6 +48,8 @@ public class InvMoveModule {
         if (focused instanceof EditBoxWidget) {
             return false;
         }
+        // Suchleiste unter Truhen & Co. fokussiert: W/A/S/D usw. sind dann Text, kein Laufen
+        if (com.bame.client.gui.search.ContainerSearch.isTyping()) return false;
 
         return true;
     }

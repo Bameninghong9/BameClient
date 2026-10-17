@@ -22,7 +22,8 @@ import org.lwjgl.glfw.GLFW;
  * {@link #endKey} auf; {@code SimpleOptionMixin} verwirft {@code setValue} der Narrator-Option, solange das Flag
  * gesetzt ist (unabhängig von der genauen Stelle des Umschaltcodes). Unterdrückt wird nur ein Druck von B, der ohne
  * offenen Screen begann, während eine aktive Caeser-Taste auf B liegt, samt seiner Wiederholungen (dann ist meist schon
- * das Emote-Rad offen). Begann der Druck in einem Screen (Chat, Inventar, Optionen ...), bleibt alles wie in Vanilla.
+ * das Emote-Rad offen). Begann der Druck in einem Screen (Chat, Inventar, Optionen ...), bleibt alles wie in Vanilla –
+ * außer beim Tippen in die Container-Suche (dort wie in Vanilla-Textfeldern kein Umschalten).
  *
  * <p><b>Hinweis:</b> Ist die Sprachausgabe beim Betreten einer Welt bzw. eines Servers an, erscheint einmal pro
  * Spielsitzung ein Toast, wie man sie ausschaltet.
@@ -52,6 +53,10 @@ public final class NarratorGuard {
         }
         // Druck und Wiederholung: dieselbe Modifier-Abfrage wie Vanilla (Strg, auf dem Mac Cmd)
         suppressToggle = bPressFromGame && input.hasCtrlOrCmd();
+        // Wie bei Vanilla-Textfeldern: beim Tippen in die Container-Suche schaltet Strg+B die Sprachausgabe nicht um
+        if (!suppressToggle && input.hasCtrlOrCmd() && com.bame.client.gui.search.ContainerSearch.isTyping()) {
+            suppressToggle = true;
+        }
     }
 
     /** Jedes Ende von {@code Keyboard.onKey}. */

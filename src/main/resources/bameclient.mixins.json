@@ -6,7 +6,11 @@
   "mixins": [],
   "client": [
     "ChatHudMixin",
+    "ChatHudAccessor",
     "ChatScreenMixin",
+    "ArmorFeatureRendererMixin",
+    "HeadFeatureRendererMixin",
+    "ElytraFeatureRendererMixin",
     "DrawContextPanel3DMixin",
     "SimpleOptionMixin",
     "GameRendererMixin",
@@ -62,7 +66,9 @@
     "StatsGeneralEntryAccessor",
     "StatsEntityEntryAccessor",
     "StatsItemStatEntryAccessor",
-    "StatsItemListAccessor"
+    "StatsItemListAccessor",
+    "HandledScreenMixin",
+    "HandledScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

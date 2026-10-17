@@ -63,7 +63,7 @@ public class EmoteModule {
 
         // Liegestütze nur im Stehen auf dem Boden
         if (type == EmoteType.PUSH_UPS && !canStartPushUps(client)) {
-            client.player.sendMessage(net.minecraft.text.Text.literal("§cPush-Ups gehen nur im Stehen auf dem Boden"), true);
+            playStartDeniedSound(client); // keine Action-Bar bei Push-Ups (Wunsch des Inhabers)
             return;
         }
 
@@ -104,16 +104,20 @@ public class EmoteModule {
             }
         }
 
+        // Fliegender Teppich: nur an Land oder beim vom Server erlaubten Fliegen (das Emote schaltet nie Fliegen ein).
+        // Ohne Text (keine Action-Bar bei Emotes): nur ein leises Zisch-Geräusch wie beim Hexenbesen
+        if (type == EmoteType.FLYING_CARPET && !com.bame.client.emotes.FlyingCarpetCoordinator.canStart(client.player)) {
+            playStartDeniedSound(client);
+            return;
+        }
+
         // Hexenbesen: fester Boden und Luft rund um den Startpunkt (die Kreisbahn ist nur gezeichnet). Ohne Text: nur
         // ein leises Zisch-Geräusch, wenn es hier nicht geht
         if (type == EmoteType.WITCH_BROOM) {
             net.minecraft.client.network.ClientPlayerEntity p = client.player;
             if (!canStartPushUps(client) || p.isTouchingWater() || p.isInLava()
                     || !com.bame.client.emotes.WitchBroomCoordinator.hasSpace(p)) {
-                try {
-                    client.getSoundManager().play(net.minecraft.client.sound.PositionedSoundInstance.master(
-                            net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH, 1.6f, 0.25f));
-                } catch (Throwable ignored) {}
+                playStartDeniedSound(client);
                 return;
             }
         }
@@ -138,6 +142,10 @@ public class EmoteModule {
         if (type == EmoteType.WITCH_BROOM) {
             // Startpunkt und Ausrichtung sofort merken (Mitte der gezeichneten Kreisbahn)
             com.bame.client.emotes.WitchBroomCoordinator.onLocalStart(client.player, startTime);
+        }
+        if (type == EmoteType.FLYING_CARPET) {
+            // Fliegender Teppich: Glättung frisch beginnen (Neigung, Welle; ein noch auslaufender Teppich endet)
+            com.bame.client.emotes.FlyingCarpetCoordinator.onLocalStart(client.player, startTime);
         }
 
         com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(type, false);
@@ -202,6 +210,14 @@ public class EmoteModule {
         startTime = 0;
         coinFlipAnnounced = false;
         com.bame.client.cosmetics.CaeserPlayerSyncManager.broadcastLocalEmote(EmoteType.STOP, true);
+    }
+
+    /** Emote kann hier nicht starten: leises Zisch-Geräusch statt Text (Emotes zeigen keine Action-Bar-Meldungen). */
+    private static void playStartDeniedSound(MinecraftClient client) {
+        try {
+            client.getSoundManager().play(net.minecraft.client.sound.PositionedSoundInstance.master(
+                    net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH, 1.6f, 0.25f));
+        } catch (Throwable ignored) {}
     }
 
     /** Auf dem Boden stehend, nicht schleichend, schwimmend, fliegend, reitend oder schlafend. */

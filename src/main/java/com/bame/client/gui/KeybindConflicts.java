@@ -39,6 +39,7 @@ public final class KeybindConflicts {
             new Entry("HandPositionModule", "Hand Position", () -> HandPositionModule.keyBind, false),
             new Entry("ItemSizeModule", "Item Size", () -> ItemSizeModule.keyBind, false),
             new Entry("TabBadgeModule", "Tablist Badge", () -> TabBadgeModule.keyBind, false),
+            new Entry("HideArmorModule", "Hide Armor", () -> HideArmorModule.keyBind, false),
             new Entry("KeyStrokesModule", "Key Strokes", () -> KeyStrokesModule.keyBind, false),
             new Entry("FpsModule", "FPS", () -> FpsModule.keyBind, false),
             new Entry("PingModule", "Ping", () -> PingModule.keyBind, false),

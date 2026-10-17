@@ -210,6 +210,102 @@ public final class LauncherBridge {
     }
 
     // ------------------------------------------------------------------
+    // Skin speichern (Spieler-Auswahlrad im Chat)
+    // ------------------------------------------------------------------
+
+    /** Body-Limit des Launchers nur für {@code POST /v1/skins/import}. */
+    public static final int SKIN_IMPORT_MAX_BODY = 512 * 1024;
+
+    public enum SkinImportStatus {
+        /** 201: neu in der Skin-Bibliothek. */
+        CREATED,
+        /** 200 mit {@code duplicate:true}: schon vorhanden (kommt auch bei voller Bibliothek). */
+        DUPLICATE,
+        /** Fehler-Antwort des Launchers; {@code message} ist anzeigbar. */
+        ERROR,
+        /** Keine Verbindung (oder älterer Launcher ohne diese Route): lokal speichern. */
+        UNREACHABLE,
+        /** Nicht über den Launcher gestartet (Umgebungsvariablen fehlen): lokal speichern. */
+        NOT_AVAILABLE,
+        /** Anfrage wäre größer als das Body-Limit: gar nicht erst senden, lokal speichern. */
+        TOO_LARGE
+    }
+
+    /** Ergebnis von {@link #importSkin}; {@code message} nur bei {@link SkinImportStatus#ERROR} gesetzt (ohne Token). */
+    public record SkinImportResult(SkinImportStatus status, String message) {}
+
+    /**
+     * {@code POST /v1/skins/import} mit {@code { name, data: "data:image/png;base64,...", variant }}. Synchron: nur aus
+     * einem Hintergrund-Thread aufrufen. Jede Anfrage zählt fürs Rate-Limit des Launchers (10/Minute), deshalb keine
+     * automatischen Wiederholungen – außer genau einmal bei einem reinen Verbindungsfehler (Anfrage kam nicht an).
+     * Das Token steht nur im Authorization-Header und wird nie geloggt.
+     */
+    public static SkinImportResult importSkin(String name, byte[] png, String variant) {
+        if (!isAvailable()) return new SkinImportResult(SkinImportStatus.NOT_AVAILABLE, null);
+        JsonObject payload = new JsonObject();
+        payload.addProperty("name", name);
+        payload.addProperty("data", com.bame.client.skin.SkinUrls.pngDataUrl(png));
+        payload.addProperty("variant", variant);
+        byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
+        if (body.length > SKIN_IMPORT_MAX_BODY) return new SkinImportResult(SkinImportStatus.TOO_LARGE, null);
+        HttpRequest req = request("/v1/skins/import")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                .build();
+        HttpResponse<String> resp;
+        try {
+            resp = sendRetryingConnectOnce(req);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            lastReachable = Boolean.FALSE;
+            return new SkinImportResult(SkinImportStatus.UNREACHABLE, null);
+        } catch (Exception e) {
+            lastReachable = Boolean.FALSE;
+            LOGGER.debug("Skin import request failed: {}", e.getClass().getSimpleName());
+            return new SkinImportResult(SkinImportStatus.UNREACHABLE, null);
+        }
+        lastReachable = Boolean.TRUE;
+        int status = resp.statusCode();
+        String respBody = resp.body();
+        if (status == 200 || status == 201) {
+            Boolean duplicate = null;
+            try {
+                JsonElement el = JsonParser.parseString(respBody);
+                if (el.isJsonObject() && el.getAsJsonObject().has("duplicate")
+                        && el.getAsJsonObject().get("duplicate").isJsonPrimitive()) {
+                    duplicate = el.getAsJsonObject().get("duplicate").getAsBoolean();
+                }
+            } catch (Throwable ignored) {}
+            boolean dup = com.bame.client.skin.SkinImportReply.isDuplicate(status, duplicate);
+            return new SkinImportResult(dup ? SkinImportStatus.DUPLICATE : SkinImportStatus.CREATED, null);
+        }
+        if (status == 404) {
+            // Älterer Launcher ohne diese Route: wie "nicht verbunden" behandeln (Skin lokal sichern)
+            return new SkinImportResult(SkinImportStatus.UNREACHABLE, null);
+        }
+        String launcherMessage = null;
+        try {
+            if (respBody != null && !respBody.isBlank()) {
+                JsonElement el = JsonParser.parseString(respBody);
+                if (el.isJsonObject()) launcherMessage = getString(el.getAsJsonObject(), "error");
+            }
+        } catch (Throwable ignored) {}
+        String retryAfter = resp.headers().firstValue("Retry-After").orElse(null);
+        return new SkinImportResult(SkinImportStatus.ERROR,
+                com.bame.client.skin.SkinImportReply.errorMessage(status, launcherMessage, retryAfter));
+    }
+
+    /** Senden; nur wenn die Verbindung gar nicht zustande kam, genau ein zweiter Versuch (zählt nicht doppelt). */
+    private static HttpResponse<String> sendRetryingConnectOnce(HttpRequest req) throws java.io.IOException, InterruptedException {
+        try {
+            return client().send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (java.net.ConnectException | java.net.http.HttpConnectTimeoutException e) {
+            Thread.sleep(400L);
+            return client().send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Intern
     // ------------------------------------------------------------------
 

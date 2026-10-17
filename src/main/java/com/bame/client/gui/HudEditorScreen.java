@@ -3,7 +3,13 @@ package com.bame.client.gui;
 import com.bame.client.BameClientConfig;
 import com.bame.client.module.*;
 import com.bame.client.module.KeyStrokesModule.KeyStroke;
+import com.bame.client.render.ArmorHudLayout;
+import com.bame.client.render.ArmorHudRenderer;
 import com.bame.client.render.FakeScoreboardRenderer;
+import com.bame.client.render.HotbarHud;
+import com.bame.client.render.HotbarLayout;
+import com.bame.client.render.InventoryHudLayout;
+import com.bame.client.render.InventoryHudRenderer;
 import com.bame.client.render.KeyStrokesRenderer;
 import com.bame.client.render.ScoreboardRenderer;
 import com.bame.client.render.SpotifyHudRenderer;
@@ -15,8 +21,8 @@ import java.awt.Color;
 
 public class HudEditorScreen extends Screen {
     private final Screen parent;
-    
-    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo", "fakeScoreboard", "scoreboard", "clock", "coordinates", "potions", "targetHud", "armorHud", "spotifyHud"
+
+    private String draggingTarget = NoneTarget; // "keystrokes", "fps", "ping", "cps", "serverInfo", "fakeScoreboard", "scoreboard", "clock", "coordinates", "potions", "targetHud", "armorHud", "inventoryHud", "spotifyHud", "hotbar"
     private String resizingTarget = NoneTarget;
     private static final String NoneTarget = "none";
     private KeyStroke draggingKey = null;
@@ -48,6 +54,22 @@ public class HudEditorScreen extends Screen {
     private float cpHue = 0f, cpSat = 1f, cpVal = 1f, cpAlpha = 1f;
     private static final int CP_W = 148;
     private static final int CP_H = 118;
+
+    // Vanilla-Hotbar-Gruppe (HotbarModule): ziehen, Ecke = skalieren, Rechtsklick = kleines Menü
+    private static final String HOTBAR_TARGET = "hotbar";
+    private boolean hotbarPopupOpen = false;
+    private int hotbarPopupX, hotbarPopupY;
+    private static final int HOTBAR_POPUP_W = 160;
+    private static final int HOTBAR_POPUP_H = 72;
+
+    // Armor HUD ("armorHud"): Position frei oder am Hotbar-Anker (dann nicht ziehbar, nur Hinweis), Größe wie die anderen
+    private static final String ARMOR_TARGET = "armorHud";
+    // Inventory HUD ("inventoryHud"): wie die anderen Elemente (frei, Begrenzung am Rand, Einrasten); Platzierung aus dem Renderer
+    private static final String INVENTORY_TARGET = "inventoryHud";
+    /** Effektive Größe / eigene Größe beim Start einer Größenänderung (am Anker: Hotbar-Größe, sonst 1). */
+    private float armorScaleFactor = 1.0f;
+    /** Klick auf das angeheftete HUD: Anker-Hinweis bis zu diesem Zeitpunkt zeigen. */
+    private long armorHintUntil = 0L;
 
     private boolean isDockableTarget(String target) {
         return target.equals("fps") || target.equals("ping") || target.equals("serverInfo_name") || target.equals("serverInfo_server") || target.equals("serverInfo_time");
@@ -82,6 +104,7 @@ public class HudEditorScreen extends Screen {
     private void openPopup(String target, int mx, int my) {
         this.popupTarget = target;
         this.activeColorPickerTarget = null;
+        this.hotbarPopupOpen = false;
         this.popupX = Math.max(10, Math.min(width - POPUP_W - 10, mx));
         this.popupY = Math.max(10, Math.min(height - POPUP_H - 10, my));
     }
@@ -100,6 +123,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.bgMode;
             case "targetHud" -> TargetHudModule.bgMode;
             case "armorHud" -> ArmorHudModule.bgMode;
+            case "inventoryHud" -> InventoryHudModule.bgMode;
             case "spotifyHud" -> SpotifyHudModule.bgMode;
             case "reachDisplay" -> ReachDisplayModule.bgMode;
             default -> 0;
@@ -120,6 +144,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.bgMode = mode;
             case "targetHud" -> TargetHudModule.bgMode = mode;
             case "armorHud" -> ArmorHudModule.bgMode = mode;
+            case "inventoryHud" -> InventoryHudModule.bgMode = mode;
             case "spotifyHud" -> SpotifyHudModule.bgMode = mode;
             case "reachDisplay" -> ReachDisplayModule.bgMode = mode;
         }
@@ -140,6 +165,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.outlineColor;
             case "targetHud" -> TargetHudModule.outlineColor;
             case "armorHud" -> ArmorHudModule.outlineColor;
+            case "inventoryHud" -> InventoryHudModule.outlineColor;
             case "spotifyHud" -> SpotifyHudModule.outlineColor;
             case "reachDisplay" -> ReachDisplayModule.outlineColor;
             default -> 0xFFFFFFFF;
@@ -160,6 +186,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.outlineColor = color;
             case "targetHud" -> TargetHudModule.outlineColor = color;
             case "armorHud" -> ArmorHudModule.outlineColor = color;
+            case "inventoryHud" -> InventoryHudModule.outlineColor = color;
             case "spotifyHud" -> SpotifyHudModule.outlineColor = color;
             case "reachDisplay" -> ReachDisplayModule.outlineColor = color;
         }
@@ -180,6 +207,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.scale = scale;
             case "targetHud" -> TargetHudModule.scale = scale;
             case "armorHud" -> ArmorHudModule.scale = scale;
+            case "inventoryHud" -> InventoryHudModule.scale = scale;
             case "spotifyHud" -> SpotifyHudModule.scale = scale;
             case "reachDisplay" -> ReachDisplayModule.scale = scale;
         }
@@ -198,6 +226,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.customWidth = width;
             case "targetHud" -> TargetHudModule.customWidth = width;
             case "armorHud" -> ArmorHudModule.customWidth = width;
+            case "inventoryHud" -> InventoryHudModule.customWidth = width;
             case "spotifyHud" -> SpotifyHudModule.customWidth = width;
             case "reachDisplay" -> ReachDisplayModule.customWidth = width;
         }
@@ -216,6 +245,7 @@ public class HudEditorScreen extends Screen {
             case "potions" -> PotionsModule.customHeight = height;
             case "targetHud" -> TargetHudModule.customHeight = height;
             case "armorHud" -> ArmorHudModule.customHeight = height;
+            case "inventoryHud" -> InventoryHudModule.customHeight = height;
             case "spotifyHud" -> SpotifyHudModule.customHeight = height;
             case "reachDisplay" -> ReachDisplayModule.customHeight = height;
         }
@@ -328,8 +358,10 @@ public class HudEditorScreen extends Screen {
         ServerInfoModule.timeX = 10;     ServerInfoModule.timeY = 54;
         TargetHudModule.hudX = -1;       TargetHudModule.hudY = -1;    // -1 = auto (centered, bottom)
         ArmorHudModule.hudX = -1;        ArmorHudModule.hudY = -1;     // -1 = auto (centered, bottom)
+        InventoryHudModule.hudX = -1;    InventoryHudModule.hudY = -1; // -1 = auto (bottom right)
         FakeScoreboardModule.hudX = -1;  FakeScoreboardModule.hudY = -1; // -1 = auto (right, centered)
         ScoreboardModule.hudX = -1;      ScoreboardModule.hudY = -1;   // -1 = auto (right, centered)
+        HotbarModule.resetPosition();                                  // offset 0/0 = exact vanilla position
         BameClientConfig.save();
     }
 
@@ -338,16 +370,16 @@ public class HudEditorScreen extends Screen {
         // Darken background slightly
         context.fill(0, 0, width, height, 0x44000000);
 
-        snapLineX = -1;
-        snapLineY = -1;
-
-        // Draw snap lines if active
+        // Draw snap lines if active (snapLineX/Y are set while dragging and cleared on the next drag step / release)
         if (!draggingTarget.equals(NoneTarget) || draggingKey != null) {
             int cx = width / 2;
             int cy = height / 2;
             context.fill(cx, 0, cx + 1, height, 0x44FFFFFF);
             context.fill(0, cy, width, cy + 1, 0x44FFFFFF);
         }
+
+        // 0. Vanilla hotbar group first (bottom layer): the mod's own HUD elements are drawn on top of it
+        renderHotbarElement(context, mouseX, mouseY);
 
         // 1. Render KeyStrokes
         if (KeyStrokesModule.enabled) {
@@ -593,25 +625,20 @@ public class HudEditorScreen extends Screen {
             }
         }
 
-        // 11. Render Armor HUD Module
+        // 11. Render Armor HUD Module (same placement as in-game: free position or hotbar anchor, clamped to the screen)
         if (ArmorHudModule.enabled) {
-            int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight();
-            float s = ArmorHudModule.scale;
-            int x = ArmorHudModule.hudX;
-            if (x == -1) {
-                x = (width - (int)(w * s)) / 2;
-                ArmorHudModule.hudX = x;
-            }
-            int y = ArmorHudModule.hudY;
-            if (y == -1) {
-                y = height - 100;
-                ArmorHudModule.hudY = y;
-            }
+            ArmorHudRenderer.place(width, height, true);
+            int x = ArmorHudRenderer.placedX(); int y = ArmorHudRenderer.placedY();
+            int w = ArmorHudRenderer.boxWidth(); int h = ArmorHudRenderer.boxHeight();
+            float s = ArmorHudRenderer.placedScale();
             boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
 
-            StatusHudRenderer.renderArmorHud(context, x, y, s, true);
-            if (hover || draggingTarget.equals("armorHud") || resizingTarget.equals("armorHud")) {
+            ArmorHudRenderer.render(context, x, y, s, true);
+            if (hover || draggingTarget.equals(ARMOR_TARGET) || resizingTarget.equals(ARMOR_TARGET)) {
                 drawBoundingControls(context, x, y, w, h, s);
+            }
+            if (ArmorHudModule.isAnchored() && (hover || System.currentTimeMillis() < armorHintUntil)) {
+                drawArmorAnchorHint(context, x, y, w, h, s);
             }
         }
 
@@ -650,6 +677,20 @@ public class HudEditorScreen extends Screen {
             }
         }
 
+        // 14. Render Inventory HUD (same placement as in-game, placeholders if the inventory is empty)
+        if (InventoryHudModule.enabled) {
+            InventoryHudRenderer.place(width, height, true);
+            int x = InventoryHudRenderer.placedX(); int y = InventoryHudRenderer.placedY();
+            int w = InventoryHudRenderer.boxWidth(); int h = InventoryHudRenderer.boxHeight();
+            float s = InventoryHudRenderer.placedScale();
+            boolean hover = inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s);
+
+            InventoryHudRenderer.render(context, x, y, s, true);
+            if (hover || draggingTarget.equals(INVENTORY_TARGET) || resizingTarget.equals(INVENTORY_TARGET)) {
+                drawBoundingControls(context, x, y, w, h, s);
+            }
+        }
+
         if (snapLineX != -1) context.fill(snapLineX, 0, snapLineX + 1, height, 0xFF00FF00);
         if (snapLineY != -1) context.fill(0, snapLineY, width, snapLineY + 1, 0xFF00FF00);
 
@@ -674,6 +715,7 @@ public class HudEditorScreen extends Screen {
                 case "potions" -> "Potions";
                 case "targetHud" -> "Target HUD";
                 case "armorHud" -> "Armor HUD";
+                case "inventoryHud" -> "Inventory HUD";
                 case "spotifyHud" -> "Spotify HUD";
                 default -> "HUD";
             };
@@ -716,6 +758,10 @@ public class HudEditorScreen extends Screen {
                     context.drawText(client.textRenderer, CustomGuiUtils.getFontText(bgs[i]), popupX + 8 + (POPUP_W - 16 - tw) / 2, by + 5, selected ? 0xFFFFFFFF : 0xFFD4D8E0, false);
                 }
             }
+        }
+
+        if (hotbarPopupOpen) {
+            renderHotbarPopup(context, mouseX, mouseY);
         }
 
         // Render Color Picker modal if active (Bild 4)
@@ -807,6 +853,227 @@ public class HudEditorScreen extends Screen {
         context.drawText(client.textRenderer, CustomGuiUtils.getFontText(hex), barX + 8, hexY + 6, 0xFFFFFFFF, false);
     }
 
+    // ------------------------------------------------------------------------------------------------------------
+    // Vanilla hotbar group ("hotbar"): preview at the in-game position, always-visible frame with label, corner = scale
+    // ------------------------------------------------------------------------------------------------------------
+
+    private boolean insideHotbar(double mx, double my, HotbarLayout.Box b) {
+        return inside(mx, my, b.x() - 2, b.y() - 2, b.w() + 4, b.h() + 4);
+    }
+
+    /** Scale handle in the bottom-right corner, inside the frame (the hotbar sits on the bottom edge by default). */
+    private boolean insideHotbarCorner(double mx, double my, HotbarLayout.Box b) {
+        return inside(mx, my, b.right() - 10, b.bottom() - 10, 12, 12);
+    }
+
+    private void renderHotbarElement(DrawContext context, int mouseX, int mouseY) {
+        HotbarHud.renderPreview(context, width, height);
+
+        HotbarLayout.Box b = HotbarHud.currentBox(width, height);
+        boolean hover = insideHotbar(mouseX, mouseY, b);
+        boolean active = hover || draggingTarget.equals(HOTBAR_TARGET) || resizingTarget.equals(HOTBAR_TARGET);
+        int x0 = b.x() - 2, y0 = b.y() - 2, w0 = b.w() + 4, h0 = b.h() + 4;
+        if (active) {
+            context.fill(x0, y0, x0 + w0, y0 + h0, 0x22FFFFFF);
+        }
+        // Frame always visible, so the group can be found and grabbed even with an empty hotbar
+        context.drawStrokedRectangle(x0, y0, w0, h0, active ? 0xCCFFFFFF : 0x55FFFFFF);
+
+        float s = HotbarLayout.clampScale(HotbarModule.scale);
+        String label = s == 1.0f ? "Hotbar" : "Hotbar " + Math.round(s * 100) + "%";
+        Text labelText = CustomGuiUtils.getFontText(label);
+        int labelY = y0 - 10 >= 0 ? y0 - 10 : y0 + h0 + 2;
+        context.drawText(client.textRenderer, labelText, x0 + 2, labelY, active ? 0xFFFFFFFF : 0xB0FFFFFF, true);
+        if (hover && draggingTarget.equals(NoneTarget) && resizingTarget.equals(NoneTarget) && !hotbarPopupOpen) {
+            int hintX = x0 + 2 + client.textRenderer.getWidth(labelText) + 6;
+            context.drawText(client.textRenderer, CustomGuiUtils.getFontText("Right-click: options"), hintX, labelY, 0xFF8E95A4, true);
+        }
+
+        if (active) {
+            // Corner chevron (scale), same look as the other elements but inside the frame
+            int rx = b.right(), by = b.bottom();
+            context.fill(rx - 8, by - 2, rx, by, 0xFFFFFFFF);
+            context.fill(rx - 2, by - 8, rx, by, 0xFFFFFFFF);
+        }
+    }
+
+    private void openHotbarPopup(int mx, int my) {
+        this.popupTarget = null;
+        this.activeColorPickerTarget = null;
+        this.hotbarPopupOpen = true;
+        this.hotbarPopupX = Math.max(10, Math.min(width - HOTBAR_POPUP_W - 10, mx));
+        this.hotbarPopupY = Math.max(10, Math.min(height - HOTBAR_POPUP_H - 10, my));
+    }
+
+    private void renderHotbarPopup(DrawContext context, int mouseX, int mouseY) {
+        int x = hotbarPopupX, y = hotbarPopupY, w = HOTBAR_POPUP_W;
+        CustomGuiUtils.fillUltraRounded(context, x, y, w, HOTBAR_POPUP_H, 0xF5141822, 6);
+        CustomGuiUtils.drawUltraRoundedOutline(context, x, y, w, HOTBAR_POPUP_H, GuiTheme.accent(), 6);
+        context.drawText(client.textRenderer, CustomGuiUtils.getFontText("Hotbar"), x + 8, y + 8, 0xFFFFFFFF, false);
+        context.drawText(client.textRenderer, Text.literal("×"), x + w - 14, y + 6, 0xFF8E95A4, false);
+
+        // Row 1: hearts, armor, hunger, air, mount health and item name move with the hotbar (default on)
+        int rowY = y + 24;
+        boolean hoverRow = inside(mouseX, mouseY, x + 8, rowY, w - 16, 18);
+        CustomGuiUtils.fillUltraRounded(context, x + 8, rowY, w - 16, 18, hoverRow ? 0xFF252A34 : 0xFF181C24, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(context, x + 8, rowY, w - 16, 18, hoverRow ? 0xFF606575 : 0xFF292D36, 4);
+        context.drawText(client.textRenderer, CustomGuiUtils.getFontText("Move Status Bars"), x + 14, rowY + 5, 0xFFD4D8E0, false);
+        CustomToggleWidget.draw(context, x + w - 12 - 26, rowY + 2, 26, 14, HotbarModule.moveStatusBars);
+
+        // Row 2: back to vanilla position and size
+        int resetY = y + 46;
+        boolean hoverReset = inside(mouseX, mouseY, x + 8, resetY, w - 16, 18);
+        CustomGuiUtils.fillUltraRounded(context, x + 8, resetY, w - 16, 18, hoverReset ? 0xFF252A34 : 0xFF181C24, 4);
+        CustomGuiUtils.drawUltraRoundedOutline(context, x + 8, resetY, w - 16, 18, hoverReset ? GuiTheme.accent() : 0xFF292D36, 4);
+        Text resetText = CustomGuiUtils.getFontText("Reset Hotbar");
+        int tw = client.textRenderer.getWidth(resetText);
+        context.drawText(client.textRenderer, resetText, x + (w - tw) / 2, resetY + 5, hoverReset ? 0xFFFFFFFF : 0xFFD4D8E0, false);
+    }
+
+    /** Clicks while the hotbar popup is open; a click outside closes it (like the background popup). */
+    private boolean handleHotbarPopupClick(double mouseX, double mouseY, int button) {
+        int x = hotbarPopupX, y = hotbarPopupY, w = HOTBAR_POPUP_W;
+        if (button == 0 && inside(mouseX, mouseY, x, y, w, HOTBAR_POPUP_H)) {
+            if (inside(mouseX, mouseY, x + w - 18, y + 4, 16, 16)) {
+                hotbarPopupOpen = false;
+                return true;
+            }
+            if (inside(mouseX, mouseY, x + 8, y + 24, w - 16, 18)) {
+                HotbarModule.moveStatusBars = !HotbarModule.moveStatusBars;
+                BameClientConfig.save();
+                return true;
+            }
+            if (inside(mouseX, mouseY, x + 8, y + 46, w - 16, 18)) {
+                HotbarModule.resetLayout();
+                BameClientConfig.save();
+                return true;
+            }
+            return true;
+        }
+        hotbarPopupOpen = false;
+        return true;
+    }
+
+    /** Left click on the hotbar group: corner = scale, frame = drag. Checked last (large, sits under other elements). */
+    private boolean checkHotbarControls(double mouseX, double mouseY) {
+        HotbarLayout.Box b = HotbarHud.currentBox(width, height);
+        if (insideHotbarCorner(mouseX, mouseY, b)) {
+            resizingTarget = HOTBAR_TARGET;
+            resizeMode = 0;
+            startX = (int) mouseX;
+            startY = (int) mouseY;
+            startScale = HotbarLayout.clampScale(HotbarModule.scale);
+            return true;
+        }
+        if (insideHotbar(mouseX, mouseY, b)) {
+            draggingTarget = HOTBAR_TARGET;
+            // Grab relative to the offset actually drawn (the stored one may be clamped on this screen size)
+            dragOffsetX = (int) mouseX - HotbarHud.effectiveOffsetX(width);
+            dragOffsetY = (int) mouseY - HotbarHud.effectiveOffsetY(height);
+            return true;
+        }
+        return false;
+    }
+
+    /** Drag: snap to the screen centre like the other elements, keep the whole group on screen, store as offset. */
+    private void dragHotbar(double mouseX, double mouseY) {
+        float s = HotbarLayout.clampScale(HotbarModule.scale);
+        int left = HotbarHud.groupLeft(), right = HotbarHud.groupRight(), top = HotbarHud.groupTop();
+        int dx = (int) mouseX - dragOffsetX;
+        int dy = (int) mouseY - dragOffsetY;
+
+        int snappedX = HotbarLayout.snapCenterX(dx);           // centred = vanilla x
+        if (snappedX == 0) snapLineX = width / 2;
+        int snappedY = HotbarLayout.snapCenterY(dy, height, s, top, HotbarLayout.BOTTOM);
+        if (snappedY != dy) snapLineY = height / 2;
+
+        HotbarModule.offsetX = HotbarLayout.clampOffsetX(snappedX, width, s, left, right);
+        HotbarModule.offsetY = HotbarLayout.clampOffsetY(snappedY, height, s, top, HotbarLayout.BOTTOM);
+    }
+
+    /** Corner drag: scale 50-150 % around the bottom-centre anchor, snaps to 100 % (vanilla size). */
+    private void resizeHotbar(double mouseX, double mouseY) {
+        float diff = (float) ((mouseX - startX) + (mouseY - startY)) / 1.414f;
+        float newScale = HotbarLayout.clampScale(startScale + diff / 100.0f);
+        if (Math.abs(newScale - 1.0f) < 0.03f) newScale = 1.0f;
+        HotbarModule.scale = HotbarLayout.clampScale(Math.round(newScale * 100f) / 100f);
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Armor HUD ("armorHud"): placement from ArmorHudRenderer (free or hotbar anchor), anchored = not draggable
+    // ------------------------------------------------------------------------------------------------------------
+
+    /** Hint above (or below) the anchored Armor HUD: it follows the hotbar and can only be moved with Anchor: Free. */
+    private void drawArmorAnchorHint(DrawContext context, int x, int y, int w, int h, float s) {
+        Text line1 = CustomGuiUtils.getFontText("Anchored to the hotbar (" + ArmorHudLayout.anchorName(ArmorHudModule.anchor) + ")");
+        Text line2 = CustomGuiUtils.getFontText("Set Anchor to Free in the menu to move it");
+        int boxBottom = y + (int) Math.ceil(h * s);
+        int textY = y - 24 >= 0 ? y - 24 : boxBottom + 4;
+        int tw = Math.max(client.textRenderer.getWidth(line1), client.textRenderer.getWidth(line2));
+        int textX = Math.max(2, Math.min(width - tw - 2, x));
+        context.drawText(client.textRenderer, line1, textX, textY, 0xFFFFFFFF, true);
+        context.drawText(client.textRenderer, line2, textX, textY + 11, 0xFF8E95A4, true);
+    }
+
+    /**
+     * Left click on the Armor HUD: X = hide, corner = scale, side/bottom pill = minimum size, body = drag (free) or
+     * anchor hint (hotbar anchor). Same hit areas as {@link #checkControls}, scaled with the effective size.
+     */
+    private boolean checkArmorControls(double mx, double my) {
+        ArmorHudRenderer.place(width, height, true);
+        int x = ArmorHudRenderer.placedX(), y = ArmorHudRenderer.placedY();
+        int w = ArmorHudRenderer.boxWidth(), h = ArmorHudRenderer.boxHeight();
+        float s = ArmorHudRenderer.placedScale();
+        float own = ArmorHudLayout.sanitizeScale(ArmorHudModule.scale);
+
+        if (inside(mx, my, x + w * s - 10 * s, y - 4 * s, 14 * s, 14 * s)) {
+            ArmorHudModule.enabled = false;
+            BameClientConfig.save();
+            return true;
+        }
+        int mode = -1;
+        if (inside(mx, my, x + w * s - 8 * s, y + h * s - 8 * s, 12 * s, 12 * s)) mode = 0;
+        else if (inside(mx, my, x + w * s - 6 * s, y + (h * s) / 2 - 10 * s, 14 * s, 20 * s)) mode = 1;
+        else if (inside(mx, my, x + (w * s) / 2 - 10 * s, y + h * s - 6 * s, 20 * s, 14 * s)) mode = 2;
+        if (mode >= 0) {
+            resizingTarget = ARMOR_TARGET;
+            resizeMode = mode;
+            startX = (int) mx;
+            startY = (int) my;
+            startScale = own;
+            armorScaleFactor = s / own;
+            startW = w;
+            startH = h;
+            return true;
+        }
+        if (inside(mx, my, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+            if (ArmorHudModule.isAnchored()) {
+                armorHintUntil = System.currentTimeMillis() + 2500L;
+                return true;
+            }
+            draggingTarget = ARMOR_TARGET;
+            dragOffsetX = (int) mx - x;
+            dragOffsetY = (int) my - y;
+            return true;
+        }
+        return false;
+    }
+
+    /** Resize like the other elements, but the stored scale is the Armor HUD's own (the anchor multiplies the hotbar size). */
+    private void resizeArmor(double mouseX, double mouseY) {
+        float factor = Math.max(0.01f, armorScaleFactor);
+        if (resizeMode == 0) {
+            float diff = (float) ((mouseX - startX) + (mouseY - startY)) / 1.414f;
+            ArmorHudModule.scale = Math.max(0.5f, Math.min(3.0f, startScale + diff / 100.0f / factor));
+        } else if (resizeMode == 1) {
+            float deltaW = (float) (mouseX - startX) / Math.max(0.01f, startScale * factor);
+            ArmorHudModule.customWidth = Math.max(20, Math.round(startW + deltaW));
+        } else if (resizeMode == 2) {
+            float deltaH = (float) (mouseY - startY) / Math.max(0.01f, startScale * factor);
+            ArmorHudModule.customHeight = Math.max(14, Math.round(startH + deltaH));
+        }
+    }
+
     private void drawBoundingControls(DrawContext context, int x, int y, int w, int h, float scale) {
         context.getMatrices().pushMatrix();
         context.getMatrices().translate((float)x, (float)y);
@@ -892,6 +1159,11 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean twice) {
         double mouseX = click.x(); double mouseY = click.y();
+
+        // 0. Hotbar popup (right-click menu of the vanilla hotbar group)
+        if (hotbarPopupOpen) {
+            return handleHotbarPopupClick(mouseX, mouseY, click.button());
+        }
 
         // 1. Color Picker interaction
         if (activeColorPickerTarget != null) {
@@ -1077,11 +1349,11 @@ public class HudEditorScreen extends Screen {
                 }
             }
             if (ArmorHudModule.enabled) {
-                int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight(); float s = ArmorHudModule.scale;
-                int x = ArmorHudModule.hudX; if (x == -1) x = (width - (int)(w * s)) / 2;
-                int y = ArmorHudModule.hudY; if (y == -1) y = height - 100;
+                ArmorHudRenderer.place(width, height, true);
+                int w = ArmorHudRenderer.boxWidth(); int h = ArmorHudRenderer.boxHeight(); float s = ArmorHudRenderer.placedScale();
+                int x = ArmorHudRenderer.placedX(); int y = ArmorHudRenderer.placedY();
                 if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
-                    openPopup("armorHud", (int)mouseX, (int)mouseY); return true;
+                    openPopup(ARMOR_TARGET, (int)mouseX, (int)mouseY); return true;
                 }
             }
             if (SpotifyHudModule.enabled) {
@@ -1097,6 +1369,17 @@ public class HudEditorScreen extends Screen {
                 if (inside(mouseX, mouseY, ReachDisplayModule.hudX - 2, ReachDisplayModule.hudY - 2, (w + 4) * s, (h + 4) * s)) {
                     openPopup("reachDisplay", (int)mouseX, (int)mouseY); return true;
                 }
+            }
+            if (InventoryHudModule.enabled) {
+                InventoryHudRenderer.place(width, height, true);
+                int w = InventoryHudRenderer.boxWidth(); int h = InventoryHudRenderer.boxHeight(); float s = InventoryHudRenderer.placedScale();
+                int x = InventoryHudRenderer.placedX(); int y = InventoryHudRenderer.placedY();
+                if (inside(mouseX, mouseY, x - 2, y - 2, (w + 4) * s, (h + 4) * s)) {
+                    openPopup(INVENTORY_TARGET, (int)mouseX, (int)mouseY); return true;
+                }
+            }
+            if (insideHotbar(mouseX, mouseY, HotbarHud.currentBox(width, height))) {
+                openHotbarPopup((int)mouseX, (int)mouseY); return true;
             }
             return false;
         }
@@ -1287,15 +1570,8 @@ public class HudEditorScreen extends Screen {
             })) return true;
         }
 
-        // 11. Check Armor HUD
-        if (ArmorHudModule.enabled) {
-            int w = StatusHudRenderer.getArmorHudWidth(client); int h = StatusHudRenderer.getArmorHudHeight(); float s = ArmorHudModule.scale;
-            int x = ArmorHudModule.hudX;
-            if (x == -1) { x = (width - (int)(w * s)) / 2; ArmorHudModule.hudX = x; }
-            int y = ArmorHudModule.hudY;
-            if (y == -1) { y = height - 100; ArmorHudModule.hudY = y; }
-            if (checkControls(mouseX, mouseY, "armorHud", x, y, w, h, s, () -> ArmorHudModule.enabled = false)) return true;
-        }
+        // 11. Check Armor HUD (free: like the others; hotbar anchor: resize only, body click shows the anchor hint)
+        if (ArmorHudModule.enabled && checkArmorControls(mouseX, mouseY)) return true;
 
         // 12. Check Spotify HUD
         if (SpotifyHudModule.enabled) {
@@ -1313,6 +1589,17 @@ public class HudEditorScreen extends Screen {
             if (checkControls(mouseX, mouseY, "reachDisplay", ReachDisplayModule.hudX, ReachDisplayModule.hudY, w, h, s, () -> ReachDisplayModule.enabled = false)) return true;
         }
 
+        // 13b. Check Inventory HUD (placement from the renderer: stored or auto bottom right, clamped to the screen)
+        if (InventoryHudModule.enabled) {
+            InventoryHudRenderer.place(width, height, true);
+            int w = InventoryHudRenderer.boxWidth(); int h = InventoryHudRenderer.boxHeight(); float s = InventoryHudRenderer.placedScale();
+            if (checkControls(mouseX, mouseY, INVENTORY_TARGET, InventoryHudRenderer.placedX(), InventoryHudRenderer.placedY(), w, h, s,
+                    () -> InventoryHudModule.enabled = false)) return true;
+        }
+
+        // 14. Check vanilla hotbar group (last: it is large and drawn below the other elements)
+        if (checkHotbarControls(mouseX, mouseY)) return true;
+
         return super.mouseClicked(click, twice);
     }
 
@@ -1322,6 +1609,20 @@ public class HudEditorScreen extends Screen {
 
         if (colorPickerDrag >= 0 && activeColorPickerTarget != null) {
             updateColorPicker(mouseX, mouseY);
+            return true;
+        }
+
+        // Each drag step recomputes the snap guides; render() only draws them
+        snapLineX = -1;
+        snapLineY = -1;
+
+        if (resizingTarget.equals(HOTBAR_TARGET)) {
+            resizeHotbar(mouseX, mouseY);
+            return true;
+        }
+
+        if (resizingTarget.equals(ARMOR_TARGET)) {
+            resizeArmor(mouseX, mouseY);
             return true;
         }
 
@@ -1339,6 +1640,11 @@ public class HudEditorScreen extends Screen {
                 int newHeight = Math.max(14, Math.round(startH + deltaH));
                 setTargetCustomHeight(resizingTarget, newHeight);
             }
+            return true;
+        }
+
+        if (draggingTarget.equals(HOTBAR_TARGET)) {
+            dragHotbar(mouseX, mouseY);
             return true;
         }
 
@@ -1430,7 +1736,18 @@ public class HudEditorScreen extends Screen {
                 case "coordinates" -> { gw = (int)(StatusHudRenderer.getCoordinatesWidth(client) * CoordinatesModule.scale); gh = (int)(StatusHudRenderer.getCoordinatesHeight(client) * CoordinatesModule.scale); s = CoordinatesModule.scale; }
                 case "potions" -> { gw = (int)(StatusHudRenderer.getPotionsWidth(client, true) * PotionsModule.scale); gh = (int)(StatusHudRenderer.getPotionsHeight(client, true) * PotionsModule.scale); s = PotionsModule.scale; }
                 case "targetHud" -> { gw = (int)(StatusHudRenderer.getTargetHudWidth() * TargetHudModule.scale); gh = (int)(StatusHudRenderer.getTargetHudHeight() * TargetHudModule.scale); s = TargetHudModule.scale; }
-                case "armorHud" -> { gw = (int)(StatusHudRenderer.getArmorHudWidth(client) * ArmorHudModule.scale); gh = (int)(StatusHudRenderer.getArmorHudHeight() * ArmorHudModule.scale); s = ArmorHudModule.scale; }
+                case "armorHud" -> {
+                    ArmorHudRenderer.place(width, height, true);
+                    s = ArmorHudRenderer.placedScale();
+                    gw = ArmorHudLayout.scaledSize(ArmorHudRenderer.boxWidth(), s);
+                    gh = ArmorHudLayout.scaledSize(ArmorHudRenderer.boxHeight(), s);
+                }
+                case "inventoryHud" -> {
+                    InventoryHudRenderer.place(width, height, true);
+                    s = InventoryHudRenderer.placedScale();
+                    gw = InventoryHudLayout.scaledSize(InventoryHudRenderer.boxWidth(), s);
+                    gh = InventoryHudLayout.scaledSize(InventoryHudRenderer.boxHeight(), s);
+                }
                 case "spotifyHud" -> { gw = (int)(SpotifyHudRenderer.getWidth() * SpotifyHudModule.scale); gh = (int)(SpotifyHudRenderer.getHeight() * SpotifyHudModule.scale); s = SpotifyHudModule.scale; }
                 case "reachDisplay" -> { gw = (int)(StatusHudRenderer.getReachDisplayWidth(client) * ReachDisplayModule.scale); gh = (int)(StatusHudRenderer.getReachDisplayHeight() * ReachDisplayModule.scale); s = ReachDisplayModule.scale; }
             }
@@ -1496,6 +1813,7 @@ public class HudEditorScreen extends Screen {
                 case "potions" -> { PotionsModule.hudX = newX; PotionsModule.hudY = newY; }
                 case "targetHud" -> { TargetHudModule.hudX = newX; TargetHudModule.hudY = newY; }
                 case "armorHud" -> { ArmorHudModule.hudX = newX; ArmorHudModule.hudY = newY; }
+                case "inventoryHud" -> { InventoryHudModule.hudX = newX; InventoryHudModule.hudY = newY; }
                 case "spotifyHud" -> { SpotifyHudModule.hudX = newX; SpotifyHudModule.hudY = newY; }
                 case "reachDisplay" -> { ReachDisplayModule.hudX = newX; ReachDisplayModule.hudY = newY; }
             }
@@ -1507,6 +1825,8 @@ public class HudEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(net.minecraft.client.gui.Click click) {
+        snapLineX = -1;
+        snapLineY = -1;
         if (colorPickerDrag >= 0) {
             colorPickerDrag = -1;
             com.bame.client.BameClientConfig.save();
@@ -1543,6 +1863,10 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
         if (input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            if (hotbarPopupOpen) {
+                hotbarPopupOpen = false;
+                return true;
+            }
             if (activeColorPickerTarget != null) {
                 activeColorPickerTarget = null;
                 return true;

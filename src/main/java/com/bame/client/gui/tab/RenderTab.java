@@ -7,7 +7,9 @@ import com.bame.client.gui.CustomGuiUtils;
 import com.bame.client.gui.GuiTheme;
 import com.bame.client.gui.HudEditorScreen;
 import com.bame.client.module.*;
+import com.bame.client.render.ArmorHudLayout;
 import com.bame.client.render.CustomCrosshairRenderer;
+import com.bame.client.render.InventoryHudLayout;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.Click;
@@ -35,6 +37,7 @@ public class RenderTab implements ClientTab {
     private boolean listeningBlockOutline = false;
     private boolean listeningHandPosition = false;
     private boolean listeningItemSize = false;
+    private boolean listeningHideArmor = false;
 
     private boolean draggingFullbright = false;
     private boolean draggingBlockOutlineWidth = false;
@@ -48,6 +51,8 @@ public class RenderTab implements ClientTab {
     private boolean draggingHandRoll = false;
     private boolean draggingItemScale = false;
     private boolean draggingItemYOffset = false;
+    private boolean draggingArmorThreshold = false;
+    private boolean draggingInventoryOpacity = false;
 
     private int gridDragMode = -1;
     private int lastEditedCol = -1;
@@ -76,7 +81,8 @@ public class RenderTab implements ClientTab {
     @Override
     public boolean isListeningForKey() {
         return listeningFullbright || listeningShowHud || listeningZoom || listeningSpotify || listeningScoreboard
-                || listeningCrosshair || listeningBlockOutline || listeningHandPosition || listeningItemSize;
+                || listeningCrosshair || listeningBlockOutline || listeningHandPosition || listeningItemSize
+                || listeningHideArmor;
     }
 
     @Override
@@ -101,8 +107,18 @@ public class RenderTab implements ClientTab {
         if (!q.isEmpty()) {
             return "show hud".contains(q) || "hud".contains(q) || "fps".contains(q) || "ping".contains(q) ||
                     "cps".contains(q) || "keystrokes".contains(q) || "server info".contains(q) || "name protect".contains(q) ||
-                    "clock".contains(q) || "coordinates".contains(q) || "potions".contains(q) || "target hud".contains(q) || "armor hud".contains(q);
+                    "clock".contains(q) || "coordinates".contains(q) || "potions".contains(q) || "target hud".contains(q) || "armor hud".contains(q) ||
+                    "durability".contains(q) || "haltbarkeit".contains(q) || "rüstung".contains(q) ||
+                    "hotbar".contains(q) || "status bars".contains(q) || "statusleisten".contains(q) ||
+                    "inventory hud".contains(q) || "inventar".contains(q);
         }
+        return true;
+    }
+
+    public boolean hideArmorVisible(String search) {
+        String q = search.toLowerCase(Locale.ROOT);
+        if (!q.isEmpty()) return "hide armor".contains(q) || "armor".contains(q) || "rüstung".contains(q) || "ausblenden".contains(q)
+                || "helmet".contains(q) || "elytra".contains(q) || "visuals".contains(q);
         return true;
     }
 
@@ -154,7 +170,7 @@ public class RenderTab implements ClientTab {
         return fullbrightVisible(search) || zoomVisible(search) || showHudVisible(search)
                 || scoreboardVisible(search) || spotifyHudVisible(search) || customCrosshairVisible(search)
                 || blockOutlineVisible(search) || handPositionVisible(search) || itemSizeVisible(search)
-                || tabBadgeVisible(search);
+                || tabBadgeVisible(search) || hideArmorVisible(search);
     }
 
     public int getTabBadgeHeight() {
@@ -164,8 +180,14 @@ public class RenderTab implements ClientTab {
 
     public int getShowHudHeight() {
         if (!ShowHudModule.expanded) return 50;
-        int extra = (ServerInfoModule.enabled ? 24 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + (CoordinatesModule.expanded ? 8 * 26 : 0) + 28 + 10;
-        return 50 + 26 + 8 + 10 * 26 + extra;
+        int extra = (ServerInfoModule.enabled ? 24 : 0) + (TargetHudModule.expanded ? 3 * 26 : 0) + (CoordinatesModule.expanded ? 8 * 26 : 0)
+                + armorHudRowsHeight() + inventoryHudRowsHeight() + 28 + 10;
+        return 50 + 26 + 8 + 12 * 26 + extra;
+    }
+
+    /** Karte „Hide Armor“: Taste, Self, Others, Slots, Keep heads, Keep elytra, Inventar-Vorschau, Reset. */
+    public int getHideArmorHeight() {
+        return HideArmorModule.expanded ? 256 : 50;
     }
 
     public int getScoreboardHeight() {
@@ -219,6 +241,7 @@ public class RenderTab implements ClientTab {
         if (spotifyHudVisible(search)) tracker.rightY += getSpotifyHudHeight() + 12;
         if (customCrosshairVisible(search)) tracker.rightY += getCustomCrosshairHeight() + 12;
         if (itemSizeVisible(search)) tracker.rightY += getItemSizeHeight() + 12;
+        if (hideArmorVisible(search)) tracker.rightY += getHideArmorHeight() + 12;
     }
 
     @Override
@@ -295,6 +318,13 @@ public class RenderTab implements ClientTab {
             int h = getItemSizeHeight();
             if (screen.isVisibleRow(tracker.rightY, h)) {
                 renderItemSize(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
+            }
+            tracker.rightY += h + 12;
+        }
+        if (hideArmorVisible(search)) {
+            int h = getHideArmorHeight();
+            if (screen.isVisibleRow(tracker.rightY, h)) {
+                renderHideArmor(screen, c, mx, my, delta, rightX, tracker.rightY, columnWidth);
             }
             tracker.rightY += h + 12;
         }
@@ -412,10 +442,31 @@ public class RenderTab implements ClientTab {
             curY += 26;
         }
 
-        // 5. Armor HUD
-        screen.text(c, "Armor HUD", x + 14, curY + 5, 0xFFD4D8E0);
+        // 5. Armor HUD (aufklappbar: Stil, Haltbarkeit, Warnung, Items, Reihenfolge, Anker)
+        boolean armorHover = screen.inside(mx, my, x + 8, curY, w - 50, 22);
+        if (armorHover) {
+            CustomGuiUtils.fillUltraRounded(c, x + 8, curY, w - 50, 22, 0x14FFFFFF, 4);
+        }
+        screen.text(c, (ArmorHudModule.expanded ? "- " : "+ ") + "Armor HUD", x + 14, curY + 5, ArmorHudModule.expanded ? GuiTheme.accent() : 0xFFD4D8E0);
         screen.toggle(c, x + w - 38, curY + 3, ArmorHudModule.enabled, mx, my, delta);
         curY += 26;
+
+        if (ArmorHudModule.expanded) {
+            curY = renderArmorHudRows(screen, c, mx, my, delta, x, curY, w);
+        }
+
+        // 5b. Inventory HUD (aufklappbar: Hotbar-Reihe, im Inventar ausblenden, Slot-Stil, Deckkraft)
+        boolean invHover = screen.inside(mx, my, x + 8, curY, w - 50, 22);
+        if (invHover) {
+            CustomGuiUtils.fillUltraRounded(c, x + 8, curY, w - 50, 22, 0x14FFFFFF, 4);
+        }
+        screen.text(c, (InventoryHudModule.expanded ? "- " : "+ ") + "Inventory HUD", x + 14, curY + 5, InventoryHudModule.expanded ? GuiTheme.accent() : 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, InventoryHudModule.enabled, mx, my, delta);
+        curY += 26;
+
+        if (InventoryHudModule.expanded) {
+            curY = renderInventoryHudRows(screen, c, mx, my, delta, x, curY, w);
+        }
 
         // 6. KeyStrokes
         screen.text(c, "Key Strokes", x + 14, curY + 5, 0xFFD4D8E0);
@@ -448,6 +499,11 @@ public class RenderTab implements ClientTab {
             screen.modeButton(c, "Time", x + 114, curY + 2, 42, 18, mx, my, ServerInfoModule.showTime);
             curY += 24;
         }
+
+        // 11. Vanilla hotbar (moved in the HUD editor): status bars, item name etc. move along
+        screen.text(c, "Hotbar: Move Status Bars", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HotbarModule.moveStatusBars, mx, my, delta);
+        curY += 26;
 
         curY += 4;
         screen.button(c, "Edit HUD", x + 14, curY, 50, 16, mx, my);
@@ -893,6 +949,7 @@ public class RenderTab implements ClientTab {
         listeningBlockOutline = false;
         listeningHandPosition = false;
         listeningItemSize = false;
+        listeningHideArmor = false;
     }
 
     @Override
@@ -1043,6 +1100,11 @@ public class RenderTab implements ClientTab {
                     curY += 26;
                 }
 
+                if (screen.inside(mx, my, leftX + 8, curY, columnWidth - 50, 22)) {
+                    ArmorHudModule.expanded = !ArmorHudModule.expanded;
+                    BameClientConfig.save();
+                    return true;
+                }
                 if (screen.inside(mx, my, leftX + columnWidth - 38, curY + 3, 26, 14)) {
                     ArmorHudModule.enabled = !ArmorHudModule.enabled;
                     com.bame.client.notification.NotificationManager.showModuleToggle("Armor HUD", ArmorHudModule.enabled);
@@ -1050,6 +1112,29 @@ public class RenderTab implements ClientTab {
                     return true;
                 }
                 curY += 26;
+
+                if (ArmorHudModule.expanded) {
+                    if (clickArmorHudRows(screen, mx, my, false, leftX, curY, columnWidth)) return true;
+                    curY += armorHudRowsHeight();
+                }
+
+                if (screen.inside(mx, my, leftX + 8, curY, columnWidth - 50, 22)) {
+                    InventoryHudModule.expanded = !InventoryHudModule.expanded;
+                    BameClientConfig.save();
+                    return true;
+                }
+                if (screen.inside(mx, my, leftX + columnWidth - 38, curY + 3, 26, 14)) {
+                    InventoryHudModule.enabled = !InventoryHudModule.enabled;
+                    com.bame.client.notification.NotificationManager.showModuleToggle("Inventory HUD", InventoryHudModule.enabled);
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
+
+                if (InventoryHudModule.expanded) {
+                    if (clickInventoryHudRows(screen, mx, my, false, leftX, curY, columnWidth)) return true;
+                    curY += inventoryHudRowsHeight();
+                }
 
                 if (screen.inside(mx, my, leftX + columnWidth - 38, curY + 3, 26, 14)) {
                     KeyStrokesModule.enabled = !KeyStrokesModule.enabled;
@@ -1109,6 +1194,13 @@ public class RenderTab implements ClientTab {
                     }
                     curY += 24;
                 }
+
+                if (screen.inside(mx, my, leftX + columnWidth - 38, curY + 3, 26, 14)) {
+                    HotbarModule.moveStatusBars = !HotbarModule.moveStatusBars;
+                    BameClientConfig.save();
+                    return true;
+                }
+                curY += 26;
 
                 curY += 4;
                 if (screen.inside(mx, my, leftX + 14, curY, 50, 16)) {
@@ -1683,6 +1775,22 @@ public class RenderTab implements ClientTab {
             tracker.rightY += h + 12;
         }
 
+        // 10. Hide Armor
+        if (hideArmorVisible(search)) {
+            int y = tracker.rightY;
+            int h = getHideArmorHeight();
+            if (screen.handleCardHeaderClick((int) mx, (int) my, rightX, y, columnWidth,
+                    () -> {
+                        HideArmorModule.enabled = !HideArmorModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Hide Armor", HideArmorModule.enabled);
+                    },
+                    () -> HideArmorModule.expanded = !HideArmorModule.expanded)) {
+                return true;
+            }
+            if (HideArmorModule.expanded && clickHideArmor(screen, mx, my, rightX, y, columnWidth)) return true;
+            tracker.rightY += h + 12;
+        }
+
         return false;
     }
 
@@ -1815,6 +1923,17 @@ public class RenderTab implements ClientTab {
             return true;
         }
 
+        if (draggingArmorThreshold) {
+            // Show-HUD-Karte liegt immer in der linken Spalte
+            setArmorThreshold(click.x(), leftX + ARMOR_SLIDER_X, armorSliderWidth(columnWidth));
+            return true;
+        }
+
+        if (draggingInventoryOpacity) {
+            setInventoryOpacity(click.x(), leftX + INVENTORY_SLIDER_X, inventorySliderWidth(columnWidth));
+            return true;
+        }
+
         return false;
     }
 
@@ -1830,8 +1949,10 @@ public class RenderTab implements ClientTab {
         boolean handled = draggingFullbright || draggingBlockOutlineWidth || draggingBlockOutlineOpacity
                 || draggingHandX || draggingHandY || draggingHandZ || draggingHandScale
                 || draggingHandPitch || draggingHandYaw || draggingHandRoll
-                || draggingItemScale || draggingItemYOffset;
+                || draggingItemScale || draggingItemYOffset || draggingArmorThreshold || draggingInventoryOpacity;
 
+        draggingArmorThreshold = false;
+        draggingInventoryOpacity = false;
         draggingFullbright = false;
         draggingBlockOutlineWidth = false;
         draggingBlockOutlineOpacity = false;
@@ -1908,6 +2029,12 @@ public class RenderTab implements ClientTab {
             BameClientConfig.save();
             return true;
         }
+        if (listeningHideArmor) {
+            HideArmorModule.keyBind = input.key() == GLFW.GLFW_KEY_ESCAPE ? -1 : input.key();
+            listeningHideArmor = false;
+            BameClientConfig.save();
+            return true;
+        }
         return false;
     }
 
@@ -1944,7 +2071,449 @@ public class RenderTab implements ClientTab {
         ServerInfoModule.serverY = 32;
         ServerInfoModule.timeX = 10;
         ServerInfoModule.timeY = 54;
+        HotbarModule.moveStatusBars = true;
+        ArmorHudModule.resetOptions();
+        InventoryHudModule.resetOptions();
         BameClientConfig.save();
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Armor HUD: aufklappbare Zeile der Show-HUD-Karte (Stil, Haltbarkeit, Warnung, Items, Reihenfolge, Anker).
+    // Zeichnen (renderArmorHudRows), Links- und Rechtsklick (clickArmorHudRows) und Höhe (armorHudRowsHeight) nutzen
+    // dieselbe Zeilenfolge.
+    // ------------------------------------------------------------------------------------------------------------
+
+    private static final int ARMOR_BTN_W = 72;
+    /** Abstand des Warnschwellen-Reglers vom linken Kartenrand (rechts neben „Warn below: 50%“, ca. 77 px ab x + 24). */
+    private static final int ARMOR_SLIDER_X = 108;
+
+    /** Höhe der Unterzeilen (0, wenn zugeklappt). */
+    private static int armorHudRowsHeight() {
+        if (!ArmorHudModule.expanded) return 0;
+        return 26 + 26 + 26 + 26 + (ArmorHudModule.lowWarning ? 26 : 0) + 24 + 24 + 26 + 26 + 26;
+    }
+
+    private static int armorSliderWidth(int cardW) {
+        return Math.max(24, cardW - ARMOR_SLIDER_X - 14);
+    }
+
+    private static void setArmorThreshold(double mouseX, int sliderX, int sliderW) {
+        double f = Math.clamp((mouseX - sliderX) / (double) sliderW, 0.0, 1.0);
+        int steps = (int) Math.round(f * (ArmorHudLayout.THRESHOLD_MAX - ArmorHudLayout.THRESHOLD_MIN) / ArmorHudLayout.THRESHOLD_STEP);
+        ArmorHudModule.lowThreshold = ArmorHudLayout.sanitizeThreshold(ArmorHudLayout.THRESHOLD_MIN + steps * ArmorHudLayout.THRESHOLD_STEP);
+    }
+
+    /** Langer Text, wenn er in den Knopf passt, sonst die Kurzform. */
+    private static String fitLabel(String longLabel, String shortLabel, int buttonW) {
+        int tw = MinecraftClient.getInstance().textRenderer.getWidth(CustomGuiUtils.getFontText(longLabel));
+        return tw + 6 <= buttonW ? longLabel : shortLabel;
+    }
+
+    /** y der Zeile „Armor HUD“ in der Show-HUD-Karte (dieselben Zeilen davor wie renderShowHud/mouseClicked). */
+    private static int armorHudRowY(int cardY) {
+        int curY = cardY + 54 + 26;                     // nach KeyBind: Zeile Clock
+        curY += 26;                                     // Zeile Coordinates
+        curY += 26;                                     // nach Coordinates
+        if (CoordinatesModule.expanded) curY += 8 * 26; // Coordinates-Unterzeilen -> Zeile Potions
+        curY += 26;                                     // Zeile Target HUD
+        curY += 26;                                     // nach Target HUD
+        if (TargetHudModule.expanded) curY += 3 * 26;   // Target-HUD-Unterzeilen -> Zeile Armor HUD
+        return curY;
+    }
+
+    private int renderArmorHudRows(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int curY, int w) {
+        int labelX = x + 24;
+        int btnX = x + w - 12 - ARMOR_BTN_W;
+
+        screen.text(c, "Style", labelX, curY + 4, 0xFFB8BCC6);
+        screen.button(c, ArmorHudLayout.styleName(ArmorHudModule.style), btnX, curY, ARMOR_BTN_W, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Durability", labelX, curY + 4, 0xFFB8BCC6);
+        screen.button(c, ArmorHudLayout.durabilityName(ArmorHudModule.durabilityMode), btnX, curY, ARMOR_BTN_W, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Color by durability", labelX, curY + 5, 0xFFB8BCC6);
+        screen.toggle(c, x + w - 38, curY + 3, ArmorHudModule.colorByDurability, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Low warning", labelX, curY + 5, 0xFFB8BCC6);
+        screen.toggle(c, x + w - 38, curY + 3, ArmorHudModule.lowWarning, mx, my, delta);
+        curY += 26;
+
+        if (ArmorHudModule.lowWarning) {
+            int t = ArmorHudLayout.sanitizeThreshold(ArmorHudModule.lowThreshold);
+            screen.text(c, "Warn below: " + t + "%", labelX, curY + 4, 0xFFB8BCC6);
+            float norm = (t - ArmorHudLayout.THRESHOLD_MIN) / (float) (ArmorHudLayout.THRESHOLD_MAX - ArmorHudLayout.THRESHOLD_MIN);
+            screen.drawCustomSlider(c, x + ARMOR_SLIDER_X, curY + 6, armorSliderWidth(w), norm);
+            curY += 26;
+        }
+
+        // Rüstungsteile einzeln, darunter Hände und Pfeile (Knöpfe über die ganze Zeilenbreite)
+        int avail = w - 36;
+        int bw4 = (avail - 9) / 4;
+        screen.modeButton(c, fitLabel("Helmet", "Head", bw4), labelX, curY + 2, bw4, 18, mx, my, ArmorHudModule.showHelmet);
+        screen.modeButton(c, "Chest", labelX + (bw4 + 3), curY + 2, bw4, 18, mx, my, ArmorHudModule.showChestplate);
+        screen.modeButton(c, "Legs", labelX + 2 * (bw4 + 3), curY + 2, bw4, 18, mx, my, ArmorHudModule.showLeggings);
+        screen.modeButton(c, fitLabel("Boots", "Feet", bw4), labelX + 3 * (bw4 + 3), curY + 2, bw4, 18, mx, my, ArmorHudModule.showBoots);
+        curY += 24;
+
+        int bw3 = (avail - 6) / 3;
+        screen.modeButton(c, fitLabel("Main hand", "Main", bw3), labelX, curY + 2, bw3, 18, mx, my, ArmorHudModule.showMainHand);
+        screen.modeButton(c, fitLabel("Off hand", "Off", bw3), labelX + (bw3 + 3), curY + 2, bw3, 18, mx, my, ArmorHudModule.showOffHand);
+        screen.modeButton(c, fitLabel("Arrows", "Arr.", bw3), labelX + 2 * (bw3 + 3), curY + 2, bw3, 18, mx, my, ArmorHudModule.showArrows);
+        curY += 24;
+
+        screen.text(c, "Hide empty slots", labelX, curY + 5, 0xFFB8BCC6);
+        screen.toggle(c, x + w - 38, curY + 3, ArmorHudModule.hideEmpty, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Order", labelX, curY + 4, 0xFFB8BCC6);
+        screen.button(c, ArmorHudLayout.orderName(ArmorHudModule.order), btnX, curY, ARMOR_BTN_W, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Anchor", labelX, curY + 4, 0xFFB8BCC6);
+        screen.button(c, ArmorHudLayout.anchorName(ArmorHudModule.anchor), btnX, curY, ARMOR_BTN_W, 16, mx, my);
+        curY += 26;
+        return curY;
+    }
+
+    /**
+     * Klick in die Unterzeilen. {@code back} = Rechtsklick: Zyklus-Knöpfe (Style, Durability, Order, Anchor) einen
+     * Schritt zurück, alle anderen Elemente reagieren nur auf Linksklick.
+     */
+    private boolean clickArmorHudRows(BameClientScreen screen, double mx, double my, boolean back, int x, int curY, int w) {
+        int labelX = x + 24;
+        int btnX = x + w - 12 - ARMOR_BTN_W;
+
+        if (screen.inside(mx, my, btnX, curY, ARMOR_BTN_W, 16)) {
+            ArmorHudModule.style = ArmorHudLayout.cycle(ArmorHudModule.style, ArmorHudLayout.STYLE_COUNT, back);
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, btnX, curY, ARMOR_BTN_W, 16)) {
+            ArmorHudModule.durabilityMode = ArmorHudLayout.cycle(ArmorHudModule.durabilityMode, ArmorHudLayout.DUR_COUNT, back);
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (!back && screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ArmorHudModule.colorByDurability = !ArmorHudModule.colorByDurability;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (!back && screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ArmorHudModule.lowWarning = !ArmorHudModule.lowWarning;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (ArmorHudModule.lowWarning) {
+            int sx = x + ARMOR_SLIDER_X;
+            int sw = armorSliderWidth(w);
+            if (!back && screen.inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+                draggingArmorThreshold = true;
+                setArmorThreshold(mx, sx, sw);
+                BameClientConfig.save();
+                return true;
+            }
+            curY += 26;
+        }
+
+        int avail = w - 36;
+        int bw4 = (avail - 9) / 4;
+        if (!back) {
+            if (screen.inside(mx, my, labelX, curY + 2, bw4, 18)) {
+                ArmorHudModule.showHelmet = !ArmorHudModule.showHelmet;
+                BameClientConfig.save();
+                return true;
+            }
+            if (screen.inside(mx, my, labelX + (bw4 + 3), curY + 2, bw4, 18)) {
+                ArmorHudModule.showChestplate = !ArmorHudModule.showChestplate;
+                BameClientConfig.save();
+                return true;
+            }
+            if (screen.inside(mx, my, labelX + 2 * (bw4 + 3), curY + 2, bw4, 18)) {
+                ArmorHudModule.showLeggings = !ArmorHudModule.showLeggings;
+                BameClientConfig.save();
+                return true;
+            }
+            if (screen.inside(mx, my, labelX + 3 * (bw4 + 3), curY + 2, bw4, 18)) {
+                ArmorHudModule.showBoots = !ArmorHudModule.showBoots;
+                BameClientConfig.save();
+                return true;
+            }
+        }
+        curY += 24;
+
+        int bw3 = (avail - 6) / 3;
+        if (!back) {
+            if (screen.inside(mx, my, labelX, curY + 2, bw3, 18)) {
+                ArmorHudModule.showMainHand = !ArmorHudModule.showMainHand;
+                BameClientConfig.save();
+                return true;
+            }
+            if (screen.inside(mx, my, labelX + (bw3 + 3), curY + 2, bw3, 18)) {
+                ArmorHudModule.showOffHand = !ArmorHudModule.showOffHand;
+                BameClientConfig.save();
+                return true;
+            }
+            if (screen.inside(mx, my, labelX + 2 * (bw3 + 3), curY + 2, bw3, 18)) {
+                ArmorHudModule.showArrows = !ArmorHudModule.showArrows;
+                BameClientConfig.save();
+                return true;
+            }
+        }
+        curY += 24;
+
+        if (!back && screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            ArmorHudModule.hideEmpty = !ArmorHudModule.hideEmpty;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, btnX, curY, ARMOR_BTN_W, 16)) {
+            ArmorHudModule.order = ArmorHudLayout.cycle(ArmorHudModule.order, ArmorHudLayout.ORDER_COUNT, back);
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, btnX, curY, ARMOR_BTN_W, 16)) {
+            ArmorHudModule.anchor = ArmorHudLayout.cycle(ArmorHudModule.anchor, ArmorHudLayout.ANCHOR_COUNT, back);
+            BameClientConfig.save();
+            return true;
+        }
+        return false;
+    }
+
+    /** Rechtsklick: nur die Zyklus-Knöpfe des Armor HUD und des Inventory HUD (einen Schritt zurück). */
+    @Override
+    public boolean mouseRightClicked(BameClientScreen screen, Click click,
+                                     int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
+        if (showHudVisible(search) && ShowHudModule.expanded) {
+            int armorRowsY = armorHudRowY(tracker.leftY) + 26;
+            if (ArmorHudModule.expanded && clickArmorHudRows(screen, click.x(), click.y(), true, leftX, armorRowsY, columnWidth)) return true;
+            int inventoryRowsY = armorRowsY + armorHudRowsHeight() + 26;
+            if (InventoryHudModule.expanded && clickInventoryHudRows(screen, click.x(), click.y(), true, leftX, inventoryRowsY, columnWidth)) return true;
+        }
+        calculateHeight(screen, columnWidth, tracker, search);
+        return false;
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Inventory HUD: aufklappbare Zeile der Show-HUD-Karte (Hotbar-Reihe, im Inventar ausblenden, Slot-Stil,
+    // Deckkraft). Hintergrund, Größe und Position wie bei den anderen Elementen im HUD-Editor.
+    // ------------------------------------------------------------------------------------------------------------
+
+    /** Abstand des Deckkraft-Reglers vom linken Kartenrand (rechts neben „Opacity: 100%“). */
+    private static final int INVENTORY_SLIDER_X = 108;
+
+    /** Höhe der Unterzeilen (0, wenn zugeklappt). */
+    private static int inventoryHudRowsHeight() {
+        return InventoryHudModule.expanded ? 4 * 26 : 0;
+    }
+
+    private static int inventorySliderWidth(int cardW) {
+        return Math.max(24, cardW - INVENTORY_SLIDER_X - 14);
+    }
+
+    private static void setInventoryOpacity(double mouseX, int sliderX, int sliderW) {
+        InventoryHudModule.opacity = InventoryHudLayout.opacityFromSlider((mouseX - sliderX) / (double) sliderW);
+    }
+
+    private int renderInventoryHudRows(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int curY, int w) {
+        int labelX = x + 24;
+        int btnX = x + w - 12 - ARMOR_BTN_W;
+
+        screen.text(c, "Include hotbar", labelX, curY + 5, 0xFFB8BCC6);
+        screen.toggle(c, x + w - 38, curY + 3, InventoryHudModule.includeHotbar, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Hide while inventory open", labelX, curY + 5, 0xFFB8BCC6);
+        screen.toggle(c, x + w - 38, curY + 3, InventoryHudModule.hideWhenInventoryOpen, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Slot style", labelX, curY + 4, 0xFFB8BCC6);
+        screen.button(c, InventoryHudLayout.styleName(InventoryHudModule.slotStyle), btnX, curY, ARMOR_BTN_W, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Opacity: " + InventoryHudLayout.opacityPercent(InventoryHudModule.opacity) + "%", labelX, curY + 4, 0xFFB8BCC6);
+        screen.drawCustomSlider(c, x + INVENTORY_SLIDER_X, curY + 6, inventorySliderWidth(w),
+                InventoryHudLayout.opacitySliderValue(InventoryHudModule.opacity));
+        curY += 26;
+        return curY;
+    }
+
+    /** Klick in die Unterzeilen; {@code back} = Rechtsklick (nur der Slot-Stil-Knopf reagiert, einen Schritt zurück). */
+    private boolean clickInventoryHudRows(BameClientScreen screen, double mx, double my, boolean back, int x, int curY, int w) {
+        int btnX = x + w - 12 - ARMOR_BTN_W;
+
+        if (!back && screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            InventoryHudModule.includeHotbar = !InventoryHudModule.includeHotbar;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (!back && screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            InventoryHudModule.hideWhenInventoryOpen = !InventoryHudModule.hideWhenInventoryOpen;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, btnX, curY, ARMOR_BTN_W, 16)) {
+            InventoryHudModule.slotStyle = InventoryHudLayout.cycle(InventoryHudModule.slotStyle, InventoryHudLayout.STYLE_COUNT, back);
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        int sx = x + INVENTORY_SLIDER_X;
+        int sw = inventorySliderWidth(w);
+        if (!back && screen.inside(mx, my, sx - 4, curY + 2, sw + 8, 14)) {
+            draggingInventoryOpacity = true;
+            setInventoryOpacity(mx, sx, sw);
+            BameClientConfig.save();
+            return true;
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Hide Armor: eigene Karte (rechte Spalte). Zeichnen und Klicks nutzen dieselbe Zeilenfolge.
+    // ------------------------------------------------------------------------------------------------------------
+
+    private void renderHideArmor(BameClientScreen screen, DrawContext c, int mx, int my, float delta, int x, int y, int w) {
+        int h = getHideArmorHeight();
+        screen.moduleCard(c, x, y, w, h, HideArmorModule.enabled, HideArmorModule.expanded,
+                "Hide Armor", "Hides armor on players, only for you", null, "visuals", mx, my);
+
+        if (!HideArmorModule.expanded) return;
+
+        int curY = y + 54;
+        screen.text(c, "KeyBind:", x + 14, curY + 4, 0xFF8E95A4);
+        screen.keybindButton(c, "HideArmorModule", HideArmorModule.keyBind, listeningHideArmor, x + 64, curY, 48, 16, mx, my);
+        curY += 26;
+
+        screen.text(c, "Self", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HideArmorModule.self, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Others", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HideArmorModule.others, mx, my, delta);
+        curY += 26;
+
+        int bw4 = hideArmorButtonWidth(w);
+        int bx = x + 14;
+        screen.modeButton(c, fitLabel("Helmet", "Head", bw4), bx, curY + 2, bw4, 18, mx, my, HideArmorModule.helmet);
+        screen.modeButton(c, "Chest", bx + (bw4 + 3), curY + 2, bw4, 18, mx, my, HideArmorModule.chestplate);
+        screen.modeButton(c, "Legs", bx + 2 * (bw4 + 3), curY + 2, bw4, 18, mx, my, HideArmorModule.leggings);
+        screen.modeButton(c, fitLabel("Boots", "Feet", bw4), bx + 3 * (bw4 + 3), curY + 2, bw4, 18, mx, my, HideArmorModule.boots);
+        curY += 24;
+
+        screen.text(c, "Keep heads & pumpkins", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HideArmorModule.keepHeads, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Keep elytra", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HideArmorModule.keepElytra, mx, my, delta);
+        curY += 26;
+
+        screen.text(c, "Also in inventory preview", x + 14, curY + 5, 0xFFD4D8E0);
+        screen.toggle(c, x + w - 38, curY + 3, HideArmorModule.inventoryPreview, mx, my, delta);
+        curY += 26;
+
+        screen.button(c, "Reset", x + w - 58, curY, 46, 16, mx, my);
+    }
+
+    /** Breite der vier Slot-Knöpfe (Helmet/Chest/Legs/Boots) über die Kartenbreite. */
+    private static int hideArmorButtonWidth(int cardW) {
+        return (cardW - 28 - 9) / 4;
+    }
+
+    private boolean clickHideArmor(BameClientScreen screen, double mx, double my, int x, int y, int w) {
+        int curY = y + 54;
+        if (screen.inside(mx, my, x + 64, curY, 48, 16)) {
+            clearKeyListeners();
+            listeningHideArmor = true;
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            HideArmorModule.self = !HideArmorModule.self;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            HideArmorModule.others = !HideArmorModule.others;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        int bw4 = hideArmorButtonWidth(w);
+        int bx = x + 14;
+        if (screen.inside(mx, my, bx, curY + 2, bw4, 18)) {
+            HideArmorModule.helmet = !HideArmorModule.helmet;
+            BameClientConfig.save();
+            return true;
+        }
+        if (screen.inside(mx, my, bx + (bw4 + 3), curY + 2, bw4, 18)) {
+            HideArmorModule.chestplate = !HideArmorModule.chestplate;
+            BameClientConfig.save();
+            return true;
+        }
+        if (screen.inside(mx, my, bx + 2 * (bw4 + 3), curY + 2, bw4, 18)) {
+            HideArmorModule.leggings = !HideArmorModule.leggings;
+            BameClientConfig.save();
+            return true;
+        }
+        if (screen.inside(mx, my, bx + 3 * (bw4 + 3), curY + 2, bw4, 18)) {
+            HideArmorModule.boots = !HideArmorModule.boots;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 24;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            HideArmorModule.keepHeads = !HideArmorModule.keepHeads;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            HideArmorModule.keepElytra = !HideArmorModule.keepElytra;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 38, curY + 3, 26, 14)) {
+            HideArmorModule.inventoryPreview = !HideArmorModule.inventoryPreview;
+            BameClientConfig.save();
+            return true;
+        }
+        curY += 26;
+
+        if (screen.inside(mx, my, x + w - 58, curY, 46, 16)) {
+            HideArmorModule.resetOptions();
+            BameClientConfig.save();
+            return true;
+        }
+        return false;
     }
 
     private void resetScoreboard() {

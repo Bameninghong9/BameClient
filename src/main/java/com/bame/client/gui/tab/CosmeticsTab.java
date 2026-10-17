@@ -5,6 +5,8 @@ import com.bame.client.cosmetics.CaeserSkinManager;
 import com.bame.client.cosmetics.CosmeticsConfig;
 import com.bame.client.cosmetics.PlayerSkinResolver;
 import com.bame.client.gui.BameClientScreen;
+import com.bame.client.gui.BuyButtonLayout;
+import com.bame.client.gui.CardBuyButton;
 import com.bame.client.gui.CustomGuiUtils;
 import com.bame.client.gui.CustomTextFieldWidget;
 import com.bame.client.gui.GuiTheme;
@@ -691,7 +693,9 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("headphones", "HEAD", "Headphones", "Gaming headset with a logo glowing in your theme color"),
                 new CosmeticItem("viking_helmet", "HEAD", "Viking Helmet", "Weathered iron helmet with rivets and two horns"),
                 new CosmeticItem("propeller_cap", "HEAD", "Propeller Cap", "Colorful cap whose propeller spins faster as you walk"),
-                new CosmeticItem("cat_ears", "HEAD", "Cat Ears", "Twitching cat ears that flatten while sneaking")
+                new CosmeticItem("cat_ears", "HEAD", "Cat Ears", "Twitching cat ears that flatten while sneaking"),
+                new CosmeticItem("samurai_helmet", "HEAD", "Samurai Helmet", "Lacquered kabuto with golden horns and a laced neck guard that rattles as you walk"),
+                new CosmeticItem("knight_helmet", "HEAD", "Knight Helmet", "Polished steel helm with a red plume; the visor drops when you fight")
         )));
         sections.add(new CosmeticSection("ACCESSORIES", "ACCESSORIES", List.of(
                 new CosmeticItem("minime_sit", "ACCESSORIES", "MiniMe Sit", "Miniature player sitting on shoulder"),
@@ -707,7 +711,9 @@ public class CosmeticsTab implements ClientTab {
                 new CosmeticItem("sunglasses", "FACE", "Sunglasses", "Cool black shades"),
                 new CosmeticItem("skull_mask", "FACE", "Skull Mask", "Spooky skull face mask"),
                 new CosmeticItem("gas_mask", "FACE", "Gas Mask", "Rubber respirator with glass eyes and a filter canister"),
-                new CosmeticItem("aviator_goggles", "FACE", "Aviator Goggles", "Leather and brass pilot goggles with tinted lenses")
+                new CosmeticItem("aviator_goggles", "FACE", "Aviator Goggles", "Leather and brass pilot goggles with tinted lenses"),
+                new CosmeticItem("vr_headset", "FACE", "VR Headset", "White headset with dark glass and a softly flickering screen glow"),
+                new CosmeticItem("eye_patch", "FACE", "Eye Patch", "Black leather pirate patch over the left eye")
         )));
         sections.add(new CosmeticSection("BACK", "BACK", List.of(
                 new CosmeticItem("jetpack", "BACK", "Jetpack", "Twin steel tanks that puff flames when you jump or fall"),
@@ -736,6 +742,7 @@ public class CosmeticsTab implements ClientTab {
                 emote(com.bame.client.emotes.EmoteType.SWING, "swing"),
                 emote(com.bame.client.emotes.EmoteType.PICNIC, "picnic"),
                 emote(com.bame.client.emotes.EmoteType.WITCH_BROOM, "witch_broom"),
+                emote(com.bame.client.emotes.EmoteType.FLYING_CARPET, "flying_carpet"),
                 emote(com.bame.client.emotes.EmoteType.BUTTERFLY, "butterfly")
         )));
 
@@ -907,7 +914,30 @@ public class CosmeticsTab implements ClientTab {
                 || "gasmaske".contains(q)
                 || "killeffects".contains(q) || "kill effects".contains(q) || "killeffekte".contains(q)
                 || "totem".contains(q) || "lightning".contains(q) || "blitz".contains(q)
-                || "gravestone".contains(q) || "tombstone".contains(q) || "grabstein".contains(q);
+                || "gravestone".contains(q) || "tombstone".contains(q) || "grabstein".contains(q)
+                // Treffer in Name/Beschreibung/Suchbegriffen einzelner Items (z. B. "samurai helm", "augenklappe pirat")
+                || !getActiveSections(search).isEmpty();
+    }
+
+    /** Zusätzliche Suchbegriffe (DE/EN) einzelner Items. */
+    private static String itemKeywords(String id) {
+        return switch (id.toLowerCase(Locale.ROOT)) {
+            case "samurai_helmet" -> "samurai helm kabuto japan japanisch krieger warrior hörner hoerner horns gold lamellen";
+            case "knight_helmet" -> "ritter ritterhelm helm feder federbusch visier rüstung ruestung stahl knight plume visor armor armour steel mittelalter medieval";
+            case "vr_headset" -> "vr brille vr-brille virtual reality headset gaming bildschirm screen display";
+            case "eye_patch" -> "augenklappe pirat pirate auge eye patch leder leather";
+            default -> "";
+        };
+    }
+
+    /** Jedes Wort der Suche steht in Name, Beschreibung oder Suchbegriffen des Items (Reihenfolge egal). */
+    private static boolean matchesAllWords(CosmeticItem item, CosmeticSection sec, String q) {
+        String hay = (item.name + " " + item.desc + " " + sec.title + " " + searchKeywords(item.category) + " "
+                + itemKeywords(item.id)).toLowerCase(Locale.ROOT);
+        for (String w : q.split("\\s+")) {
+            if (!w.isEmpty() && !hay.contains(w)) return false;
+        }
+        return true;
     }
 
     // Zusätzliche Suchbegriffe (DE/EN) pro Kategorie
@@ -939,6 +969,10 @@ public class CosmeticsTab implements ClientTab {
             case "skull_mask" -> "SKULL MASK";
             case "gas_mask" -> "GAS MASK";
             case "aviator_goggles" -> "AVIATOR GOGGLES";
+            case "samurai_helmet" -> "SAMURAI HELMET";
+            case "knight_helmet" -> "KNIGHT HELMET";
+            case "vr_headset" -> "VR HEADSET";
+            case "eye_patch" -> "EYE PATCH";
             case "angel" -> "GOLD WINGS";
             case "dragon" -> "DRAGON WINGS";
             case "butterfly_wings" -> "BUTTERFLY WINGS";
@@ -972,7 +1006,8 @@ public class CosmeticsTab implements ClientTab {
                             || item.category.toLowerCase(Locale.ROOT).contains(q)
                             || item.desc.toLowerCase(Locale.ROOT).contains(q)
                             || sec.title.toLowerCase(Locale.ROOT).contains(q)
-                            || searchKeywords(item.category).contains(q);
+                            || searchKeywords(item.category).contains(q)
+                            || matchesAllWords(item, sec, q);
                     if (!match) continue;
                 }
                 filteredItems.add(item);
@@ -1035,6 +1070,7 @@ public class CosmeticsTab implements ClientTab {
     @Override
     public void render(BameClientScreen screen, DrawContext c, int mx, int my, float delta,
                        int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
+        CardBuyButton.resetHover();
         if (!isVisible(search)) return;
 
         CaeserSkinManager.checkPeriodicSync();
@@ -1177,28 +1213,23 @@ public class CosmeticsTab implements ClientTab {
         return out;
     }
 
-    /** Kill-Effekt-Karte: Name, Schloss, animierte Vorschau, Beschreibung, Preis bzw. EQUIPPED und "Test". */
+    /** Kill-Effekt-Karte: Name, Schloss, animierte Vorschau, Beschreibung, Kauf-Button bzw. EQUIPPED und "Test". */
     private void renderKillEffectCard(BameClientScreen screen, DrawContext c, CosmeticItem item,
                                       int x, int y, int w, int h, int mx, int my) {
         com.bame.client.killfx.KillEffectType type = com.bame.client.killfx.KillEffectType.fromId(item.id);
         boolean equipped = item.isEquipped();
         boolean unlocked = item.isUnlocked();
-        // Breite links unten (Preis bzw. EQUIPPED): passt "Test" nicht daneben, kommt es eine Zeile höher
+        // Unten mittig der Kauf-Button (nicht gekauft), links unten EQUIPPED: passt "Test" nicht daneben, kommt es
+        // eine Zeile höher
+        BuyButtonLayout.Placement buy = CardBuyButton.placement(screen, item, unlocked, w, h);
         String eq = "EQUIPPED";
-        int leftW = 0;
-        if (!unlocked) {
-            com.bame.client.shop.Wallet.ShopItem shopItem = com.bame.client.shop.Wallet.item(item.id);
-            if (shopItem != null && shopItem.price() > 0) {
-                leftW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText("◆ " + shopItem.price())) + 10;
-            }
-        } else if (equipped) {
-            leftW = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eq)) + 10;
-        }
+        int leftW = equipped ? screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eq)) + 10 : 0;
         int[] tb = killTestButton(screen, x, y, w, h);
-        boolean compact = leftW > 0 && 5 + leftW + 6 + tb[2] + 5 > w;
-        if (compact) tb[1] -= 15;
+        tb[1] = y + BuyButtonLayout.testButtonY(w, h, tb[2], tb[3], buy, leftW);
+        boolean compact = tb[1] < y + h - tb[3] - BuyButtonLayout.TEST_BOTTOM;
         boolean hoverTest = screen.inside(mx, my, tb[0], tb[1], tb[2], tb[3]);
-        boolean hover = screen.inside(mx, my, x, y, w, h) && !hoverTest;
+        boolean hoverBuy = !hoverTest && CardBuyButton.isHovered(screen, buy, x, y, mx, my);
+        boolean hover = screen.inside(mx, my, x, y, w, h) && !hoverTest && !hoverBuy;
 
         int bg = equipped ? 0xFF131724 : (hover ? 0xFF161A28 : (unlocked ? 0xFF0E111A : 0xFF0A0D15));
         CustomGuiUtils.fillUltraRounded(c, x, y, w, h, bg, 6.0f);
@@ -1213,7 +1244,7 @@ public class CosmeticsTab implements ClientTab {
 
         // Beschreibung: bis zu zwei Zeilen (schmale Karte: eine Zeile über dem Testen-Knopf)
         int descColor = unlocked ? 0xFF94A3B8 : 0xFF64748B;
-        int bottomRowsTop = compact ? y + h - 31 : y + h - 18;
+        int bottomRowsTop = buy != null ? Math.min(tb[1], y + buy.y()) - 1 : (compact ? y + h - 31 : y + h - 18);
         List<String> lines = wrapDescription(screen, item.desc, w - 12, compact ? 1 : 2);
         int descTop = bottomRowsTop - 2 - lines.size() * 10;
         for (int i = 0; i < lines.size(); i++) {
@@ -1230,9 +1261,9 @@ public class CosmeticsTab implements ClientTab {
             c.disableScissor();
         }
 
-        // Unten links: Preis (gesperrt) bzw. EQUIPPED
-        if (!unlocked) {
-            com.bame.client.gui.ShopOverlay.renderPriceBadge(screen, c, item.id, x, y, w, h);
+        // Unten: Kauf-Button (nicht gekauft, mittig) bzw. EQUIPPED (links)
+        if (buy != null) {
+            CardBuyButton.render(screen, c, item, buy, x, y, hoverBuy);
         } else if (equipped) {
             int ew = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(eq)) + 10;
             int ex = x + 5, ey = y + h - 16;
@@ -1273,8 +1304,11 @@ public class CosmeticsTab implements ClientTab {
             return;
         }
         boolean equipped = item.isEquipped();
-        boolean hover = screen.inside(mx, my, x, y, w, h);
         boolean unlocked = item.isUnlocked();
+        // Jeton-Shop: Kauf-Button unten mittig (nur nicht gekaufte Items mit Katalog-Preis, Shop erreichbar)
+        BuyButtonLayout.Placement buy = CardBuyButton.placement(screen, item, unlocked, w, h);
+        boolean hoverBuy = CardBuyButton.isHovered(screen, buy, x, y, mx, my);
+        boolean hover = screen.inside(mx, my, x, y, w, h) && !hoverBuy;
 
         // 1. Single Clean Card Surface (4 per row matching NoRisk)
         int bg = equipped ? 0xFF131724 : (hover ? 0xFF161A28 : (unlocked ? 0xFF0E111A : 0xFF0A0D15));
@@ -1332,14 +1366,18 @@ public class CosmeticsTab implements ClientTab {
                         x + 2, y + 18, x + w - 2, prevBottom);
             }
         } else if ("EMOTES".equalsIgnoreCase(item.category)) {
+            // Mit Kauf-Button endet der Vorschau-Bereich über dem Button; die Figur wird dafür proportional kleiner
+            // gezeichnet (Komposition bleibt, nichts wird abgeschnitten oder verdeckt)
             com.bame.client.emotes.EmoteType emType = com.bame.client.emotes.EmoteType.fromId(item.id);
             if (mc.player != null && emType != null) {
                 float animTime = (System.currentTimeMillis() % 100000L) / 1000.0f;
+                int emBottom = BuyButtonLayout.previewBottom(buy, h - 14);
+                int emSize = Math.round(BuyButtonLayout.fitScale(28.0f, 14, h - 14, emBottom));
                 com.bame.client.emotes.EmotePreviewRenderer.drawPlayerPreview(
                         c,
                         x + 2, y + 14,
-                        x + w - 2, y + h - 14,
-                        28,
+                        x + w - 2, y + emBottom,
+                        emSize,
                         mx, my,
                         mc.player,
                         emType,
@@ -1351,9 +1389,10 @@ public class CosmeticsTab implements ClientTab {
                     Identifier skinTex = (mc.player != null && mc.player.getSkin() != null)
                             ? mc.player.getSkin().body().texturePath()
                             : DefaultSkinHelper.getTexture();
-                    float cardScale = 0.74f * (h - 22) / 2.125f;
+                    int pb = BuyButtonLayout.previewBottom(buy, h - 16);
+                    float cardScale = BuyButtonLayout.fitScale(0.74f * (h - 22) / 2.125f, 18, h - 16, pb);
                     float rotY = (float) (Math.sin((System.currentTimeMillis() % 10000L) / 1000.0f * 1.5) * 10.0f);
-                    int prevBottom = y + h - 16;
+                    int prevBottom = y + pb;
                     c.addPlayerSkin(pModel, skinTex,
                             cardScale, -4.0f, rotY, -1.0625f,
                             x + 2, y + 18, x + w - 2, prevBottom);
@@ -1362,9 +1401,11 @@ public class CosmeticsTab implements ClientTab {
         } else {
             PlayerEntityModel cardModel = getCardModel(mc, item.id);
             if (cardModel != null) {
-                float cardScale = 0.84f * (h - 22) / 2.125f;
+                // Mit Kauf-Button: Bereich endet über dem Button, Modell proportional kleiner (an der Unterkante verankert)
+                int pb = BuyButtonLayout.previewBottom(buy, h - 16);
+                float cardScale = BuyButtonLayout.fitScale(0.84f * (h - 22) / 2.125f, 18, h - 16, pb);
                 float rotY = (float) (Math.sin((System.currentTimeMillis() % 10000L) / 1000.0f * 1.5) * 4.0f);
-                int prevBottom = y + h - 16;
+                int prevBottom = y + pb;
                 Identifier cardTex = ("ACCESSORIES".equalsIgnoreCase(item.category) || "PETS".equalsIgnoreCase(item.category) || "PET".equalsIgnoreCase(item.category))
                         ? CaeserCosmeticsRenderer.getPetSkinDirect(item.id)
                         : DefaultSkinHelper.getTexture();
@@ -1374,9 +1415,9 @@ public class CosmeticsTab implements ClientTab {
             }
         }
 
-        // Jeton-Shop: gesperrte Items zeigen ihren Preis (besessene bzw. gratis Items nicht)
-        if (!unlocked && !"SKINS".equalsIgnoreCase(item.category)) {
-            com.bame.client.gui.ShopOverlay.renderPriceBadge(screen, c, item.id, x, y, w, h);
+        // Jeton-Shop: Kauf-Button (Jeton + Preis) über der Vorschau gezeichnet; besessene bzw. gratis Items haben keinen
+        if (buy != null) {
+            CardBuyButton.render(screen, c, item, buy, x, y, hoverBuy);
         }
     }
 
@@ -1993,6 +2034,10 @@ public class CosmeticsTab implements ClientTab {
 
                 // Clicking anywhere on the card toggles equipment!
                 if (screen.inside(mx, my, cardX, cardY, colW, CARD_HEIGHT)) {
+                    // Jeton-Shop: Kauf-Button unten mittig öffnet nur die Kauf-Bestätigung (löst die Karte nicht aus)
+                    if (CardBuyButton.handleClick(screen, item, cardX, cardY, colW, CARD_HEIGHT, mx, my)) {
+                        return true;
+                    }
                     if (KILLEFFECTS_DROPDOWN_ID.equalsIgnoreCase(item.category)) {
                         // Gesperrt: Kauf-Popup des Jeton-Shops; besessen: ausrüsten bzw. ablegen
                         if (!item.isUnlocked()) com.bame.client.gui.ShopOverlay.openBuy(item);

@@ -10,19 +10,24 @@ import com.bame.client.shop.CaeserApi;
 import com.bame.client.shop.CaeserAuth;
 import com.bame.client.shop.Wallet;
 import com.bame.client.sound.ClientSoundManager;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.KeyInput;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
 
 /**
- * Jeton-Shop in der Cosmetics-Ansicht: Kontostand-Chip und Kauf-Bestätigung.
+ * Jeton-Shop in der Cosmetics-Ansicht: Kontostand-Chip und Kauf-Bestätigung (Kauf-Button auf den Karten:
+ * {@link CardBuyButton}).
  * Gezeichnet im Caeser-Design (CustomGuiUtils/GuiTheme), alle Netzwerkaufrufe laufen über {@link Wallet} asynchron.
  */
 public final class ShopOverlay {
     public static final int GOLD = 0xFFF5B301;
-    private static final int GOLD_DARK = 0xFFB7791F;
-    private static final int GOLD_TEXT = 0xFFFACC15;
+    static final int GOLD_DARK = 0xFFB7791F;
 
     private static final long OPEN_REFRESH_MS = 60_000L;
 
@@ -34,6 +39,9 @@ public final class ShopOverlay {
     private static CosmeticsTab.CosmeticItem buyItem;
     private static boolean buyBusy;
     private static String buyError;
+
+    /** Item-IDs mit laufendem Kauf (auch wenn der Dialog schon geschlossen ist); nur Haupt-Thread. */
+    private static final Set<String> PENDING = new HashSet<>();
 
     // Hinweis "gehören dir noch nicht" einmal pro Öffnen
     private static boolean hintPending;
@@ -106,7 +114,7 @@ public final class ShopOverlay {
         Wallet.Snapshot s = Wallet.get();
         String amount;
         if (Wallet.isOnline()) {
-            amount = String.valueOf(s.jetons());
+            amount = chipAmount(s.jetons());
         } else if (Wallet.status() == Wallet.Status.LOADING && CaeserApi.isConfigured()) {
             amount = "…";
         } else {
@@ -152,17 +160,82 @@ public final class ShopOverlay {
     }
 
     // ==========================================
+    // Zahlen in der Spielsprache
+    // ==========================================
+
+    private static String separatorsLanguage;
+    private static BuyButtonLayout.Separators separators = BuyButtonLayout.ENGLISH;
+    private static int chipJetons;
+    private static BuyButtonLayout.Separators chipSeparators;
+    private static String chipText;
+
+    /** Aktuelle Spielsprache (Minecraft-Code wie {@code de_de}) oder {@code null}. */
+    public static String currentLanguage() {
+        try {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            return mc != null && mc.getLanguageManager() != null ? mc.getLanguageManager().getLanguage() : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Trennzeichen der Spielsprache; neu bestimmt nur beim Sprachwechsel. */
+    public static BuyButtonLayout.Separators separators() {
+        String language = currentLanguage();
+        if (!Objects.equals(language, separatorsLanguage)) {
+            separators = BuyButtonLayout.separatorsFor(language);
+            separatorsLanguage = language;
+        }
+        return separators;
+    }
+
+    /** Jeton-Betrag mit Tausendertrennzeichen der Spielsprache („1.500“ bzw. „1,500“). */
+    public static String formatJetons(int amount) {
+        return BuyButtonLayout.formatGrouped(amount, separators().grouping());
+    }
+
+    /** Hinweis bei zu wenig Jetons (Kauf-Bestätigung und Tooltip des Kauf-Buttons). */
+    public static String missingJetonsText(int missing) {
+        return "Dir fehlen ◆ " + formatJetons(missing) + " Jetons";
+    }
+
+    /** Kontostand für den Chip, zwischengespeichert (der Chip wird jeden Frame gezeichnet). */
+    private static String chipAmount(int jetons) {
+        BuyButtonLayout.Separators sep = separators();
+        if (chipText == null || jetons != chipJetons || sep != chipSeparators) {
+            chipJetons = jetons;
+            chipSeparators = sep;
+            chipText = BuyButtonLayout.formatGrouped(jetons, sep.grouping());
+        }
+        return chipText;
+    }
+
+    // ==========================================
     // Kauf
     // ==========================================
+
+    /** Läuft für dieses Item gerade ein Kauf? */
+    public static boolean isPurchasePending(String itemId) {
+        return itemId != null && PENDING.contains(itemId);
+    }
 
     /** Öffnet die Kauf-Bestätigung für ein gesperrtes Item (die Vorschau macht der Aufrufer). */
     public static void openBuy(CosmeticsTab.CosmeticItem item) {
         if (item == null) return;
         if (buyItem != null && buyBusy) return;
+        if (isPurchasePending(item.id)) return; // läuft schon (Dialog war geschlossen): kein zweiter Kauf
         buyItem = item;
         buyBusy = false;
         buyError = null;
+        buyOpenedAt = System.nanoTime();
     }
+
+    /**
+     * So lange nach dem Öffnen zählen Klicks im Dialog nicht: Der zweite Klick eines Doppelklicks auf den Kauf-Button
+     * bzw. die Karte soll den Dialog weder gleich wieder schließen noch zufällig „Kaufen“ treffen.
+     */
+    private static final long CLICK_GUARD_NS = 400_000_000L;
+    private static long buyOpenedAt;
 
     private record BuyLayout(int x, int y, int w, int h, int cancelX, int buyX, int btnY, int btnW, int btnH) {}
 
@@ -182,7 +255,7 @@ public final class ShopOverlay {
 
     private static String buyTitle(CosmeticsTab.CosmeticItem item, Wallet.ShopItem shopItem) {
         String name = displayName(item, shopItem);
-        return shopItem != null ? name + " für ◆ " + shopItem.price() + " kaufen?" : name + " kaufen?";
+        return shopItem != null ? name + " für ◆ " + formatJetons(shopItem.price()) + " kaufen?" : name + " kaufen?";
     }
 
     private static String displayName(CosmeticsTab.CosmeticItem item, Wallet.ShopItem shopItem) {
@@ -197,7 +270,7 @@ public final class ShopOverlay {
         if (!shopItem.active()) return "Dieses Item ist gerade nicht erhältlich.";
         Integer jetons = Wallet.get().jetons();
         if (jetons == null) return "Shop gerade nicht erreichbar";
-        if (jetons < shopItem.price()) return "Dir fehlen ◆ " + (shopItem.price() - jetons) + " Jetons";
+        if (jetons < shopItem.price()) return missingJetonsText(shopItem.price() - jetons);
         return null;
     }
 
@@ -223,7 +296,7 @@ public final class ShopOverlay {
             lineColor = 0xFFF87171;
         } else if (blocker == null) {
             int rest = Wallet.get().jetons() - shopItem.price();
-            line = "Kontostand danach: ◆ " + rest;
+            line = "Kontostand danach: ◆ " + formatJetons(rest);
             lineColor = 0xFF94A3B8;
         } else {
             line = blocker;
@@ -272,6 +345,7 @@ public final class ShopOverlay {
     }
 
     private static boolean handleBuyClick(BameClientScreen screen, double mx, double my) {
+        if (System.nanoTime() - buyOpenedAt < CLICK_GUARD_NS) return true;
         CosmeticsTab.CosmeticItem item = buyItem;
         Wallet.ShopItem shopItem = Wallet.item(item.id);
         BuyLayout L = buyLayout(screen, buyTitle(item, shopItem));
@@ -289,7 +363,10 @@ public final class ShopOverlay {
             ClientSoundManager.playClick();
             final CosmeticsTab.CosmeticItem target = item;
             final String name = displayName(item, shopItem);
+            // vor Wallet.buy merken: das Ergebnis kann auf dem Haupt-Thread auch sofort kommen
+            PENDING.add(item.id);
             Wallet.buy(item.id, result -> {
+                PENDING.remove(target.id);
                 if (buyItem == target) buyBusy = false;
                 if (result.success()) {
                     if (buyItem == target) buyItem = null;
@@ -298,7 +375,7 @@ public final class ShopOverlay {
                 } else if (buyItem == target) {
                     String msg = result.message() != null ? result.message() : CaeserApi.MSG_UNREACHABLE;
                     if (result.status() == 402 && result.missing() != null) {
-                        msg = msg + " (Dir fehlen ◆ " + result.missing() + " Jetons)";
+                        msg = msg + " (" + missingJetonsText(result.missing()) + ")";
                     }
                     buyError = msg;
                 } else {
@@ -315,13 +392,16 @@ public final class ShopOverlay {
     // Overlay (über allem) + Eingaben
     // ==========================================
 
-    /** Nach dem restlichen Inhalt zeichnen: Dialoge bzw. Tooltip des Chips. */
+    /** Nach dem restlichen Inhalt zeichnen: Dialoge bzw. Tooltip des Chips oder eines Kauf-Buttons. */
     public static void renderOverlay(BameClientScreen screen, DrawContext c, int mx, int my) {
         if (buyItem != null) {
             renderBuy(screen, c, mx, my);
         } else if (chipVisible && !Wallet.isOnline() && mx >= chipX && mx < chipX + chipW && my >= chipY && my < chipY + chipH) {
             renderTooltip(screen, c, mx, my);
+        } else if (!CosmeticsTab.customSkinModalOpen) {
+            CardBuyButton.renderTooltip(screen, c, mx, my);
         }
+        CardBuyButton.resetHover();
     }
 
     private static void renderTooltip(BameClientScreen screen, DrawContext c, int mx, int my) {
@@ -353,20 +433,5 @@ public final class ShopOverlay {
             buyError = null;
         }
         return true;
-    }
-
-    /** Kleines Preis-Badge („◆ 250“) unten links auf der Karte eines gesperrten Items. */
-    public static void renderPriceBadge(BameClientScreen screen, DrawContext c, String itemId, int cardX, int cardY, int cardW, int cardH) {
-        Wallet.ShopItem item = Wallet.item(itemId);
-        if (item == null || item.price() <= 0) return;
-        String label = "◆ " + item.price();
-        int tw = screen.getTextRenderer().getWidth(CustomGuiUtils.getFontText(label));
-        int bw = tw + 10;
-        int bh = 12;
-        int bx = cardX + 5;
-        int by = cardY + cardH - bh - 4;
-        CustomGuiUtils.fillUltraRounded(c, bx, by, bw, bh, 0xE0141018, 3.0f);
-        CustomGuiUtils.drawUltraRoundedOutline(c, bx, by, bw, bh, 0xFF5C4A1A, 3.0f);
-        screen.text(c, label, bx + 5, by + 2, GOLD_TEXT);
     }
 }

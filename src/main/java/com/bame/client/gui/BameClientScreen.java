@@ -1692,7 +1692,20 @@ public class BameClientScreen extends Screen {
         layout();
         Click localClick = toPanelClick(click);
         double mx = localClick.x(), my = localClick.y();
-        if (localClick.button() != 0) return false;
+        if (localClick.button() != 0) {
+            // Rechtsklick: Zyklus-Knöpfe der Karten einen Schritt zurück (z. B. Armor HUD → Style). Nur in der
+            // Mod-Ansicht ohne offenen Dialog und nur im Inhaltsbereich (gleicher Bereich wie beim Linksklick).
+            if (localClick.button() == 1 && currentView == ViewMode.MODS && !panelModalOpen() && inside(mx, my, cx, cy, cw, ch)) {
+                String q = search.getText().trim();
+                ColumnTracker tracker = new ColumnTracker(baseY());
+                for (ClientTab tab : modTabsForView(q)) {
+                    if (tab.mouseRightClicked(this, localClick, getContentLeftX(), getContentRightX(), getColumnWidth(), tracker, q)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
         if (currentView == ViewMode.HUB) {
             int cyCenter = height / 2;

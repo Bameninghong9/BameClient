@@ -2,6 +2,8 @@ package com.bame.client.mixin;
 
 import com.bame.client.module.FakeScoreboardModule;
 import com.bame.client.module.ShowHudModule;
+import com.bame.client.render.HotbarHud;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.render.RenderTickCounter;
@@ -13,6 +15,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(InGameHud.class)
 public class InGameHudMixin {
+
+    /**
+     * Verschiebbare Hotbar: die Wegpunkt-Symbole der Locator-Leiste zeichnet Vanilla getrennt von der Leiste
+     * ({@code this.currentBar.getValue().renderAddons(...)}); Fabrics HUD-Registry umhüllt nur die Leiste selbst
+     * ({@code INFO_BAR}). Der zweite {@code getValue()}-Aufruf in {@code renderMainHud} liefert genau die Leiste für
+     * {@code renderAddons}; bei verschobener Hotbar wird sie in {@link HotbarHud#wrapBarForAddons} in eine vorbereitete
+     * Hülle mit derselben Umrechnung gelegt (keine Allokation pro Frame). {@code require = 0}: fehlt die Stelle (andere
+     * Mod), bleiben nur die Symbole an der Vanilla-Stelle, statt dass das Spiel abbricht.
+     */
+    @ModifyExpressionValue(method = "renderMainHud", at = @At(value = "INVOKE",
+            target = "Lorg/apache/commons/lang3/tuple/Pair;getValue()Ljava/lang/Object;", ordinal = 1), require = 0)
+    private Object caeser$offsetBarAddons(Object bar) {
+        return HotbarHud.wrapBarForAddons(bar);
+    }
 
     @Inject(method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("HEAD"), cancellable = true)
     private void onRenderScoreboardSidebarTick(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
@@ -57,6 +73,8 @@ public class InGameHudMixin {
 
     @Inject(method = "render(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At("TAIL"))
     private void onRenderHudTail(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        // Verschiebbare Hotbar: die in diesem Frame gemerkten Vanilla-Elemente loslassen (hält sonst Spieler/Welt fest)
+        HotbarHud.endFrame();
         if (com.bame.client.module.ReachDisplayModule.enabled && com.bame.client.module.ReachDisplayModule.mode == 0) {
             long elapsed = System.currentTimeMillis() - com.bame.client.module.ReachDisplayModule.lastHitTime;
             if (elapsed < 3000 && com.bame.client.module.ReachDisplayModule.lastReach > 0) {

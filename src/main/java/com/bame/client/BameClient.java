@@ -30,6 +30,7 @@ public class BameClient implements ClientModInitializer {
     private static boolean skinProtectWasPressed = false;
     private static boolean secretComboWasPressed = false;
     private static boolean emoteWasPressed = false;
+    private static boolean hideArmorWasPressed = false;
 
     public static final Logger LOGGER = LoggerFactory.getLogger("bameclient");
 
@@ -278,6 +279,8 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.emotes.PicnicCoordinator.tick(client);
             prof.swap("caeser_emote_witch_broom");
             com.bame.client.emotes.WitchBroomCoordinator.tick(client);
+            prof.swap("caeser_emote_flying_carpet");
+            com.bame.client.emotes.FlyingCarpetCoordinator.tick(client);
             prof.swap("caeser_emote_world_effects");
             com.bame.client.emotes.EmoteWorldEffects.tick(client);
             prof.swap("caeser_kill_detector");
@@ -286,6 +289,8 @@ public class BameClient implements ClientModInitializer {
             com.bame.client.killfx.KillEffects.tick(client);
             prof.swap("caeser_narrator_hint");
             com.bame.client.util.NarratorGuard.tick(client);
+            prof.swap("caeser_container_search");
+            com.bame.client.gui.search.ContainerSearch.tick(client);
             prof.swap("caeser_keybinds");
 
             if (client.getWindow() != null && client.currentScreen == null) {
@@ -438,6 +443,17 @@ public class BameClient implements ClientModInitializer {
                     timeChangerWasPressed = down;
                 }
 
+                // Hide Armor bind
+                if (HideArmorModule.keyBind != -1) {
+                    boolean down = InputUtil.isKeyPressed(client.getWindow(), HideArmorModule.keyBind);
+                    if (down && !hideArmorWasPressed) {
+                        HideArmorModule.enabled = !HideArmorModule.enabled;
+                        com.bame.client.notification.NotificationManager.showModuleToggle("Hide Armor", HideArmorModule.enabled);
+                        BameClientConfig.save();
+                    }
+                    hideArmorWasPressed = down;
+                }
+
                 // SkinProtect bind
                 if (com.bame.client.module.SkinProtectModule.keyBind != -1) {
                     boolean down = InputUtil.isKeyPressed(client.getWindow(), com.bame.client.module.SkinProtectModule.keyBind);
@@ -508,6 +524,10 @@ public class BameClient implements ClientModInitializer {
                 com.bame.client.util.Prof.hud("caeser_hud_highfive_prompt", new com.bame.client.render.HighFivePromptRenderer()));
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(
                 com.bame.client.util.Prof.hud("caeser_hud_kill_effects", new com.bame.client.killfx.KillEffectHud()));
+        // Vanilla-Hotbar im HUD-Editor verschiebbar: Hotbar-Gruppe nur umhüllt (nichts entfernt, nichts doppelt gezeichnet)
+        com.bame.client.render.HotbarHud.register();
+        // Suchleiste unter Truhen & Co. (Mod-Menü → Misc → Container Search)
+        com.bame.client.gui.search.ContainerSearch.register();
 
         // Kill-Effekte Sarg und Amboss (mit Opfer-Figur): zusammen mit den Entities zeichnen
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {

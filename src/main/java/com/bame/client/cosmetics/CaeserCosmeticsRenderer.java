@@ -52,6 +52,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static final Identifier GAS_MASK_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/gas_mask.png");
     public static final Identifier AVIATOR_GOGGLES_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/aviator_goggles.png");
     public static final Identifier BUTTERFLY_WINGS_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/wings/butterfly_wings.png");
+    public static final Identifier SAMURAI_HELMET_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/samurai_helmet.png");
+    public static final Identifier KNIGHT_HELMET_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/hat/knight_helmet.png");
+    public static final Identifier VR_HEADSET_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/vr_headset.png");
+    public static final Identifier EYE_PATCH_TEXTURE = Identifier.of("bameclient", "textures/cosmetics/face/eye_patch.png");
     /** Texturen der Rücken-Cosmetics (Slot BACK), Schlüssel = Mod-ID. */
     private static final java.util.Map<String, Identifier> BACK_TEXTURES = new java.util.HashMap<>();
     static {
@@ -78,6 +82,10 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static BedrockCosmeticModel gasMaskModel;
     public static BedrockCosmeticModel aviatorGogglesModel;
     public static BedrockCosmeticModel butterflyWingsModel;
+    public static BedrockCosmeticModel samuraiHelmetModel;
+    public static BedrockCosmeticModel knightHelmetModel;
+    public static BedrockCosmeticModel vrHeadsetModel;
+    public static BedrockCosmeticModel eyePatchModel;
     private static final java.util.Map<String, BedrockCosmeticModel> BACK_MODELS = new java.util.HashMap<>();
 
     // Independent Chibi models for each accessory so they NEVER overwrite each other's pose!
@@ -249,6 +257,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         if (gasMaskModel == null) gasMaskModel = loadFixedModel("face/gas_mask");
         if (aviatorGogglesModel == null) aviatorGogglesModel = loadFixedModel("face/aviator_goggles");
         if (butterflyWingsModel == null) butterflyWingsModel = loadFixedModel("wings/butterfly_wings");
+        // Helme (Samurai, Ritter) und neue Gesichts-Cosmetics (VR-Headset, Augenklappe): Generator-Ausgabe, Blockbench-Achsen
+        if (samuraiHelmetModel == null) samuraiHelmetModel = loadHatModel(HelmetAnimations.SAMURAI_HELMET);
+        if (knightHelmetModel == null) knightHelmetModel = loadHatModel(HelmetAnimations.KNIGHT_HELMET);
+        if (vrHeadsetModel == null) vrHeadsetModel = loadFixedModel("face/" + HelmetAnimations.VR_HEADSET);
+        if (eyePatchModel == null) eyePatchModel = loadFixedModel("face/" + HelmetAnimations.EYE_PATCH);
         for (String id : BackCosmetics.BACK_IDS) {
             if (!BACK_MODELS.containsKey(id)) {
                 BedrockCosmeticModel m = loadFixedModel("back/" + id);
@@ -398,6 +411,13 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
                     this.getContextModel().head.applyTransform(matrices);
                     HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_face", body);
                     drawGlintFace(face, sink, light, seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id));
+                    matrices.pop();
+                } else if (HelmetAnimations.isNewFace(face)) {
+                    // VR-Headset (selbstleuchtender Bildschirm) bzw. Augenklappe
+                    matrices.push();
+                    this.getContextModel().head.applyTransform(matrices);
+                    HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_face", body);
+                    drawNewFace(face, sink, light, seedOf(CaeserPlayerSyncManager.getRenderStateUuid(state), state.id));
                     matrices.pop();
                 }
             }
@@ -599,7 +619,8 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
     public static boolean isAnimatedHat(String id) {
         if (id == null) return false;
         return switch (id.toLowerCase(java.util.Locale.ROOT)) {
-            case "crown", "headphones", "viking_helmet", "propeller_cap", "cat_ears" -> true;
+            case "crown", "headphones", "viking_helmet", "propeller_cap", "cat_ears",
+                 HelmetAnimations.SAMURAI_HELMET, HelmetAnimations.KNIGHT_HELMET -> true;
             default -> false;
         };
     }
@@ -652,8 +673,187 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         // Logo-Farbe: eigene Akzentfarbe; fremde Spieler in festem Caeser-Lila (deren Theme wird nicht synchronisiert)
         int glow = isLocal ? (GuiTheme.accent() & 0xFFFFFF) : HatAnimations.CAESER_PURPLE;
         HatSink sink = (layer, body) -> submit(queue, matrices, layer, "caeser_cosmetics_draw_head", body);
-        drawAnimatedHat(id, sink, light, state.id, Math.min(state.limbSwingAmplitude, 1.0f), state.isInSneakingPose, seed, glow);
+        if (HelmetAnimations.isHelmet(id)) {
+            // Helme: Lauf-Phase (Lamellen, Federbusch), Hoehe (Sprung/Landung) und Kampf-Signal (Visier)
+            boolean combat = HelmetAnimations.KNIGHT_HELMET.equalsIgnoreCase(id) && helmetCombatSignal(state);
+            drawHelmet(id, sink, light, state.id, state.limbSwingAnimationProgress, Math.min(state.limbSwingAmplitude, 1.0f),
+                    state.y, combat, seed, Float.NaN);
+        } else {
+            drawAnimatedHat(id, sink, light, state.id, Math.min(state.limbSwingAmplitude, 1.0f), state.isInSneakingPose, seed, glow);
+        }
         if ("crown".equalsIgnoreCase(id)) maybeSpawnCrownSparkle(matrices.peek(), state, seed);
+        matrices.pop();
+    }
+
+    // ==========================================
+    // HELME (Samurai-Kabuto mit schwingenden Lamellen, Ritterhelm mit Visier und Federbusch)
+    // ==========================================
+    private static final java.util.Set<String> HORN_GLINT_BONES = java.util.Set.of(
+            "glint0", "glint1", "glint2", "glint3", "glint4", "glint5", "glint6");
+    private static final String[] SHIKORO_BACK = new String[HelmetAnimations.SHIKORO_ROWS];
+    private static final String[] SHIKORO_LEFT = new String[HelmetAnimations.SHIKORO_ROWS];
+    private static final String[] SHIKORO_RIGHT = new String[HelmetAnimations.SHIKORO_ROWS];
+    private static final String[] PLUME_BONES = new String[HelmetAnimations.PLUME_SEGMENTS];
+    static {
+        for (int i = 0; i < HelmetAnimations.SHIKORO_ROWS; i++) {
+            SHIKORO_BACK[i] = "shikoro" + i;
+            SHIKORO_LEFT[i] = "shikoro" + i + "_l";
+            SHIKORO_RIGHT[i] = "shikoro" + i + "_r";
+        }
+        for (int i = 0; i < HelmetAnimations.PLUME_SEGMENTS; i++) PLUME_BONES[i] = "plume" + i;
+    }
+
+    /**
+     * Kampf-Signal fuer das Visier aus beobachtbaren Werten (auch fuer fremde Spieler, ohne Sync-Feld): Treffer
+     * (Hurt-Time) oder ein Arm-Schwung mit Waffe in der Hand bzw. mit einem Lebewesen in Reichweite (Angriff statt Abbauen).
+     */
+    private static boolean helmetCombatSignal(PlayerEntityRenderState state) {
+        if (state.hurt) return true;
+        boolean swinging = state.handSwingProgress > 0.0f;
+        HelmetAnimations.State st = HelmetAnimations.state(state.id, System.currentTimeMillis());
+        boolean combat = false;
+        if (swinging) {
+            long now = System.currentTimeMillis();
+            if (!st.wasSwinging || now - st.swingCheckMs > 250L) {
+                st.swingCheckMs = now;
+                st.swingCombat = holdsWeapon(state) || livingNearby(state);
+            }
+            combat = st.swingCombat;
+        }
+        st.wasSwinging = swinging;
+        return combat;
+    }
+
+    private static boolean holdsWeapon(PlayerEntityRenderState state) {
+        net.minecraft.item.ItemStack s = state.getMainHandItemStack();
+        return s != null && !s.isEmpty() && (s.contains(net.minecraft.component.DataComponentTypes.WEAPON)
+                || s.contains(net.minecraft.component.DataComponentTypes.KINETIC_WEAPON)
+                || s.contains(net.minecraft.component.DataComponentTypes.PIERCING_WEAPON));
+    }
+
+    private static boolean livingNearby(PlayerEntityRenderState state) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.world == null) return false;
+        net.minecraft.entity.Entity self = mc.world.getEntityById(state.id);
+        if (self == null) return false;
+        return !mc.world.getOtherEntities(self, self.getBoundingBox().expand(3.5),
+                e -> e instanceof net.minecraft.entity.LivingEntity le && le.isAlive() && !le.isSpectator()).isEmpty();
+    }
+
+    /**
+     * Zeichnet einen Helm im Kopfraum. Animationswerte werden im Zeichen-Callback gesetzt (verzoegerte Queue, geteiltes
+     * Modell).
+     *
+     * @param visorOverride Geschlossenheit des Visiers fest vorgeben (Karte), {@code NaN} = aus Kampf-Signal/Zustand
+     */
+    private static void drawHelmet(String rawId, HatSink sink, int light, int key, float limbPhase, float limbAmplitude,
+                                   double y, boolean combat, long seed, float visorOverride) {
+        initModels();
+        long nowMs = System.currentTimeMillis();
+        float timeSec = (float) (nowMs % 10000000L) / 1000.0f;
+        HelmetAnimations.State st = HelmetAnimations.state(key, nowMs);
+        float dt = st.tick(System.nanoTime());
+        st.updateWalk(dt, limbAmplitude);
+        float walk = st.walk;
+        if (HelmetAnimations.SAMURAI_HELMET.equalsIgnoreCase(rawId)) {
+            BedrockCosmeticModel m = samuraiHelmetModel;
+            if (m == null) return;
+            int rows = HelmetAnimations.SHIKORO_ROWS;
+            float[] swing = new float[rows * 3];
+            for (int r = 0; r < rows; r++) {
+                for (int part = 0; part < 3; part++) swing[r * 3 + part] = HelmetAnimations.lameSwing(r, part, limbPhase, walk, timeSec);
+            }
+            sink.draw(RenderLayers.entityCutoutNoCull(SAMURAI_HELMET_TEXTURE), (e, c) -> {
+                m.resetAllAnimations();
+                for (int r = 0; r < rows; r++) {
+                    m.setBoneRotation(SHIKORO_BACK[r], swing[r * 3], 0.0f, 0.0f);
+                    m.setBoneRotation(SHIKORO_LEFT[r], 0.0f, 0.0f, -swing[r * 3 + 1]);
+                    m.setBoneRotation(SHIKORO_RIGHT[r], 0.0f, 0.0f, swing[r * 3 + 2]);
+                }
+                m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, null, HORN_GLINT_BONES);
+            });
+            // dezenter, wandernder Goldglanz auf den Hoernern (selbstleuchtend, Deckkraft je Segment)
+            for (int i = 0; i < HelmetAnimations.HORN_GLINTS; i++) {
+                float k = HelmetAnimations.hornGlint(i, timeSec, seed);
+                if (k < 0.03f) continue;
+                int argb = (Math.round(255.0f * k) << 24) | 0xFFF2D2;
+                String bone = "glint" + i;
+                sink.draw(RenderLayers.eyes(SAMURAI_HELMET_TEXTURE), (e, c) -> m.render(e, c, FULL_BRIGHT, 0, 1, false, argb, bone));
+            }
+        } else if (HelmetAnimations.KNIGHT_HELMET.equalsIgnoreCase(rawId)) {
+            BedrockCosmeticModel m = knightHelmetModel;
+            if (m == null) return;
+            st.visor.update(nowMs, combat, dt);
+            st.plume.step(dt, walk, limbPhase, y);
+            float closed = Float.isNaN(visorOverride) ? st.visor.closed : visorOverride;
+            float visorPitch = HelmetAnimations.visorPitch(closed);
+            float[] plume = HelmetAnimations.plumePose(st.plume, timeSec, seed);
+            sink.draw(RenderLayers.entityCutoutNoCull(KNIGHT_HELMET_TEXTURE), (e, c) -> {
+                m.resetAllAnimations();
+                m.setBoneRotation("visor", visorPitch, 0.0f, 0.0f);
+                for (int i = 0; i < PLUME_BONES.length; i++) m.setBoneRotation(PLUME_BONES[i], -plume[i * 2], 0.0f, plume[i * 2 + 1]);
+                m.render(e, c, light, 0, 1);
+            });
+        }
+    }
+
+    /** Karten-Vorschau eines Helms: Modell allein, mittig (Fit wie die Nachbarkarten); Visier klappt zyklisch. */
+    private static void renderCardHelmet(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, String id,
+                                         float tx, float ty, float pitch, float yaw, float scale) {
+        matrices.push();
+        matrices.translate(tx, ty, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+        // Karte: leichtes "Laufen" fuer Lamellen/Feder, Visier im Wechsel offen/zu; je Helm eigener Zustand (beide
+        // Karten sind gleichzeitig sichtbar, ein gemeinsamer Zustand haette den Zeitschritt doppelt verbraucht)
+        int key = HelmetAnimations.KNIGHT_HELMET.equalsIgnoreCase(id) ? CARD_KEY - 10 : CARD_KEY - 11;
+        drawHelmet(id, directSink(matrices, vertexConsumers), light, key, timeSec * 2.2f, 0.12f, 0.0, false, 7L,
+                HelmetAnimations.cardVisorClosed(timeSec));
+        matrices.pop();
+    }
+
+    // ==========================================
+    // NEUE GESICHTS-COSMETICS (VR-Headset mit Bildschirmlicht, Augenklappe)
+    // ==========================================
+    private static final java.util.Set<String> VR_EMISSIVE_BONES = java.util.Set.of("screen", "led");
+
+    /** Im Kopfraum: Grundmodell; beim VR-Headset dazu Bildschirm (Farbe wechselt, flackert dezent) und Status-LED. */
+    private static void drawNewFace(String id, HatSink sink, int light, long seed) {
+        initModels();
+        if (HelmetAnimations.VR_HEADSET.equalsIgnoreCase(id)) {
+            BedrockCosmeticModel m = vrHeadsetModel;
+            if (m == null) return;
+            float timeSec = (float) (System.currentTimeMillis() % 10000000L) / 1000.0f;
+            sink.draw(RenderLayers.entityCutoutNoCull(VR_HEADSET_TEXTURE), (e, c) -> {
+                m.resetAllAnimations();
+                m.render(e, c, light, 0, 1, false, 0xFFFFFFFF, null, VR_EMISSIVE_BONES);
+            });
+            int screen = HelmetAnimations.screenArgb(timeSec, seed);
+            int led = HelmetAnimations.ledArgb(timeSec);
+            sink.draw(RenderLayers.eyes(VR_HEADSET_TEXTURE), (e, c) -> {
+                m.render(e, c, FULL_BRIGHT, 0, 1, false, screen, "screen");
+                m.render(e, c, FULL_BRIGHT, 0, 1, false, led, "led");
+            });
+        } else if (HelmetAnimations.EYE_PATCH.equalsIgnoreCase(id)) {
+            BedrockCosmeticModel m = eyePatchModel;
+            if (m == null) return;
+            sink.draw(RenderLayers.entityCutoutNoCull(EYE_PATCH_TEXTURE), (e, c) -> {
+                m.resetAllAnimations();
+                m.render(e, c, light, 0, 1);
+            });
+        }
+    }
+
+    private static void renderCardNewFace(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, String id,
+                                          float tx, float ty, float pitch, float yaw, float scale) {
+        matrices.push();
+        matrices.translate(tx, ty, 0.0f);
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+        matrices.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.scale(scale, scale, scale);
+        drawNewFace(id, directSink(matrices, vertexConsumers), light, 7L);
         matrices.pop();
     }
 
@@ -1907,6 +2107,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             if (playerModel != null) playerModel.head.applyTransform(matrices);
             drawGlintFace(activeFace, directSink(matrices, vertexConsumers), light, localSeed());
             matrices.pop();
+        } else if (HelmetAnimations.isNewFace(activeFace)) {
+            matrices.push();
+            if (playerModel != null) playerModel.head.applyTransform(matrices);
+            drawNewFace(activeFace, directSink(matrices, vertexConsumers), light, localSeed());
+            matrices.pop();
         }
 
         // 1. Wings (anchored to torso)
@@ -1989,8 +2194,14 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
         } else if (isAnimatedHat(activeHead)) {
             matrices.push();
             if (playerModel != null) playerModel.head.applyTransform(matrices);
-            drawAnimatedHat(activeHead, directSink(matrices, vertexConsumers), light, PREVIEW_KEY, 0.0f, false,
-                    localSeed(), GuiTheme.accent() & 0xFFFFFF);
+            if (HelmetAnimations.isHelmet(activeHead)) {
+                // Menue-Vorschau: im Stand, kein Kampf (Visier offen)
+                drawHelmet(activeHead, directSink(matrices, vertexConsumers), light, PREVIEW_KEY, 0.0f, 0.0f, 0.0, false,
+                        localSeed(), Float.NaN);
+            } else {
+                drawAnimatedHat(activeHead, directSink(matrices, vertexConsumers), light, PREVIEW_KEY, 0.0f, false,
+                        localSeed(), GuiTheme.accent() & 0xFFFFFF);
+            }
             matrices.pop();
         }
 
@@ -2213,6 +2424,11 @@ public class CaeserCosmeticsRenderer extends FeatureRenderer<PlayerEntityRenderS
             // Neue Cosmetics: Werte aus der Karten-Anpassung (Mitte/Groesse wie die Nachbarkarten der Kategorie)
             case "gas_mask" -> renderCardGlintFace(matrices, vertexConsumers, light, "gas_mask", -0.043f, 0.215f, 8.0f, -28.0f, 1.82f);
             case "aviator_goggles" -> renderCardGlintFace(matrices, vertexConsumers, light, "aviator_goggles", -0.032f, 0.442f, 8.0f, -28.0f, 1.94f);
+            // Helme und neue Gesichts-Cosmetics: Mitte/Groesse per Fit wie die Nachbarkarten (HAT Mitte 0.30, FACE 0.0)
+            case HelmetAnimations.SAMURAI_HELMET -> renderCardHelmet(matrices, vertexConsumers, light, HelmetAnimations.SAMURAI_HELMET, -0.041f, 0.973f, 10.0f, -25.0f, 1.564f);
+            case HelmetAnimations.KNIGHT_HELMET -> renderCardHelmet(matrices, vertexConsumers, light, HelmetAnimations.KNIGHT_HELMET, -0.072f, 0.972f, 10.0f, -30.0f, 1.404f);
+            case HelmetAnimations.VR_HEADSET -> renderCardNewFace(matrices, vertexConsumers, light, HelmetAnimations.VR_HEADSET, -0.09f, 0.455f, 8.0f, -28.0f, 1.79f);
+            case HelmetAnimations.EYE_PATCH -> renderCardNewFace(matrices, vertexConsumers, light, HelmetAnimations.EYE_PATCH, 0.05f, 0.629f, 8.0f, 24.0f, 2.338f);
             case "butterfly_wings" -> {
                 matrices.push();
                 matrices.translate(0.0f, -0.011f, 0.0f);

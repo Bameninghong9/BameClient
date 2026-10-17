@@ -21,6 +21,17 @@ public interface ClientTab {
     boolean mouseClicked(BameClientScreen screen, Click click, boolean twice,
                          int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search);
 
+    /**
+     * Rechtsklick im Inhaltsbereich der Mod-Ansicht (z. B. Zyklus-Knopf einen Schritt zurück). Wie bei
+     * {@link #mouseClicked} teilen sich alle Tabs denselben {@code tracker}: wer nicht reagiert, muss ihn um seine
+     * Kartenhöhen weiterschieben (Standard: {@link #calculateHeight}, gleiche Reihenfolge wie beim Zeichnen).
+     */
+    default boolean mouseRightClicked(BameClientScreen screen, Click click,
+                                      int leftX, int rightX, int columnWidth, ColumnTracker tracker, String search) {
+        calculateHeight(screen, columnWidth, tracker, search);
+        return false;
+    }
+
     boolean mouseDragged(BameClientScreen screen, Click click, double deltaX, double deltaY);
 
     boolean mouseReleased(BameClientScreen screen, Click click);

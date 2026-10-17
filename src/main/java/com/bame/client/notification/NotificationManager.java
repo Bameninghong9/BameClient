@@ -46,7 +46,8 @@ public class NotificationManager implements HudRenderCallback {
     public void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.options == null) return;
-        if (client.currentScreen == null) {
+        // Auch bei offenem Chat (z. B. Ergebnis von „Save skin“ im Spieler-Auswahlrad); der Chat hat keinen Hintergrund
+        if (client.currentScreen == null || client.currentScreen instanceof net.minecraft.client.gui.screen.ChatScreen) {
             render(drawContext, tickCounter != null ? tickCounter.getTickProgress(true) : 1.0f);
         }
     }

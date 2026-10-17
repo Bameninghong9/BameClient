@@ -127,6 +127,13 @@ tasks.register('witchBroomTest', JavaExec) {
 }
 tasks.named('check') { dependsOn 'witchBroomTest' }
 
+tasks.register('flyingCarpetTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.emotes.FlyingCarpetTest'
+}
+tasks.named('check') { dependsOn 'flyingCarpetTest' }
+
 tasks.register('killEffectsTest', JavaExec) {
     dependsOn plannerTestClasses
     classpath = sourceSets.plannerTest.runtimeClasspath
@@ -182,3 +189,59 @@ tasks.register('hitchAggregatorTest', JavaExec) {
     mainClass = 'com.bame.client.util.HitchAggregatorTest'
 }
 tasks.named('check') { dependsOn 'hitchAggregatorTest' }
+
+tasks.register('hotbarLayoutTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.render.HotbarLayoutTest'
+}
+tasks.named('check') { dependsOn 'hotbarLayoutTest' }
+
+tasks.register('armorHudTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.render.ArmorHudLayoutTest'
+}
+tasks.named('check') { dependsOn 'armorHudTest' }
+
+tasks.register('inventoryHudTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.render.InventoryHudLayoutTest'
+}
+tasks.named('check') { dependsOn 'inventoryHudTest' }
+
+tasks.register('mouseRayTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.playerwheel.MouseRayTest'
+}
+tasks.named('check') { dependsOn 'mouseRayTest' }
+
+tasks.register('playerWheelTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.playerwheel.WheelLayoutTest'
+}
+tasks.named('check') { dependsOn 'playerWheelTest' }
+
+tasks.register('skinSaveTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.skin.SkinSaveLogicTest'
+}
+tasks.named('check') { dependsOn 'skinSaveTest' }
+
+tasks.register('containerSearchTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.gui.search.ContainerSearchTest'
+}
+tasks.named('check') { dependsOn 'containerSearchTest' }
+
+tasks.register('buyButtonTest', JavaExec) {
+    dependsOn plannerTestClasses
+    classpath = sourceSets.plannerTest.runtimeClasspath
+    mainClass = 'com.bame.client.gui.BuyButtonTest'
+}
+tasks.named('check') { dependsOn 'buyButtonTest' }

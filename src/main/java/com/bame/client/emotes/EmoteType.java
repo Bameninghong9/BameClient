@@ -23,6 +23,11 @@ public enum EmoteType {
     PICNIC("Picnic", "PICNIC", "🧺", "Sit on a picnic blanket with a sandwich and a drink"),
     /** Halloween: auf einem Hexenbesen in kleinen Kreisen schweben (rein optisch, die echte Position bleibt). */
     WITCH_BROOM("Witch Broom", "WITCHBROOM", "🧹", "Hover in small circles on a witch's broom with a sparkle trail"),
+    /**
+     * Im Schneidersitz auf einem schwebenden Teppich; Laufen, Sprinten, Springen und Schleichen bleiben unverändert (rein
+     * optisch, kein Fliegen). Name und Beschreibung laut Auftrag auf Deutsch.
+     */
+    FLYING_CARPET("Fliegender Teppich", "FLYINGCARPET", "🧞", "Auf einem fliegenden Teppich durch die Gegend gleiten"),
     STOP("Stop", "STOP", "\u23F9", "Stop the current animation");
 
     /** Englischer Anzeigename für Spieler (Menü-Karten, Emote-Rad, Kauf-Dialog). Backend-ID bleibt {@link #name()}. */
@@ -56,7 +61,7 @@ public enum EmoteType {
     public boolean allowsWalking() {
         return this == T_POSE || this == WAVE || this == BASKETBALL
                 || this == WHEELCHAIR || this == ZOMBIE || this == JUGGLE || this == BUTTERFLY || this == HIGH_FIVE
-                || this == HIGH_FIVE_ACCEPT;
+                || this == HIGH_FIVE_ACCEPT || this == FLYING_CARPET;
     }
 
     /** Interne Emotes: nicht auswählbar (Menü, Emote-Rad, Shop), werden nur vom Client selbst ausgelöst. */

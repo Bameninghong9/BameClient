@@ -23,7 +23,7 @@ public class BedrockModelRenderEqualityTest {
             "hat/witch_hat", "hat/straw_hat", "hat/crown", "hat/headphones", "hat/viking_helmet", "hat/propeller_cap",
             "hat/cat_ears", "face/sunglasses", "face/skull_mask", "face/gas_mask", "face/aviator_goggles",
             "accessory/minimehand", "pets/baby_dragon", "back/jetpack", "back/guitar", "back/quiver", "back/katana",
-            "back/backpack"
+            "back/backpack", "hat/samurai_helmet", "hat/knight_helmet", "face/vr_headset", "face/eye_patch"
     };
 
     private static int checks = 0;

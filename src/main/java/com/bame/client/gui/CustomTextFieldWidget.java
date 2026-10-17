@@ -21,11 +21,15 @@ public class CustomTextFieldWidget extends ClickableWidget {
     private String placeholder = "";
     private boolean drawsBackground = true;
     private int textInsetLeft = 0;
+    private int textInsetRight = 0;
 
     public void setDrawsBackground(boolean value) { this.drawsBackground = value; }
 
     /** Extra space left of the text, e.g. for an icon drawn by a subclass. */
     public void setTextInsetLeft(int inset) { this.textInsetLeft = Math.max(0, inset); }
+
+    /** Extra space right of the text, e.g. for a clear button or a counter drawn by a subclass. */
+    public void setTextInsetRight(int inset) { this.textInsetRight = Math.max(0, inset); }
 
     public CustomTextFieldWidget(int x, int y, int width, int height, Text message) {
         super(x, y, width, height, message);
@@ -59,7 +63,7 @@ public class CustomTextFieldWidget extends ClickableWidget {
 
         int innerX = this.getX() + 6 + this.textInsetLeft;
         int innerY = this.getY() + (this.height - 8) / 2;
-        int innerWidth = this.width - 12 - this.textInsetLeft;
+        int innerWidth = Math.max(0, this.width - 12 - this.textInsetLeft - this.textInsetRight);
 
         context.enableScissor(innerX, this.getY(), innerX + innerWidth, this.getY() + this.height);
 

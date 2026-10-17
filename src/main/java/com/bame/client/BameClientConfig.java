@@ -213,6 +213,38 @@ public class BameClientConfig {
                 ArmorHudModule.outlineColor = getHex(props, "armorHudOutlineColor", ArmorHudModule.outlineColor);
                 ArmorHudModule.customWidth = getInt(props, "armorHudCustomWidth", ArmorHudModule.customWidth);
                 ArmorHudModule.customHeight = getInt(props, "armorHudCustomHeight", ArmorHudModule.customHeight);
+                // Armor HUD - Stil und Anzeige (ältere Dateien ohne diese Schlüssel behalten die Standardwerte = bisheriges Aussehen)
+                ArmorHudModule.expanded = getBool(props, "armorHudExpanded", ArmorHudModule.expanded);
+                ArmorHudModule.style = com.bame.client.render.ArmorHudLayout.sanitizeStyle(getInt(props, "armorHudStyle", ArmorHudModule.style));
+                ArmorHudModule.durabilityMode = com.bame.client.render.ArmorHudLayout.sanitizeDurability(getInt(props, "armorHudDurability", ArmorHudModule.durabilityMode));
+                ArmorHudModule.colorByDurability = getBool(props, "armorHudColorByDurability", ArmorHudModule.colorByDurability);
+                ArmorHudModule.lowWarning = getBool(props, "armorHudLowWarning", ArmorHudModule.lowWarning);
+                ArmorHudModule.lowThreshold = com.bame.client.render.ArmorHudLayout.sanitizeThreshold(getInt(props, "armorHudLowThreshold", ArmorHudModule.lowThreshold));
+                ArmorHudModule.showHelmet = getBool(props, "armorHudShowHelmet", ArmorHudModule.showHelmet);
+                ArmorHudModule.showChestplate = getBool(props, "armorHudShowChestplate", ArmorHudModule.showChestplate);
+                ArmorHudModule.showLeggings = getBool(props, "armorHudShowLeggings", ArmorHudModule.showLeggings);
+                ArmorHudModule.showBoots = getBool(props, "armorHudShowBoots", ArmorHudModule.showBoots);
+                ArmorHudModule.showMainHand = getBool(props, "armorHudShowMainHand", ArmorHudModule.showMainHand);
+                ArmorHudModule.showOffHand = getBool(props, "armorHudShowOffHand", ArmorHudModule.showOffHand);
+                ArmorHudModule.showArrows = getBool(props, "armorHudShowArrows", ArmorHudModule.showArrows);
+                ArmorHudModule.hideEmpty = getBool(props, "armorHudHideEmpty", ArmorHudModule.hideEmpty);
+                ArmorHudModule.order = com.bame.client.render.ArmorHudLayout.sanitizeOrder(getInt(props, "armorHudOrder", ArmorHudModule.order));
+                ArmorHudModule.anchor = com.bame.client.render.ArmorHudLayout.sanitizeAnchor(getInt(props, "armorHudAnchor", ArmorHudModule.anchor));
+
+                // Inventory HUD (fehlende Schlüssel = Standardwerte)
+                InventoryHudModule.enabled = getBool(props, "inventoryHudEnabled", InventoryHudModule.enabled);
+                InventoryHudModule.hudX = getInt(props, "inventoryHudHudX", InventoryHudModule.hudX);
+                InventoryHudModule.hudY = getInt(props, "inventoryHudHudY", InventoryHudModule.hudY);
+                InventoryHudModule.scale = com.bame.client.render.InventoryHudLayout.sanitizeScale(getFloat(props, "inventoryHudScale", InventoryHudModule.scale));
+                InventoryHudModule.bgMode = sanitizeBgMode(getInt(props, "inventoryHudBgMode", InventoryHudModule.bgMode));
+                InventoryHudModule.outlineColor = getHex(props, "inventoryHudOutlineColor", InventoryHudModule.outlineColor);
+                InventoryHudModule.customWidth = getInt(props, "inventoryHudCustomWidth", InventoryHudModule.customWidth);
+                InventoryHudModule.customHeight = getInt(props, "inventoryHudCustomHeight", InventoryHudModule.customHeight);
+                InventoryHudModule.expanded = getBool(props, "inventoryHudExpanded", InventoryHudModule.expanded);
+                InventoryHudModule.includeHotbar = getBool(props, "inventoryHudIncludeHotbar", InventoryHudModule.includeHotbar);
+                InventoryHudModule.hideWhenInventoryOpen = getBool(props, "inventoryHudHideInInventory", InventoryHudModule.hideWhenInventoryOpen);
+                InventoryHudModule.slotStyle = com.bame.client.render.InventoryHudLayout.sanitizeStyle(getInt(props, "inventoryHudSlotStyle", InventoryHudModule.slotStyle));
+                InventoryHudModule.opacity = com.bame.client.render.InventoryHudLayout.sanitizeOpacity(getFloat(props, "inventoryHudOpacity", InventoryHudModule.opacity));
 
                 // KeyStrokes
                 KeyStrokesModule.enabled = getBool(props, "keyStrokesEnabled", KeyStrokesModule.enabled);
@@ -404,6 +436,34 @@ public class BameClientConfig {
                 TabBadgeModule.keyBind = getInt(props, "keyBind", TabBadgeModule.keyBind);
                 TabBadgeModule.expanded = getBool(props, "expanded", TabBadgeModule.expanded);
             } catch (Exception e) { logLoadError(tabBadgeFile, e); } }
+
+            // Visuals - Hotbar (Vanilla-Hotbar im HUD-Editor verschoben: Versatz zur Vanilla-Stelle unten mittig)
+            Path hotbarFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("hotbar.properties");
+            if (Files.exists(hotbarFile)) { try {
+                Properties props = loadProps(hotbarFile);
+                HotbarModule.offsetX = com.bame.client.render.HotbarLayout.sanitizeOffset(getInt(props, "offsetX", HotbarModule.offsetX));
+                HotbarModule.offsetY = com.bame.client.render.HotbarLayout.sanitizeOffset(getInt(props, "offsetY", HotbarModule.offsetY));
+                HotbarModule.scale = com.bame.client.render.HotbarLayout.clampScale(getFloat(props, "scale", HotbarModule.scale));
+                HotbarModule.moveStatusBars = getBool(props, "moveStatusBars", HotbarModule.moveStatusBars);
+            } catch (Exception e) { logLoadError(hotbarFile, e); } }
+
+            // Visuals - Hide Armor (nur Darstellung beim eigenen Client)
+            Path hideArmorFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("hide_armor.properties");
+            if (Files.exists(hideArmorFile)) { try {
+                Properties props = loadProps(hideArmorFile);
+                HideArmorModule.enabled = getBool(props, "enabled", HideArmorModule.enabled);
+                HideArmorModule.keyBind = getInt(props, "keyBind", HideArmorModule.keyBind);
+                HideArmorModule.expanded = getBool(props, "expanded", HideArmorModule.expanded);
+                HideArmorModule.self = getBool(props, "self", HideArmorModule.self);
+                HideArmorModule.others = getBool(props, "others", HideArmorModule.others);
+                HideArmorModule.helmet = getBool(props, "helmet", HideArmorModule.helmet);
+                HideArmorModule.chestplate = getBool(props, "chestplate", HideArmorModule.chestplate);
+                HideArmorModule.leggings = getBool(props, "leggings", HideArmorModule.leggings);
+                HideArmorModule.boots = getBool(props, "boots", HideArmorModule.boots);
+                HideArmorModule.keepHeads = getBool(props, "keepHeads", HideArmorModule.keepHeads);
+                HideArmorModule.keepElytra = getBool(props, "keepElytra", HideArmorModule.keepElytra);
+                HideArmorModule.inventoryPreview = getBool(props, "inventoryPreview", HideArmorModule.inventoryPreview);
+            } catch (Exception e) { logLoadError(hideArmorFile, e); } }
 
 
             // Combat - AutoClicker
@@ -650,6 +710,19 @@ public class BameClientConfig {
                 DurabilityGuardModule.resetToDefault();
             }
 
+            // Misc - Container Search (Suchleiste unter Truhen; fehlende Datei/Schlüssel = Standardwerte)
+            Path containerSearchFile = BASE_CONFIG_DIR.resolve("Misc").resolve("container_search.properties");
+            if (Files.exists(containerSearchFile)) { try {
+                Properties props = loadProps(containerSearchFile);
+                ContainerSearchModule.enabled = getBool(props, "enabled", ContainerSearchModule.enabled);
+                ContainerSearchModule.expanded = getBool(props, "expanded", ContainerSearchModule.expanded);
+                ContainerSearchModule.playerInventory = getBool(props, "playerInventory", ContainerSearchModule.playerInventory);
+                ContainerSearchModule.searchLoreEnchantments = getBool(props, "searchLoreEnchantments", ContainerSearchModule.searchLoreEnchantments);
+                ContainerSearchModule.searchShulkers = getBool(props, "searchShulkers", ContainerSearchModule.searchShulkers);
+                ContainerSearchModule.highlightMatches = getBool(props, "highlightMatches", ContainerSearchModule.highlightMatches);
+                ContainerSearchModule.rememberSearch = getBool(props, "rememberSearch", ContainerSearchModule.rememberSearch);
+            } catch (Exception e) { logLoadError(containerSearchFile, e); } }
+
             // Visuals - BlockOutline
             Path blockOutlineFile = BASE_CONFIG_DIR.resolve("Visuals").resolve("block_outline.properties");
             if (Files.exists(blockOutlineFile)) { try {
@@ -887,6 +960,11 @@ public class BameClientConfig {
     static String getString(Properties props, String key, String fallback) {
         String v = props.getProperty(key);
         return v != null ? v : fallback;
+    }
+
+    /** Hintergrund-Modus eines HUD-Elements: 0 Transparent, 1 Tooltip, 2 Dark, 3 Outline; Unbekanntes wird 0. */
+    static int sanitizeBgMode(int mode) {
+        return mode >= 0 && mode <= 3 ? mode : 0;
     }
 
     /** Nur gültige Kategorien des Mod-Menüs zulassen (sonst Combat). */
@@ -1186,6 +1264,37 @@ public class BameClientConfig {
             showHudProps.setProperty("armorHudOutlineColor", Integer.toHexString(ArmorHudModule.outlineColor));
             showHudProps.setProperty("armorHudCustomWidth", String.valueOf(ArmorHudModule.customWidth));
             showHudProps.setProperty("armorHudCustomHeight", String.valueOf(ArmorHudModule.customHeight));
+            showHudProps.setProperty("armorHudExpanded", String.valueOf(ArmorHudModule.expanded));
+            showHudProps.setProperty("armorHudStyle", String.valueOf(ArmorHudModule.style));
+            showHudProps.setProperty("armorHudDurability", String.valueOf(ArmorHudModule.durabilityMode));
+            showHudProps.setProperty("armorHudColorByDurability", String.valueOf(ArmorHudModule.colorByDurability));
+            showHudProps.setProperty("armorHudLowWarning", String.valueOf(ArmorHudModule.lowWarning));
+            showHudProps.setProperty("armorHudLowThreshold", String.valueOf(ArmorHudModule.lowThreshold));
+            showHudProps.setProperty("armorHudShowHelmet", String.valueOf(ArmorHudModule.showHelmet));
+            showHudProps.setProperty("armorHudShowChestplate", String.valueOf(ArmorHudModule.showChestplate));
+            showHudProps.setProperty("armorHudShowLeggings", String.valueOf(ArmorHudModule.showLeggings));
+            showHudProps.setProperty("armorHudShowBoots", String.valueOf(ArmorHudModule.showBoots));
+            showHudProps.setProperty("armorHudShowMainHand", String.valueOf(ArmorHudModule.showMainHand));
+            showHudProps.setProperty("armorHudShowOffHand", String.valueOf(ArmorHudModule.showOffHand));
+            showHudProps.setProperty("armorHudShowArrows", String.valueOf(ArmorHudModule.showArrows));
+            showHudProps.setProperty("armorHudHideEmpty", String.valueOf(ArmorHudModule.hideEmpty));
+            showHudProps.setProperty("armorHudOrder", String.valueOf(ArmorHudModule.order));
+            showHudProps.setProperty("armorHudAnchor", String.valueOf(ArmorHudModule.anchor));
+
+            // Inventory HUD
+            showHudProps.setProperty("inventoryHudEnabled", String.valueOf(InventoryHudModule.enabled));
+            showHudProps.setProperty("inventoryHudHudX", String.valueOf(InventoryHudModule.hudX));
+            showHudProps.setProperty("inventoryHudHudY", String.valueOf(InventoryHudModule.hudY));
+            showHudProps.setProperty("inventoryHudScale", String.valueOf(InventoryHudModule.scale));
+            showHudProps.setProperty("inventoryHudBgMode", String.valueOf(InventoryHudModule.bgMode));
+            showHudProps.setProperty("inventoryHudOutlineColor", Integer.toHexString(InventoryHudModule.outlineColor));
+            showHudProps.setProperty("inventoryHudCustomWidth", String.valueOf(InventoryHudModule.customWidth));
+            showHudProps.setProperty("inventoryHudCustomHeight", String.valueOf(InventoryHudModule.customHeight));
+            showHudProps.setProperty("inventoryHudExpanded", String.valueOf(InventoryHudModule.expanded));
+            showHudProps.setProperty("inventoryHudIncludeHotbar", String.valueOf(InventoryHudModule.includeHotbar));
+            showHudProps.setProperty("inventoryHudHideInInventory", String.valueOf(InventoryHudModule.hideWhenInventoryOpen));
+            showHudProps.setProperty("inventoryHudSlotStyle", String.valueOf(InventoryHudModule.slotStyle));
+            showHudProps.setProperty("inventoryHudOpacity", String.valueOf(InventoryHudModule.opacity));
 
             // KeyStrokes
             showHudProps.setProperty("keyStrokesEnabled", String.valueOf(KeyStrokesModule.enabled));
@@ -1348,6 +1457,30 @@ public class BameClientConfig {
             tabBadgeProps.setProperty("keyBind", String.valueOf(TabBadgeModule.keyBind));
             tabBadgeProps.setProperty("expanded", String.valueOf(TabBadgeModule.expanded));
             queue(out, visualsDir.resolve("tab_badge.properties"), tabBadgeProps, "Caeser Client - Tab Badge");
+
+            // Visuals - Hotbar
+            Properties hotbarProps = new Properties();
+            hotbarProps.setProperty("offsetX", String.valueOf(HotbarModule.offsetX));
+            hotbarProps.setProperty("offsetY", String.valueOf(HotbarModule.offsetY));
+            hotbarProps.setProperty("scale", String.valueOf(HotbarModule.scale));
+            hotbarProps.setProperty("moveStatusBars", String.valueOf(HotbarModule.moveStatusBars));
+            queue(out, visualsDir.resolve("hotbar.properties"), hotbarProps, "Caeser Client - Hotbar");
+
+            // Visuals - Hide Armor
+            Properties hideArmorProps = new Properties();
+            hideArmorProps.setProperty("enabled", String.valueOf(HideArmorModule.enabled));
+            hideArmorProps.setProperty("keyBind", String.valueOf(HideArmorModule.keyBind));
+            hideArmorProps.setProperty("expanded", String.valueOf(HideArmorModule.expanded));
+            hideArmorProps.setProperty("self", String.valueOf(HideArmorModule.self));
+            hideArmorProps.setProperty("others", String.valueOf(HideArmorModule.others));
+            hideArmorProps.setProperty("helmet", String.valueOf(HideArmorModule.helmet));
+            hideArmorProps.setProperty("chestplate", String.valueOf(HideArmorModule.chestplate));
+            hideArmorProps.setProperty("leggings", String.valueOf(HideArmorModule.leggings));
+            hideArmorProps.setProperty("boots", String.valueOf(HideArmorModule.boots));
+            hideArmorProps.setProperty("keepHeads", String.valueOf(HideArmorModule.keepHeads));
+            hideArmorProps.setProperty("keepElytra", String.valueOf(HideArmorModule.keepElytra));
+            hideArmorProps.setProperty("inventoryPreview", String.valueOf(HideArmorModule.inventoryPreview));
+            queue(out, visualsDir.resolve("hide_armor.properties"), hideArmorProps, "Caeser Client - Hide Armor");
 
 
             // Combat - AutoClicker
@@ -1534,6 +1667,17 @@ public class BameClientConfig {
             }
             durabilityGuardProps.setProperty("toolThresholds", dguardSb.toString());
             queue(out, miscDir.resolve("durability_guard.properties"), durabilityGuardProps, "Caeser Client - DurabilityGuard");
+
+            // Misc - Container Search
+            Properties containerSearchProps = new Properties();
+            containerSearchProps.setProperty("enabled", String.valueOf(ContainerSearchModule.enabled));
+            containerSearchProps.setProperty("expanded", String.valueOf(ContainerSearchModule.expanded));
+            containerSearchProps.setProperty("playerInventory", String.valueOf(ContainerSearchModule.playerInventory));
+            containerSearchProps.setProperty("searchLoreEnchantments", String.valueOf(ContainerSearchModule.searchLoreEnchantments));
+            containerSearchProps.setProperty("searchShulkers", String.valueOf(ContainerSearchModule.searchShulkers));
+            containerSearchProps.setProperty("highlightMatches", String.valueOf(ContainerSearchModule.highlightMatches));
+            containerSearchProps.setProperty("rememberSearch", String.valueOf(ContainerSearchModule.rememberSearch));
+            queue(out, miscDir.resolve("container_search.properties"), containerSearchProps, "Caeser Client - Container Search");
 
             // Visuals - BlockOutline
             Properties blockOutlineProps = new Properties();

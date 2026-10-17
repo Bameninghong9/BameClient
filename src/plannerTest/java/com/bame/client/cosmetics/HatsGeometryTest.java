@@ -37,6 +37,11 @@ public class HatsGeometryTest {
         propellerAnimation();
         catEarAnimation();
         stateCleanup();
+        // Helme (Samurai, Ritter)
+        helmetsFiles();
+        samuraiHelmet();
+        knightHelmet();
+        helmetAnimations();
         System.out.println("HATS GEOMETRY TESTS PASSED (" + checks + " checks)");
     }
 
@@ -406,6 +411,430 @@ public class HatsGeometryTest {
         double[] best = null;
         for (double[] p : points(g, anim, c -> "ear_l".equals(c.bone()))) if (best == null || p[1] > best[1]) best = p;
         return best;
+    }
+
+    // ---------------- Helme (Samurai, Ritter) ----------------
+
+    private static final String[] HELMETS = {HelmetAnimations.SAMURAI_HELMET, HelmetAnimations.KNIGHT_HELMET};
+
+    /** Beide Namespaces gleich, UVs innerhalb der Textur (Groesse aus dem PNG), Texturgroesse passt zum Modell. */
+    private static void helmetsFiles() {
+        Pattern uvp = Pattern.compile("\"uv\":\\s*\\[([-0-9.]+),\\s*([-0-9.]+)\\],\\s*\"uv_size\":\\s*\\[([-0-9.]+),\\s*([-0-9.]+)\\]");
+        Pattern tw = Pattern.compile("\"texture_width\":\\s*(\\d+),\\s*\"texture_height\":\\s*(\\d+)");
+        for (String h : HELMETS) {
+            for (String f : new String[]{"models/cosmetics/hat/" + h + ".geo.json", "textures/cosmetics/hat/" + h + ".png"}) {
+                check(read("bameclient/" + f).equals(read("caeserclient/" + f)), "beide Namespaces gleich: " + f);
+            }
+            String geo = read("bameclient/models/cosmetics/hat/" + h + ".geo.json");
+            Matcher mt = tw.matcher(geo);
+            check(mt.find(), h + ": Texturgroesse im Modell");
+            int w = Integer.parseInt(mt.group(1)), hh = Integer.parseInt(mt.group(2));
+            try {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(Path.of(RES + "bameclient/textures/cosmetics/hat/" + h + ".png").toFile());
+                check(img != null && img.getWidth() == w && img.getHeight() == hh, h + ": PNG " + (img == null ? "?" : img.getWidth() + "x" + img.getHeight()) + " passt zu " + w + "x" + hh);
+            } catch (IOException e) {
+                throw new AssertionError(h + ": PNG unlesbar");
+            }
+            Matcher mu = uvp.matcher(geo);
+            int n = 0;
+            while (mu.find()) {
+                double u = Double.parseDouble(mu.group(1)), v = Double.parseDouble(mu.group(2));
+                double us = Double.parseDouble(mu.group(3)), vs = Double.parseDouble(mu.group(4));
+                check(u >= 0 && v >= 0 && us > 0 && vs > 0 && u + us <= w + 1e-6 && v + vs <= hh + 1e-6, h + ": UV in der Textur (" + u + "," + v + " " + us + "x" + vs + ")");
+                n++;
+            }
+            check(n > 100, h + ": Flaechen mit UV (" + n + ")");
+        }
+        check(HelmetAnimations.isHelmet("SAMURAI_HELMET") && HelmetAnimations.isHelmet("knight_helmet") && !HelmetAnimations.isHelmet("viking_helmet")
+                && !HelmetAnimations.isHelmet(null), "Helm-IDs");
+        check("SAMURAI_HELMET".equals(HelmetAnimations.SAMURAI_HELMET.toUpperCase()) && "KNIGHT_HELMET".equals(HelmetAnimations.KNIGHT_HELMET.toUpperCase()), "Shop-IDs = Mod-IDs in GROSS");
+    }
+
+    /** Punkt (Knochenraum) im Wuerfel (mit Wuerfel-Rotation), tol = Mindesttiefe. */
+    private static boolean inCube(Cube c, double[] p, double tol) {
+        double[] q = p;
+        if (c.rotation() != null) {
+            // Umkehrung von rotate(): Rx(rx) * Ry(-ry) * Rz(rz) um den Pivot
+            double x = p[0] - c.pivot()[0], y = p[1] - c.pivot()[1], z = p[2] - c.pivot()[2];
+            double g = Math.toRadians(c.rotation()[2]);
+            double x1 = x * Math.cos(g) - y * Math.sin(g), y1 = x * Math.sin(g) + y * Math.cos(g);
+            double b = Math.toRadians(-c.rotation()[1]);
+            double x2 = x1 * Math.cos(b) + z * Math.sin(b), z2 = -x1 * Math.sin(b) + z * Math.cos(b);
+            double a = Math.toRadians(c.rotation()[0]);
+            double y3 = y1 * Math.cos(a) - z2 * Math.sin(a), z3 = y1 * Math.sin(a) + z2 * Math.cos(a);
+            q = new double[]{x2 + c.pivot()[0], y3 + c.pivot()[1], z3 + c.pivot()[2]};
+        }
+        return q[0] > c.origin()[0] + tol && q[0] < c.origin()[0] + c.size()[0] - tol
+                && q[1] > c.origin()[1] + tol && q[1] < c.origin()[1] + c.size()[1] - tol
+                && q[2] > c.origin()[2] + tol && q[2] < c.origin()[2] + c.size()[2] - tol;
+    }
+
+    /** Dichtere Stichproben (n x n x n) eines Wuerfels in Knochen-Ruhelage. */
+    private static List<double[]> dense(Cube c, int n) {
+        List<double[]> out = new ArrayList<>();
+        for (int i = 0; i <= n; i++) for (int j = 0; j <= n; j++) for (int k = 0; k <= n; k++) {
+            double[] p = {c.origin()[0] + c.size()[0] * i / n, c.origin()[1] + c.size()[1] * j / n, c.origin()[2] + c.size()[2] * k / n};
+            out.add(c.rotation() == null ? p : rotate(p, c.pivot(), c.rotation()[0], c.rotation()[1], c.rotation()[2]));
+        }
+        return out;
+    }
+
+    /** Trifft ein Strahl von (x, y, -4.5) nach vorn (-z) einen Wuerfel der Knochen (mit Animation)? */
+    private static boolean rayHitsFront(Geo g, Map<String, double[]> anim, java.util.function.Predicate<Cube> filter, double x, double y) {
+        for (double z = -4.55; z > -9.0; z -= 0.04) {
+            double[] p = {x, y, z};
+            for (Cube c : g.cubes()) {
+                if (!filter.test(c)) continue;
+                // Punkt in den Knochenraum zurueck: Knochen-Animation umkehren (nur Rotation um Pivots)
+                double[] q = unposed(g, c.bone(), p, anim);
+                if (inCube(c, q, -0.01)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Umkehrung von posed(): Rotationen der Kette von der Wurzel zum Knochen mit negativen Winkeln, umgekehrte Reihenfolge. */
+    private static double[] unposed(Geo g, String bone, double[] p, Map<String, double[]> anim) {
+        List<Bone> chain = new ArrayList<>();
+        for (Bone b = g.bones().get(bone); b != null; b = b.parent() != null ? g.bones().get(b.parent()) : null) chain.add(0, b);
+        double[] q = p.clone();
+        for (Bone b : chain) {
+            double[] r = anim != null ? anim.get(b.name()) : null;
+            if (r == null) continue;
+            // inverse von Rz(-rz) Ry(ry) Rx(-rx): Rx(rx) Ry(-ry) Rz(rz)
+            double x = q[0] - b.pivot()[0], y = q[1] - b.pivot()[1], z = q[2] - b.pivot()[2];
+            double gz = Math.toRadians(r[2]);
+            double x1 = x * Math.cos(gz) - y * Math.sin(gz), y1 = x * Math.sin(gz) + y * Math.cos(gz);
+            double by = Math.toRadians(-r[1]);
+            double x2 = x1 * Math.cos(by) + z * Math.sin(by), z2 = -x1 * Math.sin(by) + z * Math.cos(by);
+            double ax = Math.toRadians(r[0]);
+            double y3 = y1 * Math.cos(ax) - z2 * Math.sin(ax), z3 = y1 * Math.sin(ax) + z2 * Math.cos(ax);
+            q = new double[]{x2 + b.pivot()[0], y3 + b.pivot()[1], z3 + b.pivot()[2]};
+        }
+        return q;
+    }
+
+    /** Gemeinsame Pruefungen der Helme in einer Pose: Grenzen, nichts im Kopf/Hut-Layer. */
+    private static void helmetBounds(String hat, List<double[]> pts, double maxAbsZ) {
+        for (double[] p : pts) {
+            check(Math.abs(p[0]) <= 10.0 && Math.abs(p[2]) <= maxAbsZ, hat + ": nicht zu ausladend " + Arrays.toString(p));
+            check(p[1] >= 24.5 && p[1] <= 40.0, hat + ": Hoehe im Rahmen " + Arrays.toString(p));
+            check(depthIn(p, LAYER_HALF, LAYER_TOP) <= 1e-6 || p[1] < 23.5, hat + ": nichts im Kopf/Hut-Layer " + Arrays.toString(p));
+        }
+    }
+
+    private static Map<String, double[]> samuraiAnim(float[] swing) {
+        Map<String, double[]> a = new HashMap<>();
+        for (int r = 0; r < HelmetAnimations.SHIKORO_ROWS; r++) {
+            a.put("shikoro" + r, new double[]{swing[r * 3], 0, 0});
+            a.put("shikoro" + r + "_l", new double[]{0, 0, -swing[r * 3 + 1]});
+            a.put("shikoro" + r + "_r", new double[]{0, 0, swing[r * 3 + 2]});
+        }
+        return a;
+    }
+
+    private static void samuraiHelmet() {
+        String id = HelmetAnimations.SAMURAI_HELMET;
+        Geo g = load(id);
+        for (Bone b : g.bones().values()) check(b.parent() == null || g.bones().containsKey(b.parent()), id + ": Elternknochen existiert: " + b.name());
+        check(g.bones().containsKey("base"), id + ": Knochen base");
+        for (int r = 0; r < HelmetAnimations.SHIKORO_ROWS; r++) {
+            for (String sfx : new String[]{"", "_l", "_r"}) {
+                Bone b = g.bones().get("shikoro" + r + sfx);
+                check(b != null, id + ": Lamellen-Knochen shikoro" + r + sfx);
+                String want = r == 0 ? id : "shikoro" + (r - 1) + sfx;
+                check(want.equals(b.parent()), id + ": untere Reihe haengt an der oberen: shikoro" + r + sfx + " -> " + b.parent());
+                // Pivot an der Oberkante der Reihe: alle Wuerfel des Knochens liegen darunter
+                for (double[] p : points(g, null, c -> b.name().equals(c.bone()))) check(p[1] <= b.pivot()[1] + 1e-3, id + ": Pivot oben an der Reihe " + b.name());
+            }
+        }
+        // Ruhelage: Grenzen, nichts im Kopf, Gesicht frei, symmetrisch, sitzt eng
+        List<double[]> all = points(g, null, c -> !c.bone().startsWith("glint"));
+        helmetBounds(id, all, 7.5);
+        faceClear(id, all);
+        double sum = 0;
+        for (double[] p : all) sum += p[0];
+        check(Math.abs(sum) < 1e-2 * all.size(), id + ": links/rechts symmetrisch (" + sum / all.size() + ")");
+        double wall = 1e9, dome = 1e9, rim = 1e9, bottom = 1e9;
+        for (double[] p : all) {
+            double r = Math.max(Math.abs(p[0]), Math.abs(p[2]));
+            if (p[1] > 30.8 && p[1] < 32.3) wall = Math.min(wall, r);
+            if (r <= LAYER_HALF) dome = Math.min(dome, p[1]);
+            if (Math.abs(p[0]) > 4.0 && Math.abs(p[0]) < 6.0 && Math.abs(p[2]) < 2.0) rim = Math.min(rim, p[1]);
+            if (p[2] > 4.5) bottom = Math.min(bottom, p[1]);
+        }
+        check(wall >= LAYER_HALF && wall <= LAYER_HALF + 0.25, id + ": Helmglocke eng am Kopf (" + wall + ")");
+        check(dome >= LAYER_TOP && dome <= LAYER_TOP + 0.8, id + ": Glocke liegt ohne Luecke auf (" + dome + ")");
+        check(rim <= 29.0, id + ": Glocke/Shikoro umschliessen die Kopfseiten (" + rim + ")");
+        check(bottom <= 26.0, id + ": Nackenschutz reicht bis in den Nacken (" + bottom + ")");
+        coversLayerCorners(id, all, 30.3, 32.4);
+        // Hoerner vorn, nach oben/aussen; Glanz-Knochen direkt vor den Hornsegmenten
+        double hornTop = -1e9, hornX = 0;
+        for (double[] p : all) if (p[2] < -5.3 && p[1] > 32.5) { hornTop = Math.max(hornTop, p[1]); hornX = Math.max(hornX, Math.abs(p[0])); }
+        check(hornTop > 36.5 && hornTop < 40.0 && hornX > 4.0, id + ": goldene Hoerner vorn (" + hornTop + ", " + hornX + ")");
+        for (int i = 0; i < HelmetAnimations.HORN_GLINTS; i++) {
+            String b = "glint" + i;
+            check(g.bones().containsKey(b) && id.equals(g.bones().get(b).parent()), id + ": Glanz-Knochen " + b);
+            List<double[]> gp = points(g, null, c -> b.equals(c.bone()));
+            check(!gp.isEmpty(), id + ": Glanz hat Geometrie " + b);
+            double lx = 0, rx = 0;
+            for (double[] p : gp) {
+                check(p[2] < -5.3 && p[1] > 31.0, id + ": Glanz liegt vorn auf den Hoernern " + Arrays.toString(p));
+                if (p[0] > 0) lx++; else rx++;
+            }
+            check(lx > 0 && rx > 0, id + ": Glanz auf beiden Hoernern " + b);
+        }
+        // Lamellen: groesster Ausschlag aller Reihen nach aussen -> weiter nichts im Kopf, nichts unter 24.5
+        float[] max = new float[HelmetAnimations.SHIKORO_ROWS * 3];
+        Arrays.fill(max, HelmetAnimations.LAME_MAX_DEG);
+        List<double[]> swung = points(g, samuraiAnim(max), c -> !c.bone().startsWith("glint"));
+        helmetBounds(id + " (Lamellen ausgeschwungen)", swung, 7.5);
+        // nach aussen: Unterkante hinten weiter hinten, Seiten weiter aussen
+        double backRest = maxCoord(points(g, null, c -> c.bone().equals("shikoro3")), 2), backSwung = maxCoord(points(g, samuraiAnim(max), c -> c.bone().equals("shikoro3")), 2);
+        double sideRest = maxCoord(points(g, null, c -> c.bone().equals("shikoro3_l")), 0), sideSwung = maxCoord(points(g, samuraiAnim(max), c -> c.bone().equals("shikoro3_l")), 0);
+        check(backSwung > backRest + 0.2 && sideSwung > sideRest + 0.2, id + ": Lamellen schwingen nach aussen (" + backRest + "->" + backSwung + ", " + sideRest + "->" + sideSwung + ")");
+        // im Lauf (echte Werte): nie nach innen, Grenzen eingehalten
+        for (int i = 0; i < 120; i++) {
+            float t = i * 0.137f, ph = i * 0.41f;
+            float[] sw = new float[HelmetAnimations.SHIKORO_ROWS * 3];
+            for (int r = 0; r < HelmetAnimations.SHIKORO_ROWS; r++) for (int p = 0; p < 3; p++) sw[r * 3 + p] = HelmetAnimations.lameSwing(r, p, ph, 1.0f, t);
+            if (i % 10 == 0) helmetBounds(id + " (laufen " + i + ")", points(g, samuraiAnim(sw), c -> c.bone().startsWith("shikoro")), 7.5);
+        }
+    }
+
+    private static double maxCoord(List<double[]> pts, int axis) {
+        double m = -1e9;
+        for (double[] p : pts) m = Math.max(m, p[axis]);
+        return m;
+    }
+
+    private static Map<String, double[]> knightAnim(float visorPitch, float[] plume) {
+        Map<String, double[]> a = new HashMap<>();
+        a.put("visor", new double[]{visorPitch, 0, 0});
+        if (plume != null) for (int i = 0; i < HelmetAnimations.PLUME_SEGMENTS; i++) a.put("plume" + i, new double[]{-plume[i * 2], 0, plume[i * 2 + 1]});
+        return a;
+    }
+
+    private static void knightHelmet() {
+        String id = HelmetAnimations.KNIGHT_HELMET;
+        Geo g = load(id);
+        for (Bone b : g.bones().values()) check(b.parent() == null || g.bones().containsKey(b.parent()), id + ": Elternknochen existiert: " + b.name());
+        Bone visor = g.bones().get("visor");
+        check(visor != null && id.equals(visor.parent()), id + ": Visier als eigener Knochen");
+        check(Math.abs(visor.pivot()[0]) < 1e-6 && visor.pivot()[1] > 29.0 && visor.pivot()[1] < 31.5 && visor.pivot()[2] < 0, id + ": Visier-Pivot = Scharnier an den Schlaefen " + Arrays.toString(visor.pivot()));
+        for (int i = 0; i < HelmetAnimations.PLUME_SEGMENTS; i++) {
+            Bone b = g.bones().get("plume" + i);
+            check(b != null && (i == 0 ? id : "plume" + (i - 1)).equals(b.parent()), id + ": Federsegment plume" + i + " (Kette)");
+            check(!points(g, null, c -> b.name().equals(c.bone())).isEmpty(), id + ": Federsegment hat Geometrie plume" + i);
+        }
+        java.util.function.Predicate<Cube> skull = c -> c.bone().equals("base");
+        java.util.function.Predicate<Cube> visorCubes = c -> c.bone().equals("visor");
+        // Visier geschlossen (Ruhelage): Augen und Mund bedeckt; offen: Augen frei, Kinnreff bleibt vor dem Mund
+        Map<String, double[]> closed = knightAnim(HelmetAnimations.visorPitch(1.0f), null);
+        Map<String, double[]> open = knightAnim(HelmetAnimations.visorPitch(0.0f), null);
+        for (double y = 27.2; y < 29.0; y += 0.3) for (double ax = 1.15; ax < 3.0; ax += 0.3) for (int s = -1; s <= 1; s += 2) {
+            check(rayHitsFront(g, closed, c -> true, s * ax, y), id + ": geschlossen deckt das Visier die Augen ab (" + s * ax + ", " + y + ")");
+            check(!rayHitsFront(g, open, c -> true, s * ax, y), id + ": offen sind die Augen frei (" + s * ax + ", " + y + ")");
+        }
+        for (double y = 25.1; y < 26.6; y += 0.3) for (double x = -1.8; x <= 1.8; x += 0.6) {
+            check(rayHitsFront(g, closed, c -> true, x, y) && rayHitsFront(g, open, skull, x, y), id + ": Kinnreff/Visier vor dem Mund (" + x + ", " + y + ")");
+        }
+        // Visier-Winkelbereich: 0 (zu) .. -VISOR_OPEN_DEG (offen), monoton
+        check(HelmetAnimations.visorPitch(1.0f) == 0.0f && Math.abs(HelmetAnimations.visorPitch(0.0f) + HelmetAnimations.VISOR_OPEN_DEG) < 1e-4f, "Visier: Endlagen");
+        check(HelmetAnimations.VISOR_OPEN_DEG >= 45.0f && HelmetAnimations.VISOR_OPEN_DEG <= 80.0f, "Visier: Klappwinkel plausibel");
+        float lastP = -1e9f;
+        for (int i = 0; i <= 100; i++) {
+            float p = HelmetAnimations.visorPitch(i / 100.0f);
+            check(p >= -HelmetAnimations.VISOR_OPEN_DEG - 1e-4f && p <= 1e-4f, "Visier im Winkelbereich (" + p + ")");
+            check(p >= lastP - 1e-5f, "Visier monoton");
+            lastP = p;
+        }
+        // Kinematik: ueber den ganzen Klappweg liegt kein Visierpunkt in der Glocke/im Kinnreff oder im Kopf
+        List<Cube> skullList = new ArrayList<>();
+        for (Cube c : g.cubes()) if (skull.test(c)) skullList.add(c);
+        List<double[]> vRest = new ArrayList<>();
+        for (Cube c : g.cubes()) if (visorCubes.test(c)) vRest.addAll(dense(c, 5));
+        for (int a = 0; a <= (int) HelmetAnimations.VISOR_OPEN_DEG; a++) {
+            Map<String, double[]> an = knightAnim(-a, null);
+            for (double[] p0 : vRest) {
+                double[] p = posed(g, "visor", p0, an);
+                check(depthIn(p, LAYER_HALF, LAYER_TOP) <= 1e-6 || p[1] < 23.5, id + ": Visier nie im Kopf (Winkel " + a + ", " + Arrays.toString(p) + ")");
+                for (Cube c : skullList) {
+                    if (inCube(c, p, 0.0)) throw new AssertionError(id + ": Visier schneidet die Glocke (Winkel " + a + ", " + Arrays.toString(p) + ", Wuerfel " + Arrays.toString(c.origin()) + ")");
+                }
+            }
+            checks++;
+        }
+        // Grenzen geschlossen und offen; Glocke eng am Kopf
+        List<double[]> restAll = points(g, closed, c -> true), openAll = points(g, open, c -> true);
+        helmetBounds(id + " (zu)", restAll, 7.5);
+        helmetBounds(id + " (offen)", openAll, 7.5);
+        double sum = 0;
+        for (double[] p : restAll) sum += p[0];
+        check(Math.abs(sum) < 1e-2 * restAll.size(), id + ": links/rechts symmetrisch (" + sum / restAll.size() + ")");
+        double wall = 1e9, dome = 1e9;
+        for (Cube c : skullList) for (double[] p : dense(c, 8)) {
+            double r = Math.max(Math.abs(p[0]), Math.abs(p[2]));
+            if (p[1] > 30.5 && p[1] < 32.0 && p[2] > -3.0) wall = Math.min(wall, r);
+            if (r <= LAYER_HALF && p[1] > 30.0) dome = Math.min(dome, p[1]);
+        }
+        check(wall >= LAYER_HALF && wall <= LAYER_HALF + 0.25, id + ": Glocke eng am Kopf (" + wall + ")");
+        check(dome >= LAYER_TOP && dome <= LAYER_TOP + 0.5, id + ": liegt ohne Luecke auf dem Kopf (" + dome + ")");
+        List<double[]> skullDense = new ArrayList<>();
+        for (Cube c : skullList) skullDense.addAll(dense(c, 6));
+        coversLayerCorners(id, skullDense, 30.5, 32.4);
+        // Federbusch oben hinten, auch voll ausgelenkt ueber dem Helm und nicht im Kopf
+        double plumeTop = -1e9;
+        for (double[] p : points(g, null, c -> c.bone().startsWith("plume"))) plumeTop = Math.max(plumeTop, p[1]);
+        check(plumeTop > 36.0 && plumeTop <= 40.0, id + ": Federbusch ragt nach oben (" + plumeTop + ")");
+        float M = HelmetAnimations.PLUME_MAX_DEG;
+        for (float[] pl : new float[][]{{M, 3, M, 3, M, 3, M, 3}, {-M, -3, -M, -3, -M, -3, -M, -3}, {M, -3, -M, 3, M, -3, -M, 3}, {0, 0, 0, 0, 0, 0, 0, 0}}) {
+            List<double[]> pp = points(g, knightAnim(0.0f, pl), c -> c.bone().startsWith("plume"));
+            for (double[] p : pp) {
+                check(Math.abs(p[2]) <= 8.0 && p[1] <= 40.0 && Math.abs(p[0]) <= 3.0, id + ": Federbusch in den Grenzen " + Arrays.toString(p) + " " + Arrays.toString(pl));
+                check(p[1] > 33.5, id + ": Federbusch ueber dem Helm " + Arrays.toString(p));
+                for (Cube c : skullList) if (!c.bone().startsWith("plume") && inCube(c, p, 0.05) && p[1] < 34.6) {
+                    throw new AssertionError(id + ": Feder in der Glocke " + Arrays.toString(p));
+                }
+            }
+        }
+    }
+
+    // ---------------- Animationen der Helme ----------------
+
+    private static void helmetAnimations() {
+        // Lamellen: Bereich, nur nach aussen, stetig, deterministisch, laufen > stehen, Reihen versetzt
+        float idleMax = 0, walkMax = 0;
+        for (int r = 0; r < HelmetAnimations.SHIKORO_ROWS; r++) for (int part = 0; part < 3; part++) {
+            float prev = HelmetAnimations.lameSwing(r, part, 0, 1, 0);
+            for (int ms = 1; ms <= 20_000; ms++) {
+                float t = ms / 1000.0f, ph = t * 9.0f;
+                float s = HelmetAnimations.lameSwing(r, part, ph, 1.0f, t);
+                check(s >= 0.0f && s <= HelmetAnimations.LAME_MAX_DEG, "Lamelle im Bereich (" + s + ")");
+                check(Math.abs(s - prev) < 0.06f, "Lamellen stetig (Reihe " + r + ", t=" + t + ")");
+                check(s == HelmetAnimations.lameSwing(r, part, ph, 1.0f, t), "Lamellen deterministisch");
+                walkMax = Math.max(walkMax, s);
+                idleMax = Math.max(idleMax, HelmetAnimations.lameSwing(r, part, 0.0f, 0.0f, t));
+                prev = s;
+            }
+        }
+        check(idleMax < 0.25f && walkMax > 1.5f, "Lamellen schwingen beim Laufen (" + idleMax + " / " + walkMax + ")");
+        // versetzt: obere und untere Reihe erreichen ihr Maximum zu verschiedenen Zeiten
+        int peak0 = -1, peak3 = -1;
+        float m0 = -1, m3 = -1;
+        for (int i = 0; i < 500; i++) {
+            float ph = i * 0.01f * (float) Math.PI / 0.6662f;
+            float a = HelmetAnimations.lameSwing(0, 0, ph, 1.0f, 0.0f), b = HelmetAnimations.lameSwing(3, 0, ph, 1.0f, 0.0f);
+            if (a > m0) { m0 = a; peak0 = i; }
+            if (b > m3) { m3 = b; peak3 = i; }
+        }
+        check(peak0 != peak3, "Lamellen-Reihen leicht versetzt (" + peak0 + " vs " + peak3 + ")");
+        // Goldglanz: dezent, wandert vom Ansatz zur Spitze, stetig
+        float gmin = 9, gmax = -9;
+        int firstBase = -1, firstTip = -1;
+        float[] prevG = new float[HelmetAnimations.HORN_GLINTS];
+        for (int ms = 0; ms <= 12_000; ms++) {
+            float t = 30.0f + ms / 1000.0f;
+            for (int i = 0; i < HelmetAnimations.HORN_GLINTS; i++) {
+                float k = HelmetAnimations.hornGlint(i, t, 42L);
+                check(k >= 0 && k <= 1, "Hornglanz 0..1");
+                if (ms > 0) check(Math.abs(k - prevG[i]) < 0.02f, "Hornglanz stetig (i=" + i + ")");
+                prevG[i] = k;
+                gmin = Math.min(gmin, k);
+                gmax = Math.max(gmax, k);
+            }
+            if (firstBase < 0 && HelmetAnimations.hornGlint(0, t, 42L) > 0.5f) firstBase = ms;
+            if (firstBase >= 0 && firstTip < 0 && HelmetAnimations.hornGlint(HelmetAnimations.HORN_GLINTS - 1, t, 42L) > 0.5f) firstTip = ms;
+        }
+        check(gmin < 0.1f && gmax > 0.5f && gmax <= 0.62f, "Hornglanz dezent mit Schimmer (" + gmin + ".." + gmax + ")");
+        check(firstBase >= 0 && firstTip > firstBase, "Glanz wandert vom Ansatz zur Spitze (" + firstBase + " -> " + firstTip + ")");
+
+        // Visier: Kampf -> schnell zu; bleibt ~5 s nach dem letzten Signal unten; dann sanft hoch; ohne Spruenge
+        HelmetAnimations.Visor v = new HelmetAnimations.Visor();
+        long now = 1_000_000L;
+        float dt = 1 / 60f;
+        for (int i = 0; i < 60; i++) { v.update(now, false, dt); now += 16; }
+        check(v.closed == 0.0f, "Visier ohne Kampf offen");
+        v.update(now, true, dt);                       // Angriff/Treffer
+        long hit = now;
+        float last = v.closed;
+        boolean closedFast = false;
+        while (now - hit < 12_000L) {
+            now += 16;
+            v.update(now, false, dt);
+            check(Math.abs(v.closed - last) <= dt / HelmetAnimations.VISOR_CLOSE_S + 1e-4f, "Visier ohne Spruenge");
+            if (now - hit >= 250L && now - hit <= 300L) closedFast = v.closed >= 0.999f;
+            if (now - hit > 300L && now - hit < HelmetAnimations.COMBAT_HOLD_MS - 50L) check(v.closed >= 0.999f, "Visier bleibt im Kampf unten (" + (now - hit) + " ms)");
+            if (now - hit > HelmetAnimations.COMBAT_HOLD_MS + 50L && now - hit < HelmetAnimations.COMBAT_HOLD_MS + 400L) {
+                check(v.closed < 1.0f && v.closed > 0.0f, "Visier klappt sanft hoch (" + v.closed + ")");
+                check(last - v.closed <= dt / HelmetAnimations.VISOR_OPEN_S + 1e-4f, "Hochklappen langsam");
+            }
+            last = v.closed;
+        }
+        check(closedFast, "Visier faellt schnell (unter 0.3 s)");
+        check(v.closed == 0.0f, "Visier nach dem Kampf wieder offen");
+        // neues Signal waehrend des Hochklappens: sofort wieder runter
+        HelmetAnimations.Visor w = new HelmetAnimations.Visor();
+        w.update(0, true, dt);
+        for (int i = 1; i <= 400; i++) w.update(i * 16L, false, dt);
+        float mid = w.closed;
+        w.update(6_420L, false, dt);
+        w.update(6_436L, true, dt);
+        check(w.closed >= mid && HelmetAnimations.inCombat(6_436L, w.lastCombatMs), "neuer Angriff haelt das Visier unten");
+        // Karten-Zyklus stetig und im Bereich
+        float lc = HelmetAnimations.cardVisorClosed(0);
+        for (int ms = 1; ms <= 12_000; ms++) {
+            float c = HelmetAnimations.cardVisorClosed(ms / 1000.0f);
+            check(c >= 0 && c <= 1 && Math.abs(c - lc) <= 0.001f / HelmetAnimations.VISOR_CLOSE_S + 1e-4f, "Karten-Visier stetig");
+            lc = c;
+        }
+
+        // Federbusch: wippt beim Laufen, biegt sich beim Sprung, klingt ab; stetig, begrenzt
+        HelmetAnimations.Plume pl = new HelmetAnimations.Plume();
+        double y = 64.0;
+        float[] prevPose = HelmetAnimations.plumePose(pl, 0, 3L);
+        float walkPeak = 0, idlePeak = 0;
+        for (int i = 0; i < 60 * 8; i++) {
+            float t = i / 60f;
+            boolean walking = t >= 2 && t < 5;
+            pl.step(1 / 60f, walking ? 1.0f : 0.0f, t * 9.0f, y);
+            float[] pose = HelmetAnimations.plumePose(pl, t, 3L);
+            for (int k = 0; k < pose.length; k++) {
+                check(Math.abs(pose[k]) <= HelmetAnimations.PLUME_MAX_DEG + 1e-4f, "Feder begrenzt (" + pose[k] + ")");
+                check(Math.abs(pose[k] - prevPose[k]) < 2.0f, "Feder stetig (t=" + t + ")");
+            }
+            if (walking && t > 3) walkPeak = Math.max(walkPeak, Math.abs(pl.a));
+            if (t < 2) idlePeak = Math.max(idlePeak, Math.abs(pl.a));
+            prevPose = pose;
+        }
+        check(idlePeak < 0.2f && walkPeak > 0.8f, "Feder wippt beim Laufen (" + idlePeak + " / " + walkPeak + ")");
+        check(Math.abs(pl.a) < 0.5f, "Feder kommt zur Ruhe (" + pl.a + ")");
+        // Sprung: Abheben biegt die Feder nach hinten (Traegheit), in der Luft hebt sie sich, Landung federt nach
+        HelmetAnimations.Plume j = new HelmetAnimations.Plume();
+        double vy = 0;
+        y = 64;
+        for (int i = 0; i < 30; i++) j.step(1 / 60f, 0, 0, y);
+        float maxBack = 0, minBack = 0;
+        vy = 8.4;
+        for (int i = 0; i < 60; i++) {
+            vy -= 32 * (1 / 60.0);
+            y += vy / 60.0;
+            if (y < 64) { y = 64; vy = 0; }
+            j.step(1 / 60f, 0, 0, y);
+            maxBack = Math.max(maxBack, j.a);
+            minBack = Math.min(minBack, j.a);
+        }
+        check(maxBack > 1.0f && minBack < -0.3f, "Feder reagiert auf Sprung/Landung (" + minBack + ".." + maxBack + ")");
+        // riesiger Zeitsprung/Teleport: begrenzt, keine NaN
+        j.step(5.0f, 1.0f, 3.0f, 9999.0);
+        check(!Float.isNaN(j.a) && Math.abs(j.a) <= HelmetAnimations.PLUME_MAX_DEG, "Feder robust bei Zeitspruengen");
+        // Zustandstabelle der Helme
+        int before = HelmetAnimations.trackedStates();
+        HelmetAnimations.state(101, 1000L);
+        HelmetAnimations.State s1 = HelmetAnimations.state(102, 1000L);
+        check(s1 == HelmetAnimations.state(102, 2000L) && HelmetAnimations.trackedStates() == before + 2, "Helm-Zustand je Spieler");
+        HelmetAnimations.state(103, 40_000L);
+        check(HelmetAnimations.trackedStates() == 1, "alte Helm-Zustaende entfernt (" + HelmetAnimations.trackedStates() + ")");
     }
 
     // ---------------- Animationen ----------------

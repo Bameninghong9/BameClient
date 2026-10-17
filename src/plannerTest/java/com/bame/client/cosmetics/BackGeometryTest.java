@@ -39,6 +39,9 @@ public class BackGeometryTest {
         animationMath();
         face("gas_mask", true);
         face("aviator_goggles", false);
+        vrHeadset();
+        eyePatch();
+        vrScreenMath();
         butterfly();
         for (String id : BackCosmetics.BACK_IDS) back(id);
         stateTable();
@@ -414,6 +417,143 @@ public class BackGeometryTest {
         check(n > 0, id + ": Glanzlicht sichtbar");
         check(Math.abs(gx / n - 2.05) < 0.5 && Math.abs(gy / n - 28.15) < 0.6, id + ": Glanzlicht ueber dem Auge (" + gx / n + ", " + gy / n + ")");
         check(gzMax < -4.6, id + ": Glanzlicht vor dem Gesicht");
+    }
+
+    // =================================================================================================================
+    // FACE: VR-Headset und Augenklappe
+    // =================================================================================================================
+
+    /** Sichtbare Punkte vor dem Gesicht (z < -4.4) als 0.25-px-Raster (x -8..8, y 20..36). */
+    private static boolean[] frontCells(List<Pt> pts) {
+        boolean[] cells = new boolean[64 * 64];
+        for (Pt pt : pts) {
+            double[] p = pt.p();
+            if (p[2] >= -4.4) continue;
+            int cx = (int) Math.floor((p[0] + 8) * 4), cy = (int) Math.floor((p[1] - 20) * 4);
+            if (cx >= 0 && cx < 64 && cy >= 0 && cy < 64) cells[cy * 64 + cx] = true;
+        }
+        return cells;
+    }
+
+    private static boolean cellAt(boolean[] cells, double x, double y) {
+        int cx = (int) Math.floor((x + 8) * 4), cy = (int) Math.floor((y - 20) * 4);
+        return cells[cy * 64 + cx];
+    }
+
+    /** Gemeinsam: nichts im Kopf/Hut-Layer, kompakt, liegt vorn ohne Luecke am Hut-Layer an, Band hinten und seitlich. */
+    private static void tightFace(String id, List<Pt> pts, double frontXMin, double frontXMax) {
+        double minFrontZ = 1e9, maxBack = -1e9;
+        for (Pt pt : pts) {
+            double[] p = pt.p();
+            check(depthHeadInner(p) <= 1e-6, id + ": nichts im Kopf " + Arrays.toString(p));
+            check(depthHeadLayer(p) <= 0.03, id + ": nichts im Hut-Layer " + Arrays.toString(p));
+            check(Math.abs(p[0]) <= 6.0 && p[1] >= 22.0 && p[1] <= 33.0 && p[2] >= -10.0 && p[2] <= 5.6, id + ": kompakt " + Arrays.toString(p));
+            if (p[2] < 0 && p[0] > frontXMin && p[0] < frontXMax && p[1] > 25 && p[1] < 31) minFrontZ = Math.min(minFrontZ, -p[2]);
+            maxBack = Math.max(maxBack, p[2]);
+        }
+        check(minFrontZ >= 4.5 && minFrontZ <= 4.6, id + ": liegt ohne Luecke am Hut-Layer an (" + minFrontZ + ")");
+        check(maxBack > 4.5, id + ": Band hinten um den Kopf (" + maxBack + ")");
+        for (int s = -1; s <= 1; s += 2) {
+            double side = 1e9;
+            for (Pt pt : pts) if (pt.p()[0] * s > 0 && Math.abs(pt.p()[2]) < 2.0 && pt.p()[1] > 26 && pt.p()[1] < 31.5) side = Math.min(side, Math.abs(pt.p()[0]));
+            check(side >= 4.5 && side <= 4.6, id + ": Band liegt seitlich am Hut-Layer an (" + (s > 0 ? "links" : "rechts") + ", " + side + ")");
+        }
+    }
+
+    private static void vrHeadset() {
+        String id = HelmetAnimations.VR_HEADSET;
+        Geo g = load("face", id);
+        for (String b : new String[]{id, "base", "screen", "led"}) check(g.bones.containsKey(b), id + ": Knochen " + b);
+        List<Pt> pts = points(g, 1, null, b -> true);
+        tightFace(id, pts, -3.5, 3.5);
+        double sumX = 0;
+        for (Pt pt : pts) sumX += pt.p()[0];
+        check(Math.abs(sumX) < 0.02 * pts.size(), id + ": links/rechts symmetrisch (" + sumX / pts.size() + ")");
+        // beide Augen abgedeckt, Mund frei
+        boolean[] cells = frontCells(pts);
+        for (double y = 27.1; y < 29.0; y += 0.25) for (double ax = 1.1; ax < 3.0; ax += 0.25) for (int s = -1; s <= 1; s += 2) {
+            check(cellAt(cells, s * ax, y), id + ": deckt das Auge ab (" + s * ax + ", " + y + ")");
+        }
+        for (double y = 24.2; y < 25.6; y += 0.25) for (double x = -1.9; x < 2.0; x += 0.25) check(!cellAt(cells, x, y), id + ": Mund frei (" + x + ", " + y + ")");
+        // Bildschirmlicht: vor dem Glas, ueber beiden Augen; LED oben auf dem Gehaeuse
+        double baseFront = 1e9, scrMaxZ = -1e9;
+        for (Pt pt : points(g, 1, null, b -> b.equals("base"))) if (Math.abs(pt.p()[0]) < 2.5 && Math.abs(pt.p()[1] - 28.2) < 1.0) baseFront = Math.min(baseFront, pt.p()[2]);
+        int left = 0, right = 0;
+        for (Pt pt : points(g, 1, null, b -> b.equals("screen"))) {
+            double[] p = pt.p();
+            if (Math.abs(p[0]) < 2.6) scrMaxZ = Math.max(scrMaxZ, p[2]);
+            if (Math.abs(p[1] - 28.2) < 1.2) { if (p[0] > 1.0 && p[0] < 3.2) left++; if (p[0] < -1.0 && p[0] > -3.2) right++; }
+        }
+        check(scrMaxZ < baseFront, id + ": Bildschirmlicht vor dem Glas (" + scrMaxZ + " < " + baseFront + ")");
+        check(left > 50 && right > 50, id + ": leuchtende Linsen ueber beiden Augen (" + left + "/" + right + ")");
+        List<Pt> led = points(g, 1, null, b -> b.equals("led"));
+        check(!led.isEmpty(), id + ": Status-LED sichtbar");
+        for (Pt pt : led) check(pt.p()[1] > 30.8 && pt.p()[2] < -6.0, id + ": LED oben vorn auf dem Gehaeuse " + Arrays.toString(pt.p()));
+    }
+
+    private static void eyePatch() {
+        String id = HelmetAnimations.EYE_PATCH;
+        Geo g = load("face", id);
+        check(g.bones.containsKey(id) && g.bones.containsKey("base"), id + ": Knochen");
+        List<Pt> pts = points(g, 1, null, b -> true);
+        tightFace(id, pts, 0.2, 3.9);
+        boolean[] cells = frontCells(pts);
+        // linkes Auge (Spieler links = +x) abgedeckt, rechtes frei
+        for (double y = 27.1; y < 29.0; y += 0.25) for (double ax = 1.1; ax < 3.0; ax += 0.25) {
+            check(cellAt(cells, ax, y), id + ": deckt das linke Auge ab (" + ax + ", " + y + ")");
+            check(!cellAt(cells, -ax, y), id + ": rechtes Auge frei (" + -ax + ", " + y + ")");
+        }
+        // Mund frei; Band schraeg: auf der Stirn rechts hoeher als links, hinten schraeg
+        for (double y = 24.2; y < 26.5; y += 0.25) for (double x = -1.9; x < 2.0; x += 0.25) check(!cellAt(cells, x, y), id + ": Mund frei (" + x + ", " + y + ")");
+        double rightTemple = -1e9, leftSide = 1e9, backL = 0, backR = 0;
+        int nl = 0, nr = 0;
+        for (Pt pt : pts) {
+            double[] p = pt.p();
+            if (p[0] < -4.0 && p[2] < -4.0) rightTemple = Math.max(rightTemple, p[1]);
+            if (p[0] > 4.5 && Math.abs(p[2]) < 1.0) leftSide = Math.min(leftSide, p[1]);
+            if (p[2] > 4.5 && Math.abs(p[0]) > 2.0) { if (p[0] > 0) { backL += p[1]; nl++; } else { backR += p[1]; nr++; } }
+        }
+        check(rightTemple > 30.5 && leftSide < 29.0, id + ": Band schraeg ueber die Stirn (" + rightTemple + " / " + leftSide + ")");
+        check(nl > 0 && nr > 0 && backR / nr > backL / nl + 0.4, id + ": Band hinten schraeg (" + backR / Math.max(1, nr) + " / " + backL / Math.max(1, nl) + ")");
+        // Klappe: Lederschwarz, gewoelbt (Mitte weiter vorn als der Rand)
+        double centerZ = 1e9, rimSum = 0;
+        int rimN = 0;
+        for (Pt pt : pts) {
+            double[] p = pt.p();
+            if (p[2] > -4.5) continue;
+            double r = Math.hypot((p[0] - 2.05) / 1.78, (p[1] - 28.15) / 1.52);
+            if (r < 0.3) centerZ = Math.min(centerZ, p[2]);
+            if (r > 0.85 && r < 1.0) { rimSum += p[2]; rimN++; }   // Mittel: Oesen am Rand stoeren nicht
+        }
+        check(rimN > 0 && centerZ < rimSum / rimN - 0.12, id + ": Klappe gewoelbt (" + centerZ + " vs " + rimSum / Math.max(1, rimN) + ")");
+    }
+
+    private static void vrScreenMath() {
+        check(HelmetAnimations.isNewFace("VR_HEADSET") && HelmetAnimations.isNewFace("eye_patch") && !HelmetAnimations.isNewFace("gas_mask")
+                && !HelmetAnimations.isNewFace(null), "FACE-IDs (neu)");
+        check("VR_HEADSET".equals(HelmetAnimations.VR_HEADSET.toUpperCase()) && "EYE_PATCH".equals(HelmetAnimations.EYE_PATCH.toUpperCase()), "Shop-IDs = Mod-IDs in GROSS");
+        int prev = HelmetAnimations.screenArgb(0, 5L);
+        java.util.Set<Integer> colors = new java.util.HashSet<>();
+        float fmin = 9, fmax = -9;
+        for (int ms = 1; ms <= 60_000; ms += 5) {
+            float t = ms / 1000.0f;
+            int c = HelmetAnimations.screenArgb(t, 5L);
+            check(c == HelmetAnimations.screenArgb(t, 5L), "Bildschirm deterministisch");
+            float f = HelmetAnimations.screenFlicker(t, 5L);
+            fmin = Math.min(fmin, f);
+            fmax = Math.max(fmax, f);
+            int a = c >>> 24;
+            check(a >= 160 && a <= 255, "Bildschirm-Deckkraft dezent flackernd (" + a + ")");
+            for (int sh = 0; sh <= 16; sh += 8) {
+                check(Math.abs(((c >> sh) & 0xFF) - ((prev >> sh) & 0xFF)) <= 24, "Bildschirmfarbe ohne Spruenge (t=" + t + ")");
+            }
+            colors.add(HelmetAnimations.screenRgb((float) Math.floor(t / HelmetAnimations.SCENE_S) * HelmetAnimations.SCENE_S + 0.1f, 5L));
+            prev = c;
+        }
+        check(fmin >= 0.7f && fmin < 0.85f && fmax > 0.9f && fmax <= 1.0f, "Flackern dezent (" + fmin + ".." + fmax + ")");
+        check(colors.size() >= 3, "Farbe wechselt wie ein Bildschirm (" + colors.size() + " Farben)");
+        int l0 = HelmetAnimations.ledArgb(0) >>> 24, l1 = HelmetAnimations.ledArgb(0.75f) >>> 24;
+        check(l0 >= 150 && l1 >= 150 && l0 != l1, "LED atmet");
     }
 
     // =================================================================================================================

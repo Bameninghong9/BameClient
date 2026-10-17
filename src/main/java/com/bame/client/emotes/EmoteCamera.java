@@ -3,9 +3,12 @@ package com.bame.client.emotes;
 import com.bame.client.module.EmoteModule;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 /**
  * Kamera während der eigenen Liegestütze (nur lokal, nur Darstellung). Wird vom {@code CameraMixin} in
@@ -24,6 +27,8 @@ import net.minecraft.util.math.Vec3d;
  * Körper (fest in der Welt, schaukelt nicht mit), Übergang 0,8 s, mindestens 15° bzw. 8° Neigung. Schaukel und
  * Picknick ebenso: Drehpunkt über dem Sitz bzw. über dem sitzenden Spieler (folgt nicht dem Schaukeln). Beim Hexenbesen
  * liegt der Drehpunkt fest über der Mitte der Kreisbahn (die Kamera kreist nicht mit, die echte Position bleibt).
+ * Der fliegende Teppich hat keine eigene Kamera: in der selbst gewählten 3rd-Person liegt nur der Drehpunkt um so viel
+ * höher, wie der Kopf des schwebenden Reiters über seiner normalen Höhe ist (nie über eine Decke hinaus).
  */
 public final class EmoteCamera {
 
@@ -97,6 +102,24 @@ public final class EmoteCamera {
             return new Vec3d(MathHelper.lerp(hb, current.x, h[0]), MathHelper.lerp(hb, current.y, h[1]),
                     MathHelper.lerp(hb, current.z, h[2]));
         }
+        // Fliegender Teppich: Drehpunkt um die Anhebung des Kopfes höher, damit der schwebende Spieler im Bild bleibt
+        var player = MinecraftClient.getInstance().player;
+        if (focused != null && focused == player && !isPushUpCamera(focused)) {
+            double lift = FlyingCarpetCoordinator.localHeadLift(player);
+            if (lift > 1.0E-4) {
+                // Der Kopf des Reiters duckt sich beim Schleichen nicht: von der normalen Augenhöhe aus anheben
+                double eye = MathHelper.lerp(tickProgress, focused.lastY, focused.getY())
+                        + player.getDimensions(EntityPose.STANDING).eyeHeight();
+                double y = Math.max(current.y, eye + lift);
+                // Nie über eine Decke hinaus (sonst stünde die Kamera im Block)
+                HitResult hit = focused.getEntityWorld().raycast(new RaycastContext(current,
+                        new Vec3d(current.x, y + 0.25, current.z), RaycastContext.ShapeType.VISUAL,
+                        RaycastContext.FluidHandling.NONE, focused));
+                if (hit.getType() != HitResult.Type.MISS) y = Math.min(y, Math.max(current.y, hit.getPos().y - 0.25));
+                if (y > current.y + 1.0E-4) return new Vec3d(current.x, y, current.z);
+            }
+            return null;
+        }
         if (!isPushUpCamera(focused) || !(focused instanceof LivingEntity living)) return null;
         float t = EmoteModule.getElapsedSeconds();
         float b = PushUpMotion.cameraBlend(t);
@@ -147,6 +170,8 @@ public final class EmoteCamera {
     /** Neigung der Kamera (Grad, positiv = nach unten) mit Mindestwert, weich eingeblendet. */
     public static float pitch(float pitch) {
         MinecraftClient mc = MinecraftClient.getInstance();
+        // Nur Liegestütze und Prop-Emotes mit eigener Kamera (beim fliegenden Teppich ist nur der Drehpunkt angehoben)
+        if (!isEmoteCamera(mc.getCameraEntity())) return pitch;
         boolean first = mc.options.getPerspective().isFirstPerson();
         float min;
         if (isPropEmote(EmoteModule.getCurrentEmote())) {

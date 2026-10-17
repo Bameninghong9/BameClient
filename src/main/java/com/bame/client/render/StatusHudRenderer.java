@@ -36,49 +36,6 @@ public class StatusHudRenderer implements HudRenderCallback {
         new ItemStack(Items.TOTEM_OF_UNDYING)
     };
 
-    private static final ItemStack[] PREVIEW_INV = new ItemStack[36];
-    static {
-        PREVIEW_INV[9] = new ItemStack(Items.ENDER_PEARL, 16);
-        PREVIEW_INV[10] = new ItemStack(Items.GOLDEN_APPLE, 16);
-        PREVIEW_INV[11] = new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3);
-        PREVIEW_INV[12] = new ItemStack(Items.SPLASH_POTION);
-        PREVIEW_INV[13] = new ItemStack(Items.SPLASH_POTION);
-        PREVIEW_INV[14] = new ItemStack(Items.POTION);
-        PREVIEW_INV[15] = new ItemStack(Items.POTION);
-        PREVIEW_INV[16] = new ItemStack(Items.NETHERITE_PICKAXE);
-        PREVIEW_INV[17] = new ItemStack(Items.NETHERITE_AXE);
-
-        PREVIEW_INV[18] = new ItemStack(Items.NETHERITE_SHOVEL);
-        PREVIEW_INV[19] = new ItemStack(Items.ARROW, 64);
-        PREVIEW_INV[20] = new ItemStack(Items.WIND_CHARGE, 8);
-        PREVIEW_INV[21] = new ItemStack(Items.COBWEB, 16);
-        PREVIEW_INV[22] = new ItemStack(Items.OBSIDIAN, 32);
-        PREVIEW_INV[23] = new ItemStack(Items.WATER_BUCKET);
-        PREVIEW_INV[24] = new ItemStack(Items.TOTEM_OF_UNDYING);
-        PREVIEW_INV[25] = new ItemStack(Items.EXPERIENCE_BOTTLE, 64);
-        PREVIEW_INV[26] = new ItemStack(Items.GOLDEN_CARROT, 64);
-
-        PREVIEW_INV[27] = new ItemStack(Items.FIREWORK_ROCKET, 32);
-        PREVIEW_INV[28] = new ItemStack(Items.RESPAWN_ANCHOR, 4);
-        PREVIEW_INV[29] = new ItemStack(Items.GLOWSTONE, 32);
-        PREVIEW_INV[30] = new ItemStack(Items.SPLASH_POTION);
-        PREVIEW_INV[31] = new ItemStack(Items.ANVIL);
-        PREVIEW_INV[32] = new ItemStack(Items.CRAFTING_TABLE);
-        PREVIEW_INV[33] = new ItemStack(Items.TOTEM_OF_UNDYING);
-        PREVIEW_INV[34] = new ItemStack(Items.CROSSBOW);
-        PREVIEW_INV[35] = new ItemStack(Items.TOTEM_OF_UNDYING);
-
-        PREVIEW_INV[0] = new ItemStack(Items.NETHERITE_SWORD);
-        PREVIEW_INV[1] = new ItemStack(Items.GOLDEN_APPLE, 16);
-        PREVIEW_INV[2] = new ItemStack(Items.ENDER_PEARL, 16);
-        PREVIEW_INV[3] = new ItemStack(Items.SPLASH_POTION);
-        PREVIEW_INV[4] = new ItemStack(Items.BOW);
-        PREVIEW_INV[5] = new ItemStack(Items.WIND_CHARGE, 4);
-        PREVIEW_INV[6] = new ItemStack(Items.COBWEB, 8);
-        PREVIEW_INV[7] = new ItemStack(Items.SHIELD);
-        PREVIEW_INV[8] = new ItemStack(Items.TOTEM_OF_UNDYING);
-    }
-
     private static void drawFastSlot(DrawContext c, int x, int y, int size) {
         c.fill(x, y, x + size, y + size, 0x2A121622);
         c.fill(x, y, x + size, y + 1, 0x1EFFFFFF);
@@ -206,17 +163,14 @@ public class StatusHudRenderer implements HudRenderCallback {
 
         prof.swap("caeser_hud_armor");
         if (ArmorHudModule.enabled) {
-            int w = getArmorHudWidth(client);
-            int x = ArmorHudModule.hudX;
-            if (x == -1) {
-                x = (client.getWindow().getScaledWidth() - (int)(w * ArmorHudModule.scale)) / 2;
-            }
-            int y = ArmorHudModule.hudY;
-            if (y == -1) {
-                y = client.getWindow().getScaledHeight() - 56;
-            }
-            float s = ArmorHudModule.scale;
-            renderArmorHud(context, clampHudX(x, w, s), clampHudY(y, getArmorHudHeight(client, false), s), s, false);
+            // Stil, Haltbarkeitsanzeige, freie Position oder Hotbar-Anker: ArmorHudRenderer (begrenzt selbst am Rand)
+            ArmorHudRenderer.renderInGame(context);
+        }
+
+        prof.swap("caeser_hud_inventory");
+        if (InventoryHudModule.enabled) {
+            // Inventar-Vorschau (3x9, optional Hotbar-Reihe): InventoryHudRenderer (begrenzt selbst am Rand)
+            InventoryHudRenderer.renderInGame(context);
         }
 
         prof.swap("caeser_hud_reach");
@@ -614,11 +568,6 @@ public class StatusHudRenderer implements HudRenderCallback {
     private static final Identifier HEART_FULL = Identifier.ofVanilla("hud/heart/full");
     private static final Identifier HEART_HALF = Identifier.ofVanilla("hud/heart/half");
 
-    private static final String[] PERCENT_TEXT = new String[101];
-    static {
-        for (int i = 0; i <= 100; i++) PERCENT_TEXT[i] = i + "%";
-    }
-
     // Ziel-HUD: HP- und Entfernungstext nur bei geänderter Zahl neu formatieren (gleiches Format wie früher)
     private static int hpKey;
     private static String hpStrCached;
@@ -688,24 +637,15 @@ public class StatusHudRenderer implements HudRenderCallback {
         return TargetHudModule.customHeight > 0 ? Math.max(h, TargetHudModule.customHeight) : h;
     }
 
+    /** Breite des Armor HUD in der Editor-Vorschau (Platzhalter, falls keine Rüstung getragen wird). */
     public static int getArmorHudWidth(MinecraftClient client) {
-        return ArmorHudModule.customWidth > 0 ? Math.max(56, ArmorHudModule.customWidth) : 56;
+        return ArmorHudRenderer.width(true);
     }
     public static int getArmorHudHeight() {
-        return getArmorHudHeight(MinecraftClient.getInstance(), true);
+        return ArmorHudRenderer.height(true);
     }
     public static int getArmorHudHeight(MinecraftClient client, boolean isPreview) {
-        if (client == null) client = MinecraftClient.getInstance();
-        int count = 0;
-        if (client.player != null) {
-            if (!client.player.getEquippedStack(EquipmentSlot.HEAD).isEmpty()) count++;
-            if (!client.player.getEquippedStack(EquipmentSlot.CHEST).isEmpty()) count++;
-            if (!client.player.getEquippedStack(EquipmentSlot.LEGS).isEmpty()) count++;
-            if (!client.player.getEquippedStack(EquipmentSlot.FEET).isEmpty()) count++;
-        }
-        if (count == 0 && isPreview) count = 4;
-        int naturalH = Math.max(22, count * 22 + 4);
-        return ArmorHudModule.customHeight > 0 ? Math.max(naturalH, ArmorHudModule.customHeight) : naturalH;
+        return ArmorHudRenderer.height(isPreview);
     }
 
     private static int getPingValue(MinecraftClient client) {
@@ -958,59 +898,9 @@ public class StatusHudRenderer implements HudRenderCallback {
         c.getMatrices().popMatrix();
     }
 
+    /** Armor HUD an einer vorgegebenen Stelle (Stile und Haltbarkeitsanzeige: {@link ArmorHudRenderer}). */
     public static void renderArmorHud(DrawContext c, int x, int y, float scale, boolean isPreview) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        List<ItemStack> pieces = new ArrayList<>();
-        if (client.player != null) {
-            ItemStack head = client.player.getEquippedStack(EquipmentSlot.HEAD);
-            ItemStack chest = client.player.getEquippedStack(EquipmentSlot.CHEST);
-            ItemStack legs = client.player.getEquippedStack(EquipmentSlot.LEGS);
-            ItemStack feet = client.player.getEquippedStack(EquipmentSlot.FEET);
-
-            if (!head.isEmpty()) pieces.add(head);
-            if (!chest.isEmpty()) pieces.add(chest);
-            if (!legs.isEmpty()) pieces.add(legs);
-            if (!feet.isEmpty()) pieces.add(feet);
-        }
-        if (pieces.isEmpty() && isPreview) {
-            pieces.add(new ItemStack(Items.NETHERITE_HELMET));
-            pieces.add(new ItemStack(Items.NETHERITE_CHESTPLATE));
-            pieces.add(new ItemStack(Items.NETHERITE_LEGGINGS));
-            pieces.add(new ItemStack(Items.NETHERITE_BOOTS));
-        }
-        if (pieces.isEmpty()) return;
-
-        int w = getArmorHudWidth(client);
-        int h = Math.max(22, pieces.size() * 22 + 4);
-
-        c.getMatrices().pushMatrix();
-        c.getMatrices().translate((float) x, (float) y);
-        c.getMatrices().scale(scale, scale);
-
-        drawBoxBg(c, 0, 0, w, h, ArmorHudModule.bgMode, ArmorHudModule.outlineColor);
-
-        for (int i = 0; i < pieces.size(); i++) {
-            ItemStack stack = pieces.get(i);
-            int rowY = 2 + i * 22;
-
-            c.drawItem(stack, 6, rowY + 3);
-
-            int pct = 100;
-            if (stack.isDamageable()) {
-                int max = stack.getMaxDamage();
-                int dmg = stack.getDamage();
-                pct = Math.max(0, Math.min(100, Math.round(((float) (max - dmg) / (float) max) * 100.0f)));
-            }
-            String pctStr = PERCENT_TEXT[pct];
-            int pctColor = pct > 50 ? 0xFF55FF55 : (pct > 25 ? 0xFFFFAA00 : 0xFFFF5555);
-            c.drawText(client.textRenderer, CustomGuiUtils.getFontText(pctStr), 27, rowY + 7, pctColor, ArmorHudModule.bgMode == 1);
-
-            if (i < pieces.size() - 1) {
-                c.fill(3, rowY + 22, w - 3, rowY + 23, 0x25FFFFFF);
-            }
-        }
-
-        c.getMatrices().popMatrix();
+        ArmorHudRenderer.render(c, x, y, scale, isPreview);
     }
 
     private static final Identifier TOOLTIP_BG = Identifier.ofVanilla("tooltip/background");

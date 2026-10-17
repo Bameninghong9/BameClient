@@ -481,6 +481,19 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
 
         int actualLight = light > 0 ? light : 0x00F000F0;
 
+        if (emote == EmoteType.FLYING_CARPET) {
+            // Nur über den Feature-Renderer (mit gepostetem Modell): so wird der Teppich genau einmal gezeichnet
+            if (model != null) {
+                renderFlyingCarpet(matrices, commandQueue, actualLight, state, active);
+            }
+            return;
+        }
+        if (model != null && active == null) {
+            // Nach dem Ende sinkt der Teppich mit dem Reiter zu Boden und rollt sich zusammen (bei einem anderen Emote
+            // verschwindet er sofort)
+            renderFlyingCarpetOutro(matrices, commandQueue, actualLight, state);
+        }
+
         if (emote == EmoteType.BUTTERFLY) {
             if (model != null) {
                 renderButterflyKnife(matrices, commandQueue, actualLight, model, t);
@@ -1444,6 +1457,122 @@ public class EmotePropFeatureRenderer extends FeatureRenderer<PlayerEntityRender
     private static void bedrockSpace(MatrixStack matrices) {
         matrices.scale(-1.0F, -1.0F, 1.0F);
         matrices.translate(0.0F, -BEDROCK_GROUND, 0.0F);
+    }
+
+    // ------------------------------------------------------------------
+    // Fliegender Teppich
+    // ------------------------------------------------------------------
+
+    public static final Identifier FLYING_CARPET_TEXTURE = Identifier.of("bameclient", "textures/entity/flying_carpet.png");
+    private static final String FLYING_CARPET_MODEL = "assets/bameclient/emotes/flying_carpet/flying_carpet.geo.json";
+    private static BedrockCosmeticModel flyingCarpetModel;
+    private static boolean flyingCarpetLoaded;
+    private static final FlyingCarpetMotion.Pose FC_POSE = new FlyingCarpetMotion.Pose();
+    private static final FlyingCarpetLogic.Shape FC_SHAPE = new FlyingCarpetLogic.Shape();
+    private static final String[] FC_SEGMENTS = new String[FlyingCarpetLogic.SEGMENTS];
+    private static final String[] FC_FRONT = new String[FlyingCarpetLogic.TASSELS];
+    private static final String[] FC_BACK = new String[FlyingCarpetLogic.TASSELS];
+
+    static {
+        for (int i = 0; i < FC_SEGMENTS.length; i++) FC_SEGMENTS[i] = "seg" + i;
+        for (int i = 0; i < FC_FRONT.length; i++) {
+            FC_FRONT[i] = "tf" + i;
+            FC_BACK[i] = "tb" + i;
+        }
+    }
+
+    private static BedrockCosmeticModel flyingCarpet() {
+        if (!flyingCarpetLoaded) {
+            flyingCarpetLoaded = true;
+            flyingCarpetModel = loadProp(FLYING_CARPET_MODEL);
+        }
+        return flyingCarpetModel;
+    }
+
+    /**
+     * Fliegender Teppich: 6 Segmente quer zur Fahrtrichtung (Kette seg0..seg5) und je 4 Quasten an den kurzen Enden
+     * (Bedrock-Modell aus {@code emotes/flying_carpet/flying_carpet.geo.json}), Entity-Cutout ohne Culling mit dem
+     * Licht des Spielers. Schwebehöhe, Schweben und Neigung kommen aus {@code setupTransforms} und gelten für Reiter und
+     * Teppich gleich; hier nur Lage unter dem Spieler (in der Pose am Boden) und Verformung (Ausrollen, Welle,
+     * Durchbiegen, Quasten) aus {@link FlyingCarpetLogic#shape}. Der Teppich wächst mit der Spieler-Skalierung mit.
+     */
+    private static void renderFlyingCarpet(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                           PlayerEntityRenderState state, EmoteAnimator.ActiveEmote active) {
+        if (active == null || !EmoteAnimator.hammockTransformApplies(state)) return;
+        BedrockCosmeticModel carpet = flyingCarpet();
+        if (carpet == null) return;
+        FlyingCarpetCoordinator.View v = FlyingCarpetCoordinator.view(state, active);
+        FlyingCarpetMotion.Pose p = FC_POSE;
+        FlyingCarpetMotion.timeline(v.t, p);
+        FlyingCarpetLogic.Shape sh = FC_SHAPE;
+        FlyingCarpetLogic.shape(p.unroll, p.rise, v.speed, v.sneak, v.wave, v.tassel, v.flex, sh);
+        drawFlyingCarpet(matrices, queue, light, carpet, sh, p.carpetMid, sh.scale);
+    }
+
+    /**
+     * Auslaufen nach dem Ende: sinkt mit dem Reiter zu Boden (Höhe und Neigung aus {@code setupTransforms}), Welle und
+     * Quasten beruhigen sich, dann rollt er sich zur Mitte ein und wird kleiner.
+     */
+    private static void renderFlyingCarpetOutro(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                                PlayerEntityRenderState state) {
+        FlyingCarpetCoordinator.OutroView o = FlyingCarpetCoordinator.outro(state);
+        if (o == null || !EmoteAnimator.hammockTransformApplies(state)) return;
+        BedrockCosmeticModel carpet = flyingCarpet();
+        if (carpet == null) return;
+        FlyingCarpetMotion.Outro out = o.motion;
+        if (!out.visible) return;
+        FlyingCarpetLogic.Shape sh = FC_SHAPE;
+        float dyn = FlyingCarpetLogic.clamp01(o.w0) * out.descent;
+        FlyingCarpetLogic.shape(out.unroll, dyn, o.speed, o.sneak, o.wave, o.tassel, o.flex, sh);
+        drawFlyingCarpet(matrices, queue, light, carpet, sh, FlyingCarpetLogic.GROUND_MID_Y - out.sink, sh.scale * out.shrink);
+    }
+
+    /**
+     * Zeichnet den Teppich: Modell-Skalierung herausrechnen (Rahmen aus {@link FlyingCarpetLogic}), Mitte auf
+     * {@code mid} über den Füßen, dann Bedrock-Raum. Die Knochenwerte (Segmente: Drehung relativ zum vorherigen, seg0
+     * verschoben, damit die Mitte am Anker bleibt; Quasten) werden erst im Zeichen-Callback auf das geteilte Modell
+     * gesetzt, weil die Queue verzögert zeichnet und alle Spieler dasselbe Modell nutzen.
+     */
+    private static void drawFlyingCarpet(MatrixStack matrices, OrderedRenderCommandQueue queue, int light,
+                                         BedrockCosmeticModel carpet, FlyingCarpetLogic.Shape sh, double mid, float scale) {
+        if (!(scale > 0.001F)) return;
+        int n = FlyingCarpetLogic.SEGMENTS, k4 = FlyingCarpetLogic.TASSELS;
+        // [0..5] Segmente, [6] y, [7] z von seg0, [8..11] vordere, [12..15] hintere Quasten (blockbenchAxisFix: −Winkel)
+        final float[] a = new float[n + 2 + 2 * k4];
+        float prev = 0.0F;
+        for (int i = 0; i < n; i++) {
+            a[i] = -(sh.seg[i] - prev);
+            prev = sh.seg[i];
+        }
+        a[n] = (float) sh.jy[0];
+        a[n + 1] = (float) (sh.jz[0] + 0.5 * FlyingCarpetLogic.LENGTH_PX);
+        for (int i = 0; i < k4; i++) {
+            a[n + 2 + i] = -sh.front[i];
+            a[n + 2 + k4 + i] = -sh.back[i];
+        }
+        final int lt = light;
+        matrices.push();
+        // Umkehrung von scale(-1,-1,1) · scale(0.9375) · translate(0,-1.501,0): Rahmen von setupTransforms (Blöcke)
+        matrices.translate(0.0F, 1.501F, 0.0F);
+        matrices.scale(1.0F / MODEL_SCALE, 1.0F / MODEL_SCALE, 1.0F / MODEL_SCALE);
+        matrices.scale(-1.0F, -1.0F, 1.0F);
+        matrices.translate(0.0F, (float) mid, (float) FlyingCarpetLogic.CENTER_Z);
+        if (scale < 0.999F) matrices.scale(scale, scale, scale);
+        // Anker (Bedrock y = halbe Dicke) auf die Mitte
+        matrices.translate(0.0F, (float) (-0.5 * FlyingCarpetLogic.THICK_PX / 16.0), 0.0F);
+        bedrockSpace(matrices);
+        queue.getBatchingQueue(0).submitCustom(matrices, RenderLayers.entityCutoutNoCull(FLYING_CARPET_TEXTURE),
+                (entry, consumer) -> {
+                    carpet.resetAllAnimations();
+                    for (int i = 0; i < n; i++) carpet.setBoneRotation(FC_SEGMENTS[i], a[i], 0.0F, 0.0F);
+                    carpet.setBoneTranslation(FC_SEGMENTS[0], 0.0F, a[n], a[n + 1]);
+                    for (int i = 0; i < k4; i++) {
+                        carpet.setBoneRotation(FC_FRONT[i], a[n + 2 + i], 0.0F, 0.0F);
+                        carpet.setBoneRotation(FC_BACK[i], a[n + 2 + k4 + i], 0.0F, 0.0F);
+                    }
+                    carpet.render(entry, consumer, lt, 0, 1, false, 0xFFFFFFFF, null);
+                });
+        matrices.pop();
     }
 
     /** Wurfversatz (Modellraum), Armtransformation und Messer-Kette aus ButterflyKnifeAnimation; endet am Pivot (px-Skala). */

@@ -42,6 +42,8 @@ public class PlayerEntityRendererMixin {
         }
         // Lagerfeuer: Spieler wird vom Feuer angestrahlt (nur Spieler mit CAMPFIRE, kein echtes Licht in der Welt)
         EmoteAnimator.applyCampfireLight(state);
+        // Fliegender Teppich: Nametag so weit höher, wie der schwebende Reiter gezeichnet wird (nur der Render-State)
+        com.bame.client.emotes.FlyingCarpetCoordinator.liftNameLabel(state);
     }
 
     /**
