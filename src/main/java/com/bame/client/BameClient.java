@@ -112,6 +112,13 @@ public class BameClient implements ClientModInitializer {
                     } finally {
                         com.bame.client.util.Prof.pop();
                     }
+                } else if (screen instanceof net.minecraft.client.gui.screen.GameMenuScreen) {
+                    // Server wechseln: Weltkugel oben rechts im Esc-Menü öffnet die Server-Liste
+                    try {
+                        com.bame.client.gui.ServerSwitchButtonWidget.attach(screen);
+                    } catch (Throwable t) {
+                        LOGGER.warn("Failed to add server switch button to game menu", t);
+                    }
                 }
             } finally {
                 com.bame.client.util.Prof.pop();

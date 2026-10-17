@@ -1,4 +1,5 @@
 {
   "key.category.bameclient.caeser": "Caeser Client",
-  "key.bameclient.high_five_accept": "High-Five annehmen"
+  "key.bameclient.high_five_accept": "High-Five annehmen",
+  "bameclient.switch_server": "Server wechseln"
 }
